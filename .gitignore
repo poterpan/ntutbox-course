@@ -1,0 +1,37 @@
+# --- secrets / 個資 (公開 repo 嚴禁) ---
+.env
+.env.*
+*.local
+secrets/
+*.key
+
+# --- Node / Next.js ---
+node_modules/
+.next/
+out/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+.vercel/
+coverage/
+
+# --- Python (crawler) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- 爬蟲產生物 (發佈到 R2，不進 git；canonical NDJSON 例外，見 crawler/) ---
+crawler/dist/
+*.sqlite
+*.sqlite-*
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
