@@ -11,6 +11,7 @@ interface UiState {
   viewMode: "week" | "day";
   selectedDay: number;       // for mobile day view
   libraryOpen: boolean;      // mobile bottom sheet
+  staleDropped: string[];    // offering_ids removed by reconcile (spec §4 — never silently discard)
   setQuery: (q: string) => void;
   setFilters: (f: FilterState) => void;
   toggleFilterValue: (key: "weekdays" | "periods" | "colleges" | "units" | "classes", value: string | number) => void;
@@ -20,11 +21,13 @@ interface UiState {
   setViewMode: (m: "week" | "day") => void;
   setSelectedDay: (d: number) => void;
   setLibraryOpen: (v: boolean) => void;
+  setStaleDropped: (ids: string[]) => void;
+  dismissStale: () => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
   query: "", filters: EMPTY_FILTER, activeSlot: null, detailOfferingId: null,
-  viewMode: "week", selectedDay: 1, libraryOpen: false,
+  viewMode: "week", selectedDay: 1, libraryOpen: false, staleDropped: [],
   setQuery: (query) => set({ query }),
   setFilters: (filters) => set({ filters }),
   toggleFilterValue: (key, value) => set((s) => {
@@ -38,4 +41,6 @@ export const useUiStore = create<UiState>((set) => ({
   setViewMode: (viewMode) => set({ viewMode }),
   setSelectedDay: (selectedDay) => set({ selectedDay }),
   setLibraryOpen: (libraryOpen) => set({ libraryOpen }),
+  setStaleDropped: (staleDropped) => set({ staleDropped }),
+  dismissStale: () => set({ staleDropped: [] }),
 }));

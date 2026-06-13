@@ -3,6 +3,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { useTermBootstrap } from "./use-term-bootstrap";
 import { useTermStore } from "@/store/term-store";
 import { useDraftStore } from "@/store/draft-store";
+import { useUiStore } from "@/store/ui-store";
 
 vi.mock("@/lib/data", () => ({
   getDataSource: () => ({
@@ -17,6 +18,7 @@ vi.mock("@/lib/data", () => ({
 beforeEach(() => {
   useDraftStore.setState({ termKey: "", favorites: [], placed: [{ offering_id: "GONE", priority: 1 }] });
   useTermStore.setState({ status: "idle", termKey: null, bundle: null, error: null, generation: 0 });
+  useUiStore.setState({ staleDropped: [] });
 });
 
 describe("useTermBootstrap", () => {
@@ -24,5 +26,12 @@ describe("useTermBootstrap", () => {
     renderHook(() => useTermBootstrap());
     await waitFor(() => expect(useTermStore.getState().status).toBe("ready"));
     await waitFor(() => expect(useDraftStore.getState().placed).toEqual([]));
+  });
+
+  it("surfaces stale dropped ids in useUiStore.staleDropped after reconcile", async () => {
+    renderHook(() => useTermBootstrap());
+    await waitFor(() => expect(useTermStore.getState().status).toBe("ready"));
+    // "GONE" is not in the mocked catalog (only "A" exists), so it must appear in staleDropped.
+    await waitFor(() => expect(useUiStore.getState().staleDropped).toContain("GONE"));
   });
 });

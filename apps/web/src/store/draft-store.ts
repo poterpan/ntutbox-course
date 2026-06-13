@@ -65,9 +65,17 @@ export const useDraftStore = create<DraftState>()(
       },
     }),
     {
-      name: "ntutbox-draft",
+      name: "ntutbox-draft-_init",
       // one persisted blob per term: partition by termKey in the storage key.
       partialize: (s) => ({ schema_version: s.schema_version, termKey: s.termKey, favorites: s.favorites, placed: s.placed }),
+      version: DRAFT_SCHEMA,
+      migrate: (persisted, version) => {
+        if (version !== DRAFT_SCHEMA) {
+          // Unknown schema — return a safe empty draft rather than loading corrupt state.
+          return { schema_version: DRAFT_SCHEMA, termKey: "", favorites: [], placed: [] };
+        }
+        return persisted as DraftState;
+      },
     },
   ),
 );

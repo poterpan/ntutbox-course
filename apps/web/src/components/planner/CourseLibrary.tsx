@@ -21,16 +21,17 @@ export function CourseLibrary() {
   }, [courses]);
 
   const results = useMemo(() => {
-    const filteredIds = new Set(applyFilters(courses, filters).map((c) => c.offering_id));
+    const filtered = applyFilters(courses, filters);
+    if (!query.trim()) return filtered;
     const searchIds = new Set(search(index, query).map((d) => d.offeringId));
-    return courses.filter((c) => filteredIds.has(c.offering_id) && searchIds.has(c.offering_id));
+    return filtered.filter((c) => searchIds.has(c.offering_id));
   }, [courses, index, filters, query]);
 
   return (
     <div className="flex h-full flex-col gap-3 p-3">
       <CourseSearchBar />
       <FilterChips units={units} classes={classes.map((k) => ({ code: k.code, name: k.name ?? k.code, kind: k.kind }))} />
-      <div className="text-[11px] text-zinc-500">{results.length} 門課{results.length >= 200 ? "（已達上限，請縮小條件）" : ""}</div>
+      <div className="text-[11px] text-zinc-500">{results.length} 門課{results.length > 200 ? "（已達上限，請縮小條件）" : ""}</div>
       <div className="min-h-0 flex-1"><CourseList courses={results.slice(0, 200)} /></div>
     </div>
   );

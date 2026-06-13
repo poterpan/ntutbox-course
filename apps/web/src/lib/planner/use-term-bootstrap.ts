@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { getDataSource } from "@/lib/data";
 import { useTermStore } from "@/store/term-store";
 import { useDraftStore } from "@/store/draft-store";
+import { useUiStore } from "@/store/ui-store";
 
 const DEFAULT_TERM = "115-1";
 
@@ -23,7 +24,10 @@ export function useTermBootstrap(termKey: string = DEFAULT_TERM) {
   useEffect(() => {
     if (status === "ready" && bundle) {
       const valid = new Set((bundle.catalog.courses ?? []).map((c) => c.offering_id));
-      useDraftStore.getState().reconcile(valid);
+      const dropped = useDraftStore.getState().reconcile(valid);
+      if (dropped.length) {
+        useUiStore.getState().setStaleDropped(dropped);
+      }
     }
   }, [status, bundle]);
 }

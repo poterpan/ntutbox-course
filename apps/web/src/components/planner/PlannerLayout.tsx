@@ -19,6 +19,8 @@ export function PlannerLayout() {
   const enrollAt = useTermStore((s) => s.enrollmentObservedAt());
   const libraryOpen = useUiStore((s) => s.libraryOpen);
   const setLibraryOpen = useUiStore((s) => s.setLibraryOpen);
+  const staleDropped = useUiStore((s) => s.staleDropped);
+  const dismissStale = useUiStore((s) => s.dismissStale);
 
   return (
     <main className="flex h-dvh flex-col">
@@ -33,6 +35,21 @@ export function PlannerLayout() {
       {status === "error" && (
         <GlassPanel className="m-4 p-4 text-sm text-red-600">
           載入失敗：{error}（請重試）
+        </GlassPanel>
+      )}
+
+      {staleDropped.length > 0 && (
+        <GlassPanel className="mx-4 mt-2 flex items-center justify-between gap-3 p-3 text-sm text-amber-700">
+          <span>
+            已移除 {staleDropped.length} 門在本學期資料中不存在的課程（草稿已更新）
+          </span>
+          <button
+            onClick={dismissStale}
+            className="shrink-0 rounded px-2 py-0.5 text-xs hover:bg-amber-100"
+            aria-label="關閉提示"
+          >
+            關閉
+          </button>
         </GlassPanel>
       )}
 
