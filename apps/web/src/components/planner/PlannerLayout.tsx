@@ -12,6 +12,7 @@ import { CourseDetailDrawer } from "./CourseDetailDrawer";
 import { CreditSummary } from "./CreditSummary";
 import { TermSwitcher } from "./TermSwitcher";
 import { FavoritesList } from "./FavoritesList";
+import { NoTimeTray } from "./NoTimeTray";
 
 const fmtDate = (iso: string | null) => (iso ? iso.slice(0, 10) : "—");
 
@@ -62,6 +63,7 @@ export function PlannerLayout() {
               <WeeklyGrid />
             )}
           </div>
+          <NoTimeTray />
         </GlassPanel>
 
         {/* desktop right panel: 課程庫 / 收藏 toggle */}

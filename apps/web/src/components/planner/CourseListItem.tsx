@@ -10,6 +10,7 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
   const isFav = favorites.includes(course.offering_id);
   const isPlaced = placed.some((p) => p.offering_id === course.offering_id);
   const teachers = (course.teachers ?? []).map((t) => t.name).join("、") || "—";
+  const noTime = (course.meetings ?? []).length === 0;
 
   return (
     <div className="group flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-black/[0.07] transition-colors hover:bg-blue-50/60 hover:ring-[var(--accent)]/30">
@@ -19,6 +20,11 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
           <span className="shrink-0 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-blue-700">
             {course.credits ?? "?"} 學分
           </span>
+          {noTime && (
+            <span className="shrink-0 rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-[var(--ink-soft)]">
+              無時段
+            </span>
+          )}
         </div>
         <div className="mt-0.5 truncate text-[11px] font-medium text-[var(--ink-soft)]">
           {teachers} · {course.offering_id}
