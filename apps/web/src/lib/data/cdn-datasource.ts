@@ -1,5 +1,5 @@
 import type { DataSource } from "./datasource";
-import { fetchJson, DataLoadError } from "./datasource";
+import { fetchJson, DataLoadError, isAbortError } from "./datasource";
 import type { Manifest, TermBundle, TermCatalog, PeriodTable, ClassDirectory, EnrollmentLatest } from "./types";
 
 export class HttpDataSource implements DataSource {
@@ -21,7 +21,7 @@ export class HttpDataSource implements DataSource {
     try {
       enrollment = await fetchJson<EnrollmentLatest>(`${dir}/enrollment.json`, signal);
     } catch (e) {
-      if (e instanceof DataLoadError && (e.cause as Error)?.name === "AbortError") throw e;
+      if (e instanceof DataLoadError && isAbortError(e.cause)) throw e;
       enrollment = null;
     }
     return { termKey, catalog, periods, classes, enrollment };
