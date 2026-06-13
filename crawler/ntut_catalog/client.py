@@ -120,6 +120,14 @@ class CatalogClient:
     def query_curr_page(self) -> str:
         return self._request("GET", "QueryCurrPage.jsp")
 
+    def curr(self, code: str) -> str:
+        """課程描述頁（中英課名 + 概述），key=課程編碼。"""
+        return self._request("GET", "Curr.jsp", params={"format": "-2", "code": code})
+
+    def syllabus(self, snum: str, teacher_code: str) -> str:
+        """教學大綱頁，key=(課號 snum, 教師碼)。"""
+        return self._request("GET", "ShowSyllabus.jsp", params={"snum": snum, "code": teacher_code})
+
 
 def detect_current_term(client: CatalogClient) -> str:
     """打 QueryCurrPage 偵測學校目前預設的學年學期。"""

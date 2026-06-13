@@ -12,7 +12,7 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
   const teachers = (course.teachers ?? []).map((t) => t.name).join("、") || "—";
 
   return (
-    <div className="group mb-1.5 flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-black/[0.07] transition-colors hover:bg-blue-50/60 hover:ring-[var(--accent)]/30">
+    <div className="group flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-black/[0.07] transition-colors hover:bg-blue-50/60 hover:ring-[var(--accent)]/30">
       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openDetail(course.offering_id)}>
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[13px] font-semibold text-[var(--ink)]">{course.name.zh}</span>

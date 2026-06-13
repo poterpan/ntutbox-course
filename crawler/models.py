@@ -165,6 +165,40 @@ class SourceRefs(BaseModel):
     syllabus: List[Dict[str, str]] = Field(default_factory=list)  # [{teacher_code, snum}]
 
 
+# ============================================================== 課程詳情（描述 + 大綱）
+
+class Syllabus(BaseModel):
+    """單一教師的教學大綱（ShowSyllabus.jsp；label→textarea，用標籤文字定位）。"""
+    teacher_code: Optional[str] = None
+    teacher_name: str = ""
+    email: Optional[str] = None
+    office_hours_url: Optional[str] = None
+    updated_at: Optional[str] = None             # 來源「最後更新時間」
+    outline: Optional[str] = None                # 課程大綱
+    schedule: Optional[str] = None               # 課程進度
+    assessment: Optional[str] = None             # 評量方式與標準
+    materials: Optional[str] = None              # 使用教材、參考書目或其他
+    consultation: Optional[str] = None           # 課程諮詢管道
+    extended_resources: Optional[str] = None     # 延伸教學與資源
+    sdgs: Optional[str] = None                   # 課程對應 SDGs 指標
+    ai_usage: Optional[str] = None               # 課程是否導入 AI
+    notes: Optional[str] = None                  # 備註
+    extra: Dict[str, str] = Field(default_factory=dict)  # 來源新增的未知標籤欄（label→值）
+
+
+class CourseDetail(BaseModel):
+    """重文字詳情（描述 + 大綱），隨點隨取；與 catalog 分檔（catalog 保持輕、可搜尋）。"""
+    model_config = ConfigDict(extra="forbid")
+
+    term_key: str
+    offering_id: str
+    course_code: Optional[str] = None
+    name: LocalizedText = Field(default_factory=LocalizedText)  # zh(catalog) + en(Curr)
+    description: LocalizedText = Field(default_factory=LocalizedText)  # 中/英概述
+    syllabi: List[Syllabus] = Field(default_factory=list)       # 逐教師
+    generated_at: Optional[str] = None
+
+
 # ============================================================== 核心：開課實例
 
 class CourseOffering(BaseModel):

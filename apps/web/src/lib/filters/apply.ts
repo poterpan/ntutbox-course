@@ -4,10 +4,18 @@ import { isEmi } from "./emi";
 import { collegeOf } from "./college-map";
 
 // Each active category is an AND clause; within a category, OR over its values.
+// Weekday × period are a single time clause: when BOTH are active, one meeting
+// must satisfy both (same day AND period) — not two different meetings.
 export function applyFilters(courses: CourseOffering[], f: FilterState): CourseOffering[] {
   return courses.filter((c) => {
-    if (f.weekdays.length && !(c.meetings ?? []).some((m) => f.weekdays.includes(m.day))) return false;
-    if (f.periods.length && !(c.meetings ?? []).some((m) => m.periods.some((p) => f.periods.includes(p)))) return false;
+    if (f.weekdays.length || f.periods.length) {
+      const hit = (c.meetings ?? []).some((m) => {
+        const dayOk = !f.weekdays.length || f.weekdays.includes(m.day);
+        const periodOk = !f.periods.length || m.periods.some((p) => f.periods.includes(p));
+        return dayOk && periodOk;
+      });
+      if (!hit) return false;
+    }
     if (f.units.length && !(c.unit_code && f.units.includes(c.unit_code))) return false;
     if (f.colleges.length && !f.colleges.includes(collegeOf(c.unit_code))) return false;
     if (f.classes.length && !(c.classes ?? []).some((k) => f.classes.includes(k.code))) return false;

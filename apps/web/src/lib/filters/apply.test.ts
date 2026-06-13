@@ -27,6 +27,15 @@ describe("applyFilters", () => {
   it("period filter matches any meeting period", () => {
     expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, periods: ["5"] }).map((c) => c.offering_id)).toEqual(["b"]);
   });
+  it("weekday × period must co-occur in the SAME meeting (not two different meetings)", () => {
+    // split: Mon 3,4 + Fri 6 — has a Fri meeting and a period-3 meeting, but no Fri-3 meeting
+    const split = mk({ offering_id: "split", unit_code: "59", language: "中文",
+      meetings: [{ day: 1, periods: ["3", "4"] }, { day: 5, periods: ["6"] }] as never, classes: [] as never });
+    // Fri(5) + period 3 → split must NOT match (no single Fri-3 meeting)
+    expect(applyFilters([split], { ...EMPTY_FILTER, weekdays: [5], periods: ["3"] })).toHaveLength(0);
+    // but Mon(1) + period 3 → matches (Mon 3,4 meeting satisfies both)
+    expect(applyFilters([split], { ...EMPTY_FILTER, weekdays: [1], periods: ["3"] }).map((c) => c.offering_id)).toEqual(["split"]);
+  });
   it("emiOnly keeps only English-taught", () => {
     expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, emiOnly: true }).map((c) => c.offering_id)).toEqual(["b"]);
   });

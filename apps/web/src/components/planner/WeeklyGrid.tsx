@@ -1,15 +1,19 @@
 "use client";
 import { useMemo } from "react";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
+import { useUiStore } from "@/store/ui-store";
 import { orderedPeriodTokens } from "@/lib/schedule/periods";
 import { TimetableCell } from "./TimetableCell";
 import { cn } from "@/lib/utils";
 
-const DAYS = [1, 2, 3, 4, 5, 6];
+const WEEK = [1, 2, 3, 4, 5, 6];
 const DAY_LABEL: Record<number, string> = { 0: "日", 1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六" };
 
 export function WeeklyGrid() {
   const { periods } = useTermCourses();
+  const viewMode = useUiStore((s) => s.viewMode);
+  const selectedDay = useUiStore((s) => s.selectedDay);
+  const DAYS = viewMode === "day" ? [selectedDay] : WEEK;
   const tokens = useMemo(() => (periods ? orderedPeriodTokens(periods) : []), [periods]);
   const startOf = useMemo(() => {
     const m = new Map<string, string>();

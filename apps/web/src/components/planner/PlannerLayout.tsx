@@ -53,12 +53,15 @@ export function PlannerLayout() {
 
       <div className="flex min-h-0 flex-1 gap-3 px-3 pb-3 sm:px-4">
         {/* timetable */}
-        <GlassPanel className="min-h-0 flex-1 overflow-auto p-3 sm:p-4">
-          {status === "loading" ? (
-            <div className="flex h-full items-center justify-center text-sm text-[var(--ink-soft)]">載入課程中…</div>
-          ) : (
-            <WeeklyGrid />
-          )}
+        <GlassPanel className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
+          <MobileViewControls />
+          <div className="min-h-0 flex-1 overflow-auto">
+            {status === "loading" ? (
+              <div className="flex h-full items-center justify-center text-sm text-[var(--ink-soft)]">載入課程中…</div>
+            ) : (
+              <WeeklyGrid />
+            )}
+          </div>
         </GlassPanel>
 
         {/* desktop right panel: 課程庫 / 收藏 toggle */}
@@ -88,6 +91,53 @@ export function PlannerLayout() {
       <SlotPopover />
       <CourseDetailDrawer />
     </main>
+  );
+}
+
+const DAY_LABEL: Record<number, string> = { 1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六" };
+
+// Mobile-only: 週/日 view toggle + day picker (desktop always shows the full week).
+function MobileViewControls() {
+  const viewMode = useUiStore((s) => s.viewMode);
+  const setViewMode = useUiStore((s) => s.setViewMode);
+  const selectedDay = useUiStore((s) => s.selectedDay);
+  const setSelectedDay = useUiStore((s) => s.setSelectedDay);
+
+  return (
+    <div className="mb-2 flex items-center gap-2 lg:hidden">
+      <div className="flex rounded-full bg-black/5 p-0.5 text-xs font-semibold">
+        {(["week", "day"] as const).map((m) => (
+          <button
+            key={m}
+            type="button"
+            onClick={() => setViewMode(m)}
+            className={
+              "rounded-full px-3 py-1 transition-colors " +
+              (viewMode === m ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--ink-soft)]")
+            }
+          >
+            {m === "week" ? "週" : "日"}
+          </button>
+        ))}
+      </div>
+      {viewMode === "day" && (
+        <div className="thin-scroll flex gap-1 overflow-x-auto">
+          {[1, 2, 3, 4, 5, 6].map((d) => (
+            <button
+              key={d}
+              type="button"
+              onClick={() => setSelectedDay(d)}
+              className={
+                "flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold transition-colors " +
+                (selectedDay === d ? "bg-[var(--accent)] text-white" : "bg-white/70 text-[var(--ink-soft)]")
+              }
+            >
+              {DAY_LABEL[d]}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 

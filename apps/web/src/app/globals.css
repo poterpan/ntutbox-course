@@ -142,7 +142,7 @@
   --ink: #141a24;          /* primary text — near-black */
   --ink-soft: #4a5365;     /* secondary text — readable slate */
   --ink-faint: #7b8597;    /* tertiary only (timestamps) */
-  --accent: #2563eb;       /* button / fill */
+  --accent: #3b82f6;       /* button / fill (slightly lighter per feedback) */
   --accent-ink: #1d4ed8;   /* accent-coloured TEXT on light (higher contrast) */
   --font-system: -apple-system, BlinkMacSystemFont, "SF Pro TC", "PingFang TC",
     "Microsoft JhengHei", "Segoe UI", Roboto, sans-serif;
