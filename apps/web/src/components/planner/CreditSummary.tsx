@@ -13,11 +13,11 @@ export function CreditSummary() {
   return (
     <GlassBar className="mx-3 mb-3 flex items-center gap-4 rounded-2xl px-5 py-2.5 text-xs sm:mx-4">
       <div className="flex items-baseline gap-1.5">
-        <span className="text-[var(--ink-soft)]">第一志願學分</span>
-        <b className="text-lg tabular-nums text-[var(--accent)]">{s.firstChoiceCredits}</b>
+        <span className="font-medium text-[var(--ink-soft)]">第一志願學分</span>
+        <b className="text-xl font-bold tabular-nums text-[var(--accent-ink)]">{s.firstChoiceCredits}</b>
       </div>
-      <span className="h-4 w-px bg-black/10" />
-      <span className="tabular-nums text-[var(--ink-soft)]">
+      <span className="h-4 w-px bg-black/15" />
+      <span className="font-medium tabular-nums text-[var(--ink-soft)]">
         排入 {placed.length} 門 · {s.placedCredits} 學分
       </span>
       <span

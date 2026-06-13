@@ -131,28 +131,33 @@
 
 /* ===== Liquid-Glass tokens (planner) ===== */
 :root {
-  --glass-blur: 28px;
-  --glass-bg: rgba(255, 255, 255, 0.62);
-  --glass-bg-soft: rgba(255, 255, 255, 0.45);
-  --glass-bg-strong: rgba(255, 255, 255, 0.82);
-  --glass-border: rgba(255, 255, 255, 0.7);
+  --glass-blur: 26px;
+  --glass-bg: rgba(255, 255, 255, 0.78);
+  --glass-bg-soft: rgba(255, 255, 255, 0.6);
+  --glass-bg-strong: rgba(255, 255, 255, 0.9);
+  --glass-border: rgba(255, 255, 255, 0.8);
   --glass-radius: 22px;
-  --glass-shadow: 0 10px 36px -8px rgba(38, 52, 84, 0.22);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.75);
-  --ink: #1b2330;
-  --ink-soft: #5a667a;
-  --accent: #2f6df0;
+  --glass-shadow: 0 10px 36px -8px rgba(30, 41, 70, 0.26);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  --ink: #141a24;          /* primary text — near-black */
+  --ink-soft: #4a5365;     /* secondary text — readable slate */
+  --ink-faint: #7b8597;    /* tertiary only (timestamps) */
+  --accent: #2563eb;       /* button / fill */
+  --accent-ink: #1d4ed8;   /* accent-coloured TEXT on light (higher contrast) */
   --font-system: -apple-system, BlinkMacSystemFont, "SF Pro TC", "PingFang TC",
     "Microsoft JhengHei", "Segoe UI", Roboto, sans-serif;
 }
 .dark {
-  --glass-bg: rgba(28, 30, 36, 0.58);
-  --glass-bg-soft: rgba(28, 30, 36, 0.4);
-  --glass-bg-strong: rgba(28, 30, 36, 0.82);
-  --glass-border: rgba(255, 255, 255, 0.12);
+  --glass-bg: rgba(26, 30, 38, 0.74);
+  --glass-bg-soft: rgba(26, 30, 38, 0.55);
+  --glass-bg-strong: rgba(26, 30, 38, 0.9);
+  --glass-border: rgba(255, 255, 255, 0.14);
   --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  --ink: #eef1f7;
-  --ink-soft: #9aa6ba;
+  --ink: #f1f4fa;
+  --ink-soft: #aeb8c9;
+  --ink-faint: #7e899b;
+  --accent: #3b82f6;
+  --accent-ink: #93b4fb;
 }
 html { font-family: var(--font-system); }
 

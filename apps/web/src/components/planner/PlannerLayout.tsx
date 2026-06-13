@@ -32,9 +32,9 @@ export function PlannerLayout() {
           北科盒子 <span className="text-[var(--accent)]">排課</span>
         </h1>
         <TermSwitcher />
-        <div className="ml-auto hidden text-right text-[10px] leading-tight text-[var(--ink-soft)] sm:block">
-          <div>目錄 {fmtDate(catalogAt)}</div>
-          <div>人數 {fmtDate(enrollAt)}</div>
+        <div className="ml-auto hidden items-center gap-1.5 text-[11px] text-[var(--ink-faint)] sm:flex">
+          <span>資料更新</span>
+          <span className="font-medium text-[var(--ink-soft)]">{fmtDate(enrollAt ?? catalogAt)}</span>
         </div>
       </header>
 

@@ -88,19 +88,19 @@ export function FilterCombobox({
                 onClick={() => onToggle(o.value)}
                 className={cn(
                   "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors",
-                  on ? "bg-[var(--accent)]/12 text-[var(--accent)]" : "hover:bg-black/5",
+                  on ? "bg-blue-100 font-semibold text-blue-800" : "text-[var(--ink)] hover:bg-black/5",
                 )}
               >
                 <span
                   className={cn(
                     "flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border text-[10px]",
-                    on ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-black/20",
+                    on ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-black/25",
                   )}
                 >
                   {on ? "✓" : ""}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>
-                {o.hint && <span className="shrink-0 text-[10px] text-zinc-400">{o.hint}</span>}
+                {o.hint && <span className="shrink-0 text-[10px] text-[var(--ink-soft)]">{o.hint}</span>}
               </button>
             );
           })}
