@@ -14,7 +14,7 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List
 
-from ntut_catalog.artifacts import write_manifest, write_term
+from ntut_catalog.artifacts import build_v1, write_canonical, write_enrollment_snapshot
 from ntut_catalog.client import CatalogClient, detect_current_term
 from ntut_catalog.orchestrator import crawl_term, parse_term_key
 from ntut_catalog.rederive import rederive_all
@@ -41,6 +41,11 @@ def expand_terms(spec: str) -> List[str]:
             if s > 2:
                 y, s = y + 1, 1
     return out
+
+
+def term_already_done(out_dir: Path, term: str) -> bool:
+    """resume/skip 判斷：看 canonical（真相），非 v1（衍生物）。"""
+    return (out_dir / "canonical" / term / "catalog.ndjson").exists()
 
 
 def _setup_logging(out_dir: Path, prefix: str) -> None:
@@ -93,13 +98,14 @@ def main(argv: List[str] | None = None) -> int:
     _setup_logging(out_dir, "crawl")
     terms = expand_terms(args.terms)
     logger.info("terms to crawl: %s", terms)
+    today = datetime.now(TAIPEI).strftime("%Y-%m-%d")
     client = CatalogClient(delay_range=(args.delay * 0.8, args.delay * 1.6))
     failed: List[str] = []
+    crawled_any = False
     try:
         for term in terms:
-            term_dir = out_dir / "v1" / "terms" / term
-            if term_dir.exists() and not args.force:
-                logger.info("[%s] exists, skip (use --force to recrawl)", term)
+            if term_already_done(out_dir, term) and not args.force:
+                logger.info("[%s] canonical exists, skip (use --force to recrawl)", term)
                 continue
             now_iso = datetime.now(TAIPEI).isoformat(timespec="seconds")
             logger.info("[%s] crawling ...", term)
@@ -109,7 +115,9 @@ def main(argv: List[str] | None = None) -> int:
                 logger.exception("[%s] crawl failed", term)
                 failed.append(term)
                 continue
-            write_term(result, out_dir)
+            write_canonical(result, out_dir)
+            write_enrollment_snapshot(result, out_dir, today)
+            crawled_any = True
             logger.info(
                 "[%s] done: %d courses, %d classes, %d warnings (requests so far: %d)",
                 term, len(result.catalog.courses), len(result.classes.classes),
@@ -120,8 +128,12 @@ def main(argv: List[str] | None = None) -> int:
     finally:
         client.close()
 
-    write_manifest(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
-    logger.info("manifest written. total requests: %d, failed terms: %s", client.request_count, failed or "none")
+    # 從【全部】canonical 重建完整 v1（manifest 涵蓋所有學期，不只本次爬的）
+    build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
+    logger.info(
+        "v1 rebuilt + manifest written. crawled=%s, total requests: %d, failed terms: %s",
+        crawled_any, client.request_count, failed or "none",
+    )
     return 1 if failed else 0
 
 

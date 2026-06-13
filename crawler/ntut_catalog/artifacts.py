@@ -49,25 +49,6 @@ def structural_catalog(cat: TermCatalog) -> TermCatalog:
     return s
 
 
-def write_term(result: TermResult, out_dir: Path) -> None:
-    term = result.catalog.term.key
-    canonical = out_dir / "canonical" / term
-    canonical.mkdir(parents=True, exist_ok=True)
-    with (canonical / "catalog.ndjson").open("w", encoding="utf-8") as f:
-        for course in result.catalog.courses:
-            f.write(course.model_dump_json(exclude_none=False) + "\n")
-
-    v1 = out_dir / "v1" / "terms" / term
-    v1.mkdir(parents=True, exist_ok=True)
-    for name, model in [
-        ("catalog.json", result.catalog),
-        ("classes.json", result.classes),
-        ("periods.json", result.periods),
-        ("enrollment.json", result.enrollment),
-    ]:
-        (v1 / name).write_text(model.model_dump_json(), encoding="utf-8")
-
-
 def write_canonical(result: TermResult, out_dir: Path) -> None:
     """寫 canonical（git 真相）：結構化 catalog.ndjson + classes.json。"""
     term = result.catalog.term.key

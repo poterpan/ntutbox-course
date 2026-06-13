@@ -11,7 +11,7 @@ from models import (
     PeriodTable,
     TermCatalog,
 )
-from ntut_catalog.artifacts import write_manifest, write_term
+from ntut_catalog.artifacts import build_v1, write_canonical, write_enrollment_snapshot
 from ntut_catalog.orchestrator import crawl_term, parse_term_key
 from tests._fakes import FakeClient
 
@@ -63,8 +63,10 @@ def test_enrollment_overlay(result):
 
 
 def test_artifacts_roundtrip(result, tmp_path):
-    write_term(result, tmp_path)
-    write_manifest(tmp_path, "2026-06-13T00:00:00+08:00")
+    # 新管線：write_canonical + snapshot → build_v1 重建完整 v1
+    write_canonical(result, tmp_path)
+    write_enrollment_snapshot(result, tmp_path, "2026-06-13")
+    build_v1(tmp_path, "2026-06-13T00:00:00+08:00")
     term_dir = tmp_path / "v1" / "terms" / "114-1"
 
     # 所有檔案 round-trip 過 models 驗證
@@ -84,4 +86,5 @@ def test_artifacts_roundtrip(result, tmp_path):
     data = (term_dir / "catalog.json").read_bytes()
     assert entry.sha256 == hashlib.sha256(data).hexdigest()
     assert entry.size == len(data)
-    assert manifest.terms["114-1"].dataset_version == "2026-06-13T00:00:00+08:00"
+    # dataset_version = 結構 catalog 的 sha256（不再是爬取時間戳）
+    assert manifest.terms["114-1"].dataset_version == entry.sha256
