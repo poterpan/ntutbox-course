@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import logging
 import random
+import re
 import time
 from typing import Dict, Optional
 
 import httpx
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +27,30 @@ SCHOOL_MATRIC = ",".join(f"'{c}'" for c in ALL_MATRIC_CODES)
 
 _ERROR_MARKER = "查詢選課資料出現錯誤"
 _UA = "ntutbox-course-crawler/0.1 (+https://github.com/ntutbox; catalog mirror for course planner)"
+
+
+def parse_current_term(html: str) -> str:
+    """讀 QueryCurrPage 下拉的 selected year/sem → 'YYY-S'（比照 gnehs fetchYearSem）。
+
+    無 selected 時退回第一個 option（與瀏覽器預設一致）。
+    """
+    soup = BeautifulSoup(html, "html5lib")
+
+    def _selected(name: str) -> str:
+        sel = soup.find("select", attrs={"name": name})
+        if sel is None:
+            raise ValueError(f"select[name={name}] not found")
+        opt = sel.find("option", selected=True) or sel.find("option")
+        if opt is None:
+            raise ValueError(f"select[name={name}] has no option")
+        return opt.get_text(strip=True)
+
+    year = _selected("year")
+    sem_text = _selected("sem")
+    sem = 1 if "上" in sem_text else 2
+    if not re.fullmatch(r"\d{3}", year):
+        raise ValueError(f"unexpected year: {year!r}")
+    return f"{year}-{sem}"
 
 
 def build_query_payload(year: int, sem: int, matric: str, unit: str) -> Dict[str, str]:
@@ -90,3 +116,11 @@ class CatalogClient:
         if code is not None:
             params["code"] = code
         return self._request("GET", "Subj.jsp", params=params)
+
+    def query_curr_page(self) -> str:
+        return self._request("GET", "QueryCurrPage.jsp")
+
+
+def detect_current_term(client: CatalogClient) -> str:
+    """打 QueryCurrPage 偵測學校目前預設的學年學期。"""
+    return parse_current_term(client.query_curr_page())

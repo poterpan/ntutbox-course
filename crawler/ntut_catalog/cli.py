@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import List
 
 from ntut_catalog.artifacts import write_manifest, write_term
-from ntut_catalog.client import CatalogClient
+from ntut_catalog.client import CatalogClient, detect_current_term
 from ntut_catalog.orchestrator import crawl_term, parse_term_key
 from ntut_catalog.rederive import rederive_all
 
@@ -73,7 +73,16 @@ def main(argv: List[str] | None = None) -> int:
     p.add_argument("--force", action="store_true", help="已存在的學期也重抓")
     r = sub.add_parser("rederive", help="離線重建課程內嵌班級欄位（不重爬）")
     r.add_argument("--out", default="../data", help="輸出根目錄（預設 ../data）")
+    sub.add_parser("current-term", help="偵測學校當前學期並印出（如 115-1）")
     args = parser.parse_args(argv)
+
+    if args.command == "current-term":
+        client = CatalogClient()
+        try:
+            print(detect_current_term(client))
+        finally:
+            client.close()
+        return 0
 
     out_dir = Path(args.out).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
