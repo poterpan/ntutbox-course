@@ -13,7 +13,7 @@ export function TermSwitcher() {
   useEffect(() => {
     void getDataSource()
       .getManifest()
-      .then((m) => setTerms(Object.keys(m.terms).sort().reverse()));
+      .then((m) => setTerms(Object.keys(m.terms ?? {}).sort().reverse()));
   }, []);
 
   return (

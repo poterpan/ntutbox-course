@@ -22,7 +22,7 @@ export function useTermBootstrap(termKey: string = DEFAULT_TERM) {
 
   useEffect(() => {
     if (status === "ready" && bundle) {
-      const valid = new Set(bundle.catalog.courses.map((c) => c.offering_id));
+      const valid = new Set((bundle.catalog.courses ?? []).map((c) => c.offering_id));
       useDraftStore.getState().reconcile(valid);
     }
   }, [status, bundle]);
