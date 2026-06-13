@@ -1,0 +1,1031 @@
+{
+  "title": "NtutboxCourseV1",
+  "type": "object",
+  "properties": {
+    "TermCatalog": {
+      "$ref": "#/$defs/TermCatalog"
+    },
+    "PeriodTable": {
+      "$ref": "#/$defs/PeriodTable"
+    },
+    "ClassDirectory": {
+      "$ref": "#/$defs/ClassDirectory"
+    },
+    "EnrollmentLatest": {
+      "$ref": "#/$defs/EnrollmentLatest"
+    },
+    "Manifest": {
+      "$ref": "#/$defs/Manifest"
+    }
+  },
+  "$defs": {
+    "ClassKind": {
+      "description": "班級種類——分類地雷：pool/virtual 班學生班級碼永不在其中（博雅/體育/英文 ~12%）。",
+      "enum": [
+        "regular",
+        "pool",
+        "virtual"
+      ],
+      "title": "ClassKind",
+      "type": "string"
+    },
+    "ClassRef": {
+      "description": "開課班級 / classes.json 條目。班級碼 == cwish cunum（同命名空間、逐年重編）。",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        },
+        "kind": {
+          "$ref": "#/$defs/ClassKind",
+          "default": "regular"
+        },
+        "unit_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit Code"
+        },
+        "grade": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Grade"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "ClassRef",
+      "type": "object"
+    },
+    "CourseOffering": {
+      "additionalProperties": false,
+      "description": "一學期一門課一班的開課實例。主鍵＝(term_key, offering_id)。",
+      "properties": {
+        "term_key": {
+          "description": "學期鍵，如 \"115-1\"",
+          "title": "Term Key",
+          "type": "string"
+        },
+        "offering_id": {
+          "description": "課號（per-term 選課代碼，跳動）；= cwish subj",
+          "title": "Offering Id",
+          "type": "string"
+        },
+        "course_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "課程編碼（跨學期固定；同編碼可多課號=多班）",
+          "title": "Course Code"
+        },
+        "name": {
+          "$ref": "#/$defs/LocalizedText"
+        },
+        "credits": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "學分（含 0.5/0.0 佔位；加總時排除佔位課）",
+          "title": "Credits"
+        },
+        "hours": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hours"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stage"
+        },
+        "stage_raw": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stage Raw"
+        },
+        "requirement": {
+          "$ref": "#/$defs/Requirement"
+        },
+        "division_group": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DivisionGroup"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "unit_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit Code"
+        },
+        "unit_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit Name"
+        },
+        "classes": {
+          "description": "開課班級（本班/外班分類用，含 kind）",
+          "items": {
+            "$ref": "#/$defs/ClassRef"
+          },
+          "title": "Classes",
+          "type": "array"
+        },
+        "teachers": {
+          "items": {
+            "$ref": "#/$defs/EntityRef"
+          },
+          "title": "Teachers",
+          "type": "array"
+        },
+        "classrooms": {
+          "items": {
+            "$ref": "#/$defs/EntityRef"
+          },
+          "title": "Classrooms",
+          "type": "array"
+        },
+        "meetings": {
+          "items": {
+            "$ref": "#/$defs/Meeting"
+          },
+          "title": "Meetings",
+          "type": "array"
+        },
+        "language": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "授課語言/EMI（來源第18欄，gnehs 漏抓）",
+          "title": "Language"
+        },
+        "tags": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "notes_raw": {
+          "default": "",
+          "title": "Notes Raw",
+          "type": "string"
+        },
+        "is_placeholder": {
+          "default": false,
+          "title": "Is Placeholder",
+          "type": "boolean"
+        },
+        "interdisciplinary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Interdisciplinary"
+        },
+        "enrollment": {
+          "$ref": "#/$defs/Enrollment"
+        },
+        "selection": {
+          "$ref": "#/$defs/Selection"
+        },
+        "source_refs": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SourceRefs"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "raw_fields": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Raw Fields",
+          "type": "object"
+        }
+      },
+      "required": [
+        "term_key",
+        "offering_id",
+        "name",
+        "selection"
+      ],
+      "title": "CourseOffering",
+      "type": "object"
+    },
+    "DivisionGroup": {
+      "description": "學制大類（取代學長按中文檔名切分）。",
+      "enum": [
+        "day",
+        "extension",
+        "graduate",
+        "program",
+        "other"
+      ],
+      "title": "DivisionGroup",
+      "type": "string"
+    },
+    "Enrollment": {
+      "description": "人數（爬取當下快照）。⚠️ 容量上限來源不提供→capacity 多為 None，僅 cwish live 可補。",
+      "properties": {
+        "enrolled_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enrolled Count"
+        },
+        "capacity": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capacity"
+        },
+        "withdrawn_count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Withdrawn Count"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed At"
+        }
+      },
+      "title": "Enrollment",
+      "type": "object"
+    },
+    "EntityRef": {
+      "description": "教師/教室等實體：只留 code（丟棄學長的 JSP link，避免綁死校方路徑）。",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "name": {
+          "default": "",
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code"
+      ],
+      "title": "EntityRef",
+      "type": "object"
+    },
+    "Freshness": {
+      "properties": {
+        "catalog_crawled_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Catalog Crawled At"
+        },
+        "enrollment_observed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Enrollment Observed At"
+        }
+      },
+      "title": "Freshness",
+      "type": "object"
+    },
+    "LocalizedText": {
+      "properties": {
+        "zh": {
+          "default": "",
+          "title": "Zh",
+          "type": "string"
+        },
+        "en": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "En"
+        }
+      },
+      "title": "LocalizedText",
+      "type": "object"
+    },
+    "Meeting": {
+      "description": "單一上課時段。weekPattern/dateRange/教室對應＝來源未提供（§4.7）→ optional。",
+      "properties": {
+        "day": {
+          "enum": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "title": "Day",
+          "type": "integer"
+        },
+        "periods": {
+          "items": {
+            "enum": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "N",
+              "5",
+              "6",
+              "7",
+              "8",
+              "9",
+              "A",
+              "B",
+              "C",
+              "D"
+            ],
+            "type": "string"
+          },
+          "title": "Periods",
+          "type": "array"
+        },
+        "classroom_codes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Classroom Codes",
+          "type": "array"
+        },
+        "week_pattern": {
+          "$ref": "#/$defs/WeekPattern",
+          "default": "weekly"
+        },
+        "date_range": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date Range"
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group"
+        },
+        "raw_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Raw Text"
+        }
+      },
+      "required": [
+        "day",
+        "periods"
+      ],
+      "title": "Meeting",
+      "type": "object"
+    },
+    "Requirement": {
+      "properties": {
+        "symbol": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Symbol"
+        },
+        "category": {
+          "$ref": "#/$defs/RequirementCategory",
+          "default": "unknown"
+        },
+        "label_zh": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label Zh"
+        }
+      },
+      "title": "Requirement",
+      "type": "object"
+    },
+    "RequirementCategory": {
+      "description": "修別語意（原始符號另存於 Requirement.symbol，category 須由課程標準對映、未知先 unknown）。",
+      "enum": [
+        "required",
+        "elective",
+        "general",
+        "program",
+        "unknown"
+      ],
+      "title": "RequirementCategory",
+      "type": "string"
+    },
+    "Selection": {
+      "description": "送件鍵。cunum 不放定值——實際 cunum 由 cwish live 本班/外班清單裁定（§4.6 實證）。",
+      "properties": {
+        "cwish_subj": {
+          "title": "Cwish Subj",
+          "type": "string"
+        },
+        "candidate_cunums": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Candidate Cunums",
+          "type": "array"
+        }
+      },
+      "required": [
+        "cwish_subj"
+      ],
+      "title": "Selection",
+      "type": "object"
+    },
+    "SourceInfo": {
+      "properties": {
+        "system": {
+          "default": "ntut-course-tw",
+          "title": "System",
+          "type": "string"
+        },
+        "base_url": {
+          "default": "https://aps.ntut.edu.tw/course/tw/",
+          "title": "Base Url",
+          "type": "string"
+        },
+        "crawler_name": {
+          "default": "ntut-catalog-crawler",
+          "title": "Crawler Name",
+          "type": "string"
+        },
+        "crawler_version": {
+          "default": "",
+          "title": "Crawler Version",
+          "type": "string"
+        },
+        "git_sha": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Sha"
+        }
+      },
+      "title": "SourceInfo",
+      "type": "object"
+    },
+    "SourceRefs": {
+      "properties": {
+        "curr_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Curr Code"
+        },
+        "syllabus": {
+          "items": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "title": "Syllabus",
+          "type": "array"
+        }
+      },
+      "title": "SourceRefs",
+      "type": "object"
+    },
+    "TermInfo": {
+      "properties": {
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "year": {
+          "title": "Year",
+          "type": "integer"
+        },
+        "semester": {
+          "enum": [
+            1,
+            2,
+            3
+          ],
+          "title": "Semester",
+          "type": "integer"
+        },
+        "label": {
+          "default": "",
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "key",
+        "year",
+        "semester"
+      ],
+      "title": "TermInfo",
+      "type": "object"
+    },
+    "WeekPattern": {
+      "enum": [
+        "weekly",
+        "odd",
+        "even",
+        "unknown"
+      ],
+      "title": "WeekPattern",
+      "type": "string"
+    },
+    "TermCatalog": {
+      "description": "catalog.json：Web v1 主檔（前端建索引）。重文字(描述/課綱)拆 course/{id}.json 隨點隨取。",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "term": {
+          "$ref": "#/$defs/TermInfo"
+        },
+        "generated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generated At"
+        },
+        "source": {
+          "$ref": "#/$defs/SourceInfo"
+        },
+        "freshness": {
+          "$ref": "#/$defs/Freshness"
+        },
+        "courses": {
+          "items": {
+            "$ref": "#/$defs/CourseOffering"
+          },
+          "title": "Courses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "term"
+      ],
+      "title": "TermCatalog",
+      "type": "object"
+    },
+    "PeriodRef": {
+      "description": "periods.json 條目：節次 token ↔ 牆鐘時間（Asia/Taipei），grid/ICS 用。",
+      "properties": {
+        "token": {
+          "enum": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "N",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "A",
+            "B",
+            "C",
+            "D"
+          ],
+          "title": "Token",
+          "type": "string"
+        },
+        "order": {
+          "title": "Order",
+          "type": "integer"
+        },
+        "start_hm": {
+          "title": "Start Hm",
+          "type": "string"
+        },
+        "end_hm": {
+          "title": "End Hm",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "token",
+        "order",
+        "start_hm",
+        "end_hm",
+        "label"
+      ],
+      "title": "PeriodRef",
+      "type": "object"
+    },
+    "PeriodTable": {
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "timezone": {
+          "default": "Asia/Taipei",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "periods": {
+          "items": {
+            "$ref": "#/$defs/PeriodRef"
+          },
+          "title": "Periods",
+          "type": "array"
+        }
+      },
+      "title": "PeriodTable",
+      "type": "object"
+    },
+    "ClassDirectory": {
+      "description": "classes.json：逐學期；Web 身分選擇器（系所/年級/班）+ 本班判斷；班級碼可預填 cwish cunum。",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "term_key": {
+          "title": "Term Key",
+          "type": "string"
+        },
+        "classes": {
+          "items": {
+            "$ref": "#/$defs/ClassRef"
+          },
+          "title": "Classes",
+          "type": "array"
+        }
+      },
+      "required": [
+        "term_key"
+      ],
+      "title": "ClassDirectory",
+      "type": "object"
+    },
+    "EnrollmentLatest": {
+      "description": "enrollment.json：volatile overlay；選課季可高頻更新，疊在已快取 catalog 上。",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "term_key": {
+          "title": "Term Key",
+          "type": "string"
+        },
+        "observed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed At"
+        },
+        "counts": {
+          "additionalProperties": {
+            "$ref": "#/$defs/Enrollment"
+          },
+          "title": "Counts",
+          "type": "object"
+        }
+      },
+      "required": [
+        "term_key"
+      ],
+      "title": "EnrollmentLatest",
+      "type": "object"
+    },
+    "ManifestEntry": {
+      "properties": {
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "title": "Size",
+          "type": "integer"
+        },
+        "content_encoding": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Encoding"
+        },
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "url",
+        "sha256",
+        "size"
+      ],
+      "title": "ManifestEntry",
+      "type": "object"
+    },
+    "ManifestTerm": {
+      "properties": {
+        "catalog": {
+          "$ref": "#/$defs/ManifestEntry"
+        },
+        "enrollment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManifestEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "classes": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManifestEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "periods": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManifestEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "dataset_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dataset Version"
+        }
+      },
+      "required": [
+        "catalog"
+      ],
+      "title": "ManifestTerm",
+      "type": "object"
+    },
+    "Manifest": {
+      "description": "manifest.json：client 先抓（極小），比對 sha256 決定要不要重抓。",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "generated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generated At"
+        },
+        "min_app_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min App Version"
+        },
+        "terms": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ManifestTerm"
+          },
+          "title": "Terms",
+          "type": "object"
+        }
+      },
+      "title": "Manifest",
+      "type": "object"
+    }
+  }
+}

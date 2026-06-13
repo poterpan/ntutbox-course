@@ -1,0 +1,10 @@
+{
+  "name": "@ntutbox/schema",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "schema": "python3 generate.py",
+    "types": "json-schema-to-typescript --input schema.json --output index.d.ts --no-additionalProperties",
+    "generate": "pnpm schema && pnpm dlx json-schema-to-typescript@15 --input schema.json --output index.d.ts"
+  }
+}

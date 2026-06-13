@@ -30,6 +30,9 @@ venv/
 crawler/dist/
 crawler/.scratch/
 data/
+# Allow web src directories named "data" (lib/data, etc.)
+!apps/web/src/**/data/
+!apps/web/src/**/data/**
 *.sqlite
 *.sqlite-*
 
