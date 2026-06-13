@@ -25,6 +25,7 @@ from models import (
 )
 from ntut_catalog.classes_builder import resolve_class_ref
 from ntut_catalog.parse_course_table import RawCourseRow
+from ntut_catalog.requirement_legend import build_requirement
 
 # 單一學制碼 → 學制大類（QueryCurrPage 下拉實測 2026-06-13）：
 # 5=日五專 6=日二技 7=日四技；8=碩 9=博 A=進修碩專班 C=週末碩 D=EMBA；
@@ -110,7 +111,7 @@ def to_offering(
         hours=hours,
         stage=stage,
         stage_raw=row.stage_raw,
-        requirement=Requirement(symbol=row.req_symbol),
+        requirement=build_requirement(row.req_symbol),
         division_group=matric_codes_to_division(matric_codes),
         unit_code=unit_code,
         unit_name=unit_name,

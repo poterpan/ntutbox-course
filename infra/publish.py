@@ -63,8 +63,9 @@ def _term_count(out_dir: Path, term: str) -> int:
     return sum(1 for line in nd.read_text(encoding="utf-8").splitlines() if line.strip())
 
 
-def _v1_files_for(out_dir: Path, terms: Optional[List[str]]) -> List[str]:
-    """要上傳的 v1 相對路徑（指定 terms 的 4 檔 + manifest；terms=None → 全部）。"""
+def _v1_files_for(out_dir: Path, terms: Optional[List[str]], include_details: bool = False) -> List[str]:
+    """要上傳的 v1 相對路徑。預設：每學期 bulk 檔 + standards + manifest。
+    詳情(course/{id}.json) 數量龐大(~1500/學期)，預設不傳；--include-details 才傳。"""
     v1 = out_dir / "v1"
     files: List[str] = []
     term_dirs = (
@@ -72,10 +73,18 @@ def _v1_files_for(out_dir: Path, terms: Optional[List[str]]) -> List[str]:
         else sorted(p for p in (v1 / "terms").iterdir() if p.is_dir()) if (v1 / "terms").exists() else []
     )
     for td in term_dirs:
-        for name in ["catalog.json", "classes.json", "periods.json", "enrollment.json"]:
+        for name in ["catalog.json", "classes.json", "periods.json", "enrollment.json", "mprograms.json"]:
             p = td / name
             if p.exists():
                 files.append(str(p.relative_to(out_dir)))
+        if include_details and (td / "course").exists():
+            for cf in sorted((td / "course").glob("*.json")):
+                files.append(str(cf.relative_to(out_dir)))
+    # 課程標準（跨入學年，top-level）
+    std_dir = v1 / "standards"
+    if std_dir.exists():
+        for sf in sorted(std_dir.glob("*.json")):
+            files.append(str(sf.relative_to(out_dir)))
     files.append("v1/manifest.json")
     return files
 
@@ -104,6 +113,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--min-ratio", type=float, default=0.95)
     ap.add_argument("--previous-counts", default="{}", help='JSON {"115-1": 2450}（上次課數基準）')
     ap.add_argument("--generated-at", default="", help="manifest generated_at（省略用佔位）")
+    ap.add_argument("--include-details", action="store_true", help="也上傳 course/{id}.json 詳情（量大、慢）")
     args = ap.parse_args(argv)
 
     out_dir = Path(args.out).resolve()
@@ -127,7 +137,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 1
 
     # 3. 原子上傳：term files 先、manifest 最後
-    files = _v1_files_for(out_dir, terms)
+    files = _v1_files_for(out_dir, terms, include_details=args.include_details)
     for rel in plan_uploads(files):
         wrangler_put(args.bucket, r2_key(rel), out_dir / rel, cache_control_for(rel), args.dry_run)
 
