@@ -5,20 +5,26 @@ import { useSearchIndex } from "@/lib/planner/use-search-index";
 import { useUiStore } from "@/store/ui-store";
 import { applyFilters } from "@/lib/filters/apply";
 import { search } from "@/lib/search/search";
-import { CourseSearchBar } from "./CourseSearchBar";
-import { FilterChips } from "./FilterChips";
+import { FilterBar } from "./FilterBar";
 import { CourseList } from "./CourseList";
+
+const CAP = 200;
 
 export function CourseLibrary() {
   const { courses, classes } = useTermCourses();
   const index = useSearchIndex();
-  const { query, filters } = useUiStore();
+  const { query, setQuery, filters } = useUiStore();
 
   const units = useMemo(() => {
     const m = new Map<string, string>();
     for (const c of courses) if (c.unit_code) m.set(c.unit_code, c.unit_name ?? c.unit_code);
-    return [...m].map(([code, name]) => ({ code, name }));
+    return [...m].map(([code, name]) => ({ code, name })).sort((a, b) => a.name.localeCompare(b.name));
   }, [courses]);
+
+  const classOpts = useMemo(
+    () => classes.map((k) => ({ code: k.code, name: k.name ?? k.code, kind: k.kind })),
+    [classes],
+  );
 
   const results = useMemo(() => {
     const filtered = applyFilters(courses, filters);
@@ -28,11 +34,37 @@ export function CourseLibrary() {
   }, [courses, index, filters, query]);
 
   return (
-    <div className="flex h-full flex-col gap-3 p-3">
-      <CourseSearchBar />
-      <FilterChips units={units} classes={classes.map((k) => ({ code: k.code, name: k.name ?? k.code, kind: k.kind }))} />
-      <div className="text-[11px] text-zinc-500">{results.length} 門課{results.length > 200 ? "（已達上限，請縮小條件）" : ""}</div>
-      <div className="min-h-0 flex-1"><CourseList courses={results.slice(0, 200)} /></div>
+    <div className="flex h-full flex-col gap-3 p-4">
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold text-[var(--ink)]">課程庫</h2>
+        <span className="text-[11px] tabular-nums text-[var(--ink-soft)]">
+          {results.length} 門{results.length > CAP ? `（顯示前 ${CAP}）` : ""}
+        </span>
+      </div>
+
+      {/* prominent search */}
+      <div className="relative">
+        <svg className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" strokeLinecap="round" />
+        </svg>
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="搜尋任何：課名 / 教師 / 課號 / 課程編碼"
+          aria-label="搜尋課程"
+          className="w-full rounded-xl bg-white/70 py-2.5 pl-9 pr-3 text-sm shadow-sm outline-none ring-1 ring-black/5 placeholder:text-zinc-400 focus:ring-2 focus:ring-[var(--accent)]/40"
+        />
+      </div>
+
+      <FilterBar units={units} classes={classOpts} />
+
+      <div className="min-h-0 flex-1">
+        {results.length === 0 ? (
+          <p className="pt-8 text-center text-sm text-zinc-400">沒有符合的課程，試著放寬條件</p>
+        ) : (
+          <CourseList courses={results.slice(0, CAP)} />
+        )}
+      </div>
     </div>
   );
 }

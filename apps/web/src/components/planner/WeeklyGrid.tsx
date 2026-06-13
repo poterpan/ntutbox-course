@@ -1,32 +1,56 @@
 "use client";
+import { useMemo } from "react";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
-import { orderedPeriodTokens, periodLabel } from "@/lib/schedule/periods";
+import { orderedPeriodTokens } from "@/lib/schedule/periods";
 import { TimetableCell } from "./TimetableCell";
+import { cn } from "@/lib/utils";
 
 const DAYS = [1, 2, 3, 4, 5, 6];
-const DAY_LABEL: Record<number, string> = { 1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六", 0: "日" };
+const DAY_LABEL: Record<number, string> = { 0: "日", 1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六" };
 
 export function WeeklyGrid() {
   const { periods } = useTermCourses();
+  const tokens = useMemo(() => (periods ? orderedPeriodTokens(periods) : []), [periods]);
+  const startOf = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const p of periods?.periods ?? []) m.set(p.token, p.start_hm);
+    return m;
+  }, [periods]);
   if (!periods) return null;
-  const tokens = orderedPeriodTokens(periods);
 
   return (
-    <div className="grid h-full gap-1"
-      style={{ gridTemplateColumns: `2rem repeat(${DAYS.length}, minmax(0,1fr))`, gridTemplateRows: `1.5rem repeat(${tokens.length}, minmax(2.5rem, 1fr))` }}>
+    <div
+      className="grid h-full gap-1"
+      style={{
+        gridTemplateColumns: `3rem repeat(${DAYS.length}, minmax(0,1fr))`,
+        gridTemplateRows: `2rem repeat(${tokens.length}, minmax(2.6rem, 1fr))`,
+      }}
+    >
       <div />
-      {DAYS.map((d) => <div key={d} className="flex items-center justify-center text-xs font-medium text-zinc-500">{DAY_LABEL[d]}</div>)}
-      {tokens.map((tok) => (
-        <FragmentRow key={tok} token={tok} label={periodLabel(tok, periods)} days={DAYS} />
+      {DAYS.map((d) => (
+        <div key={d} className="flex items-center justify-center text-[13px] font-semibold text-[var(--ink-soft)]">
+          週{DAY_LABEL[d]}
+        </div>
       ))}
+
+      {tokens.map((tok) => {
+        const lunch = tok === "N";
+        const evening = ["A", "B", "C", "D"].includes(tok);
+        return (
+          <FragmentRow key={tok} token={tok} start={startOf.get(tok)} days={DAYS} muted={lunch || evening} />
+        );
+      })}
     </div>
   );
 }
 
-function FragmentRow({ token, label, days }: { token: string; label: string; days: number[] }) {
+function FragmentRow({ token, start, days, muted }: { token: string; start?: string; days: number[]; muted: boolean }) {
   return (
     <>
-      <div className="flex items-center justify-center text-xs text-zinc-400">{label}</div>
+      <div className={cn("flex flex-col items-center justify-center leading-none", muted && "opacity-70")}>
+        <span className="text-xs font-semibold text-[var(--ink-soft)]">{token}</span>
+        {start && <span className="mt-0.5 text-[9px] tabular-nums text-zinc-400">{start}</span>}
+      </div>
       {days.map((d) => <TimetableCell key={`${d}-${token}`} day={d} period={token} />)}
     </>
   );

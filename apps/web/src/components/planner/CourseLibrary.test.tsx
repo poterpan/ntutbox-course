@@ -57,8 +57,8 @@ describe("CourseLibrary", () => {
     render(<CourseLibrary />);
 
     // The count text must reflect the true filtered total (250), not the display cap (200).
-    expect(screen.getByText(/250 門課/)).toBeInTheDocument();
-    // And the "已達上限" hint should be visible because 250 > 200.
-    expect(screen.getByText(/已達上限/)).toBeInTheDocument();
+    expect(screen.getByText(/250 門/)).toBeInTheDocument();
+    // And the "顯示前 200" hint should be visible because 250 > 200.
+    expect(screen.getByText(/顯示前 200/)).toBeInTheDocument();
   });
 });

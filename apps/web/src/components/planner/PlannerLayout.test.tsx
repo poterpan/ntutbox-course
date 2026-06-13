@@ -22,8 +22,7 @@ describe("PlannerLayout (integration)", () => {
   it("boots, shows grid + library + credit bar, course searchable", async () => {
     render(<PlannerLayout />);
     await waitFor(() => expect(screen.getByText("微積分")).toBeInTheDocument()); // in library list
-    // "一" appears in both grid header and FilterChips weekday — either is fine
-    expect(screen.getAllByText("一").length).toBeGreaterThan(0); // grid header (at minimum)
+    expect(screen.getByText("週一")).toBeInTheDocument(); // grid weekday header
     expect(screen.getAllByText(/第一志願/).length).toBeGreaterThan(0);  // credit bar
     expect(screen.getByLabelText("搜尋課程")).toBeInTheDocument();
   });

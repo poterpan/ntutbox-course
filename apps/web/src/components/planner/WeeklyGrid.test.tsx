@@ -25,9 +25,9 @@ describe("WeeklyGrid", () => {
       bundle: bundleWith([{ offering_id: "A", name: { zh: "微積分" }, meetings: [{ day: 1, periods: ["1"] }], teachers: [{ name: "王" }], classes: [], credits: 3 }]) });
   });
 
-  it("renders weekday headers 一..六 and period rows", () => {
+  it("renders weekday headers 週一..週六 and period rows", () => {
     render(<WeeklyGrid />);
-    ["一", "二", "三", "四", "五", "六"].forEach((d) => expect(screen.getByText(d)).toBeInTheDocument());
+    ["週一", "週二", "週三", "週四", "週五", "週六"].forEach((d) => expect(screen.getByText(d)).toBeInTheDocument());
   });
 
   it("renders a placed single course in its slot", () => {
