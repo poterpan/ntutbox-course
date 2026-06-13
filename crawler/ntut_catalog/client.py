@@ -120,6 +120,27 @@ class CatalogClient:
     def query_curr_page(self) -> str:
         return self._request("GET", "QueryCurrPage.jsp")
 
+    def curr(self, code: str) -> str:
+        """課程描述頁（中英課名 + 概述），key=課程編碼。"""
+        return self._request("GET", "Curr.jsp", params={"format": "-2", "code": code})
+
+    def syllabus(self, snum: str, teacher_code: str) -> str:
+        """教學大綱頁，key=(課號 snum, 教師碼)。"""
+        return self._request("GET", "ShowSyllabus.jsp", params={"snum": snum, "code": teacher_code})
+
+    def mprogram_list(self, year: int, sem: int) -> str:
+        return self._request("GET", "SearchMProgram.jsp",
+                             params={"format": "-1", "year": str(year), "sem": str(sem)})
+
+    def mprogram(self, year: int, sem: int, code: str) -> str:
+        return self._request("GET", "SearchMProgram.jsp",
+                             params={"format": "-2", "year": str(year), "sem": str(sem), "code": code})
+
+    def cprog(self, format: str, **params) -> str:
+        """課程標準 Cprog.jsp。format=-2&year / -3&year&matric / -4&year&matric&division。"""
+        p = {"format": format, **{k: str(v) for k, v in params.items()}}
+        return self._request("GET", "Cprog.jsp", params=p)
+
 
 def detect_current_term(client: CatalogClient) -> str:
     """打 QueryCurrPage 偵測學校目前預設的學年學期。"""

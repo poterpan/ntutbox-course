@@ -133,7 +133,40 @@ def build_v1(out_dir: Path, generated_at: str) -> Manifest:
             EnrollmentLatest(term_key=term, observed_at=observed, counts=counts).model_dump_json(),
             encoding="utf-8",
         )
+        # 選用：微學程（canonical/{term}/mprograms.json 存在才複製）
+        mp = term_dir / "mprograms.json"
+        if mp.exists():
+            (v1 / "mprograms.json").write_text(mp.read_text(encoding="utf-8"), encoding="utf-8")
+        # 選用：詳情（canonical/{term}/details.ndjson 存在 → 炸成 course/{id}.json）
+        det = term_dir / "details.ndjson"
+        if det.exists():
+            cdir = v1 / "course"
+            cdir.mkdir(exist_ok=True)
+            for line in det.read_text(encoding="utf-8").splitlines():
+                if not line.strip():
+                    continue
+                oid = json.loads(line)["offering_id"]
+                (cdir / f"{oid}.json").write_text(line, encoding="utf-8")
+    # 課程標準（跨入學年，canonical/standards/*.json → v1/standards/）
+    std_src = out_dir / "canonical" / "standards"
+    if std_src.exists():
+        std_dst = out_dir / "v1" / "standards"
+        std_dst.mkdir(parents=True, exist_ok=True)
+        for f in std_src.glob("*.json"):
+            (std_dst / f.name).write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
     return write_manifest(out_dir, generated_at)
+
+
+def write_mprograms(directory, out_dir: Path) -> None:
+    d = out_dir / "canonical" / directory.term_key
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "mprograms.json").write_text(directory.model_dump_json(), encoding="utf-8")
+
+
+def write_standards(directory, out_dir: Path) -> None:
+    d = out_dir / "canonical" / "standards"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / f"{directory.entry_year}.json").write_text(directory.model_dump_json(), encoding="utf-8")
 
 
 def _entry(path: Path, rel_url: str) -> ManifestEntry:
@@ -149,7 +182,7 @@ def write_manifest(out_dir: Path, generated_at: str) -> Manifest:
             continue
         term = term_dir.name
         files = {}
-        for name in ["catalog", "classes", "periods", "enrollment"]:
+        for name in ["catalog", "classes", "periods", "enrollment", "mprograms"]:
             p = term_dir / f"{name}.json"
             if p.exists():
                 files[name] = _entry(p, f"terms/{term}/{name}.json")
@@ -161,6 +194,7 @@ def write_manifest(out_dir: Path, generated_at: str) -> Manifest:
             classes=files.get("classes"),
             periods=files.get("periods"),
             enrollment=files.get("enrollment"),
+            mprograms=files.get("mprograms"),
             dataset_version=files["catalog"].sha256,
         )
     manifest = Manifest(generated_at=generated_at, terms=terms)
