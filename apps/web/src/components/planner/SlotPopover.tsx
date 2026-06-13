@@ -20,7 +20,7 @@ export function SlotPopover() {
   const placedHere = useMemo(() => {
     if (!activeSlot) return [];
     return placed
-      .filter((p) => byId(p.offering_id)?.meetings.some((m) => m.day === activeSlot.day && m.periods.includes(activeSlot.period)))
+      .filter((p) => (byId(p.offering_id)?.meetings ?? []).some((m) => m.day === activeSlot.day && (m.periods as string[]).includes(activeSlot.period)))
       .sort((a, b) => a.priority - b.priority);
   }, [placed, byId, activeSlot]);
 

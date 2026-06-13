@@ -28,7 +28,7 @@ export function CourseLibrary() {
   return (
     <div className="flex h-full flex-col gap-3 p-3">
       <CourseSearchBar />
-      <FilterChips units={units} classes={classes} />
+      <FilterChips units={units} classes={classes.map((k) => ({ code: k.code, name: k.name ?? k.code, kind: k.kind }))} />
       <div className="text-[11px] text-zinc-500">{results.length} 門課{results.length >= 200 ? "（已達上限，請縮小條件）" : ""}</div>
       <div className="min-h-0 flex-1"><CourseList courses={results.slice(0, 200)} /></div>
     </div>
