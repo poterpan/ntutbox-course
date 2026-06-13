@@ -82,7 +82,7 @@ export function PlannerLayout() {
           >
             課程庫
           </SheetTrigger>
-          <SheetContent side="bottom" className="glass-surface flex h-[82dvh] flex-col rounded-t-3xl p-0">
+          <SheetContent side="bottom" className="glass-surface flex flex-col gap-0 overflow-hidden rounded-t-3xl p-0 data-[side=bottom]:h-[82dvh]">
             <RightPanel />
           </SheetContent>
         </Sheet>
