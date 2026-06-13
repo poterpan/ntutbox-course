@@ -20,7 +20,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: crawl
+  group: data-pipeline   # 與 crawl-enrollment.yml 共用 → 序列化，不撞 data branch / R2
   cancel-in-progress: false
 
 jobs:

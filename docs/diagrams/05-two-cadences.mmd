@@ -1,0 +1,24 @@
+flowchart TB
+    subgraph DAILY["每日 full crawl (crawl.yml · 04:00)"]
+        d1["偵測當前學期"] --> d2["整學期全爬 ~135 請求<br/>結構 + 班級 + 人數"]
+        d2 --> d3["canonical: catalog + classes<br/>+ enrollment/{date}.ndjson"]
+    end
+
+    subgraph FAST["選課季 hourly refresh (crawl-enrollment.yml · 每小時)"]
+        f0{"今天 ≤ ENROLLMENT_FAST_UNTIL ?"}
+        f0 -->|否| fx["no-op (省成本)"]
+        f0 -->|是| f1["只讀人/撤 ~62 請求"]
+        f1 --> f2["canonical:<br/>enrollment/{date}THH.ndjson<br/>(每小時一筆時序)"]
+    end
+
+    d3 --> B["build_v1<br/>catalog 不變 (304)<br/>enrollment.json 更新"]
+    f2 --> B
+    B --> R2["R2 / cdn.ntutbox.com"]
+    R2 --> web["Web: 顯示人數 + 陳舊時間<br/>(規劃用; 送件權威在 App cwish live)"]
+
+    classDef daily fill:#bfdbfe,stroke:#1e40af,color:#000
+    classDef fast fill:#fde68a,stroke:#b45309,color:#000
+    classDef out fill:#bbf7d0,stroke:#15803d,color:#000
+    class d1,d2,d3 daily
+    class f1,f2 fast
+    class R2,web out

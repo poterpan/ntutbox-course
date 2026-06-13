@@ -50,6 +50,8 @@ gh secret set CLOUDFLARE_ACCOUNT_ID         # 貼上 account id
 gh variable set R2_BUCKET --body ntutbox-cdn
 gh variable set ACTIVE_TERMS --body ""      # 留空＝workflow 自動偵測當前學期
 gh variable set QUALITY_MIN_RATIO --body 0.95
+# 選課季人數快速刷新窗口（台北日期）：設了才會啟用 crawl-enrollment.yml 的每小時刷新；過期自動 no-op
+gh variable set ENROLLMENT_FAST_UNTIL --body 2026-06-19   # 115-1 預選結束日；非選課季留空
 ```
 
 ## 5. 首次全量發佈（一次性）

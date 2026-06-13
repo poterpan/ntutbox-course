@@ -1,0 +1,112 @@
+name: refresh enrollment (選課季)
+
+# 選課季每小時刷新「當前學期」人數（輕量：只讀人/撤），其餘時段自動 no-op。
+# 開啟方式：設 repo variable ENROLLMENT_FAST_UNTIL=<YYYY-MM-DD>（選課季結束日，台北時區）。
+# 今天 > 該日 → 立即跳過。無 push trigger。
+on:
+  schedule:
+    - cron: "0 * * * *"   # 每小時整點
+  workflow_dispatch:
+    inputs:
+      terms:
+        description: "學期；留空＝自動偵測當前學期"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-pipeline   # 與 crawl.yml 共用 → 不會同時動 data branch / R2
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    env:
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Window gate（選課季外 → no-op）
+        id: gate
+        env:
+          FAST_UNTIL: ${{ vars.ENROLLMENT_FAST_UNTIL }}
+        run: |
+          set -euo pipefail
+          NOW="$(TZ=Asia/Taipei date +%F)"
+          if [ -z "$FAST_UNTIL" ] || [ "$NOW" \> "$FAST_UNTIL" ]; then
+            echo "不在選課季窗口 (today=$NOW, until=${FAST_UNTIL:-unset}) → 跳過"
+            echo "active=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "選課季窗口內 (today=$NOW <= $FAST_UNTIL)"
+            echo "active=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout code (main)
+        if: steps.gate.outputs.active == 'true'
+        uses: actions/checkout@v4
+
+      - name: Checkout canonical (data branch)
+        if: steps.gate.outputs.active == 'true'
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data/canonical
+
+      - uses: actions/setup-python@v5
+        if: steps.gate.outputs.active == 'true'
+        with:
+          python-version: "3.12"
+
+      - name: Install crawler
+        if: steps.gate.outputs.active == 'true'
+        run: pip install -e ./crawler
+
+      - name: Resolve term
+        id: term
+        if: steps.gate.outputs.active == 'true'
+        env:
+          INPUT_TERMS: ${{ github.event.inputs.terms }}
+        run: |
+          set -euo pipefail
+          T="$INPUT_TERMS"
+          if [ -z "$T" ]; then T="$(python -m ntut_catalog current-term)"; fi
+          echo "$T" | grep -Eq '^[0-9]{3}-[123]$' || { echo "invalid term: $T"; exit 1; }
+          echo "term=$T" >> "$GITHUB_OUTPUT"
+
+      - name: Refresh enrollment（輕量，只讀人/撤）
+        if: steps.gate.outputs.active == 'true'
+        env:
+          TERM: ${{ steps.term.outputs.term }}
+        run: python -m ntut_catalog refresh-enrollment --terms "$TERM" --out data
+
+      - name: Redline scan
+        if: steps.gate.outputs.active == 'true'
+        run: python infra/redline_scan.py data/canonical
+
+      - name: Commit enrollment snapshot to data branch
+        if: steps.gate.outputs.active == 'true'
+        working-directory: data/canonical
+        env:
+          TERM: ${{ steps.term.outputs.term }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          STAMP="$(TZ=Asia/Taipei date +%FT%H)"
+          git add -- '*/enrollment/*.ndjson' || true
+          git diff --cached --quiet || git commit -m "data(enrollment): $TERM $STAMP (hourly)"
+          git pull --rebase origin data || true
+          git push origin HEAD:data
+
+      - name: Publish v1 to R2
+        if: steps.gate.outputs.active == 'true'
+        env:
+          TERM: ${{ steps.term.outputs.term }}
+        run: |
+          python infra/publish.py \
+            --bucket "$R2_BUCKET" \
+            --terms "$TERM" \
+            --out data \
+            --generated-at "$(date -u +%FT%TZ)"

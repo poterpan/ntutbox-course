@@ -62,10 +62,24 @@ def test_enrollment_overlay(result):
     assert result.enrollment.counts["347322"].capacity is None
 
 
+def test_crawl_enrollment_light_path():
+    """enrollment-only：只取人/撤，不需 catalog/classes。"""
+    from ntut_catalog.orchestrator import crawl_enrollment
+
+    enr = crawl_enrollment(FakeClient(), "114-1", "2026-06-13T14:00:00+08:00")
+    assert enr.term_key == "114-1"
+    assert enr.observed_at == "2026-06-13T14:00:00+08:00"
+    assert len(enr.counts) == 62
+    assert enr.counts["347322"].enrolled_count == 8
+    assert enr.counts["347322"].withdrawn_count == 0
+    assert enr.counts["347322"].capacity is None
+    assert enr.counts["347315"].enrolled_count == 0
+
+
 def test_artifacts_roundtrip(result, tmp_path):
     # 新管線：write_canonical + snapshot → build_v1 重建完整 v1
     write_canonical(result, tmp_path)
-    write_enrollment_snapshot(result, tmp_path, "2026-06-13")
+    write_enrollment_snapshot(result.catalog.term.key, result.enrollment, tmp_path, "2026-06-13")
     build_v1(tmp_path, "2026-06-13T00:00:00+08:00")
     term_dir = tmp_path / "v1" / "terms" / "114-1"
 

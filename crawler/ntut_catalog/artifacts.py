@@ -60,12 +60,16 @@ def write_canonical(result: TermResult, out_dir: Path) -> None:
     (d / "classes.json").write_text(result.classes.model_dump_json(), encoding="utf-8")
 
 
-def write_enrollment_snapshot(result: TermResult, out_dir: Path, date: str) -> None:
-    """寫 enrollment 時序快照（append-only，每日一檔）：offering_id + 人數/撤選 + observed_at。"""
-    d = out_dir / "canonical" / result.catalog.term.key / "enrollment"
+def write_enrollment_snapshot(term_key: str, enrollment, out_dir: Path, date: str) -> None:
+    """寫 enrollment 時序快照：offering_id + 人數/撤選 + observed_at。
+
+    date 顆粒由呼叫端決定：daily 用 'YYYY-MM-DD'；選課季 hourly 用 'YYYY-MM-DDTHH'
+    （同顆粒重跑覆寫同檔 → 限制檔數）。enrollment 為 EnrollmentLatest。
+    """
+    d = out_dir / "canonical" / term_key / "enrollment"
     d.mkdir(parents=True, exist_ok=True)
     with (d / f"{date}.ndjson").open("w", encoding="utf-8") as f:
-        for oid, e in result.enrollment.counts.items():
+        for oid, e in enrollment.counts.items():
             f.write(
                 json.dumps(
                     {

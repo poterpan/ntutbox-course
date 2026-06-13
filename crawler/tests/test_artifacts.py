@@ -76,7 +76,9 @@ def test_write_canonical_structural(tmp_path, sample_result):
 
 
 def test_write_enrollment_snapshot(tmp_path, sample_result):
-    write_enrollment_snapshot(sample_result, tmp_path, "2026-06-13")
+    write_enrollment_snapshot(
+        sample_result.catalog.term.key, sample_result.enrollment, tmp_path, "2026-06-13"
+    )
     snap = (tmp_path / "canonical" / "115-1" / "enrollment" / "2026-06-13.ndjson")
     lines = snap.read_text(encoding="utf-8").strip().splitlines()
     rec = json.loads(lines[0])
@@ -86,7 +88,7 @@ def test_write_enrollment_snapshot(tmp_path, sample_result):
 
 def test_build_v1_from_canonical(tmp_path, sample_result):
     write_canonical(sample_result, tmp_path)
-    write_enrollment_snapshot(sample_result, tmp_path, "2026-06-13")
+    write_enrollment_snapshot(sample_result.catalog.term.key, sample_result.enrollment, tmp_path, "2026-06-13")
     build_v1(tmp_path, "2026-06-13T01:00:00+08:00")
     t = tmp_path / "v1" / "terms" / "115-1"
     cat = TermCatalog.model_validate_json((t / "catalog.json").read_text(encoding="utf-8"))
@@ -102,14 +104,14 @@ def test_build_v1_from_canonical(tmp_path, sample_result):
 
 def test_build_v1_covers_all_terms(tmp_path, sample_result):
     write_canonical(sample_result, tmp_path)
-    write_enrollment_snapshot(sample_result, tmp_path, "2026-06-13")
+    write_enrollment_snapshot(sample_result.catalog.term.key, sample_result.enrollment, tmp_path, "2026-06-13")
     # 第二學期 canonical
     r2 = sample_result
     r2.catalog.term.key = "114-2"
     r2.catalog.term.year = 114
     r2.catalog.term.semester = 2
     write_canonical(r2, tmp_path)
-    write_enrollment_snapshot(r2, tmp_path, "2026-06-13")
+    write_enrollment_snapshot(r2.catalog.term.key, r2.enrollment, tmp_path, "2026-06-13")
     build_v1(tmp_path, "2026-06-13T01:00:00+08:00")
     man = Manifest.model_validate_json((tmp_path / "v1" / "manifest.json").read_text(encoding="utf-8"))
     assert {"115-1", "114-2"} <= set(man.terms)                  # manifest 涵蓋全部學期

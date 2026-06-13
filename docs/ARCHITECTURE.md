@@ -25,6 +25,11 @@ catalog 純結構（快取久、結構沒變零 diff）；人數走 enrollment o
 
 ![抓取邏輯](diagrams/04-crawl-logic.png)
 
+## 5. 兩種抓取節奏（每日 full vs 選課季 hourly enrollment）
+平常每日 full crawl；**選課季**（`ENROLLMENT_FAST_UNTIL` 設定的窗口內）另一支 workflow 每小時輕量刷新人數（只讀人/撤 ~62 請求），寫 hourly 時序快照。兩者共用 `concurrency: data-pipeline` 序列化。catalog 不動（304），只更新 enrollment overlay。
+
+![兩種節奏](diagrams/05-two-cadences.png)
+
 ## 設計要點
 - **運算 GitHub Actions、出口 Cloudflare R2**：R2 只能被 push（無「CF 拉 git」）；Worker 跑不動爬蟲（D6）。CF git 整合留給 P1 web 部署。
 - **canonical 完整可重建 v1**：CI 發佈前重建全部學期 → manifest 永遠涵蓋全學期、與 R2 物件一致。

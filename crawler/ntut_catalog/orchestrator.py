@@ -16,6 +16,7 @@ from typing import Dict, List, Set, Tuple
 from models import (
     ClassDirectory,
     CourseOffering,
+    Enrollment,
     EnrollmentLatest,
     PeriodTable,
     TermCatalog,
@@ -43,6 +44,38 @@ class TermResult:
 def parse_term_key(term_key: str) -> Tuple[int, int]:
     year_s, sem_s = term_key.split("-")
     return int(year_s), int(sem_s)
+
+
+def _opt_int(raw: Optional[str]) -> Optional[int]:
+    try:
+        return int(raw) if raw is not None else None
+    except ValueError:
+        return None
+
+
+def crawl_enrollment(client, term_key: str, now_iso: str) -> EnrollmentLatest:
+    """選課季輕量路徑：只重打各系所 QueryCourse 讀人/撤，不碰 catalog/classes。
+
+    來源完整性走 per-dept（與 crawl_term 主來源同），跳過 Subj-3 與 13 學制查詢。
+    """
+    year, sem = parse_term_key(term_key)
+    depts = parse_departments(client.subj("-2", year, sem))
+    counts: Dict[str, Enrollment] = {}
+    for code, _name in depts:
+        try:
+            rows = parse_course_rows(client.query_course(year, sem, SCHOOL_MATRIC, code))
+        except ValueError:
+            continue  # 該系所無課程表頭
+        for row in rows:
+            if row.offering_id in counts:
+                continue
+            counts[row.offering_id] = Enrollment(
+                enrolled_count=_opt_int(row.enrolled_raw),
+                capacity=None,
+                withdrawn_count=_opt_int(row.withdrawn_raw),
+                observed_at=now_iso,
+            )
+    return EnrollmentLatest(term_key=term_key, observed_at=now_iso, counts=counts)
 
 
 def crawl_term(client: CatalogClient, term_key: str, now_iso: str) -> TermResult:

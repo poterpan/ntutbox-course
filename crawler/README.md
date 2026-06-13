@@ -24,6 +24,7 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 .venv/bin/python -m ntut_catalog crawl --terms 115-1 --out ../data --force   # 爬 + 寫 snapshot + 重建 v1
 .venv/bin/python -m ntut_catalog crawl --terms 110-1:115-1 --out ../data     # 全量 backfill（skip 已存在 canonical）
 .venv/bin/python -m ntut_catalog migrate --out ../data              # 既有資料→structural+snapshot（一次性，不重爬）
+.venv/bin/python -m ntut_catalog refresh-enrollment --terms 115-1 --out ../data  # 選課季輕量人數刷新（~62 請求，hourly 快照）
 .venv/bin/python -m ntut_catalog rederive --out ../data             # 離線重建內嵌班級欄位（不重爬）
 ```
 每學期 ~136 請求、~5 分鐘（限流 delay 0.4–0.8s + 指數退避）。skip/resume 看 **canonical**；daily 一律 `--force` 以刷新 enrollment。
