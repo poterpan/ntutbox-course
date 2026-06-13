@@ -9,6 +9,16 @@
 - 網域 `ntutbox.com` 已在 Cloudflare（DNS 可加 `cdn` 子網域）。
 - 本地已完成遷移：`data` branch 有 11 學期 canonical、`main` 為純 code。
 
+## 0. ⚠️ 公開前必做：清掉 main 歷史中的 data/canonical blobs
+canonical 已搬到 orphan `data` branch，但 **main 的歷史仍殘留 ~35MB+ 的 data/canonical blobs**（P0/rederive/migrate 三個 commit）。公開前用 git-filter-repo 從 main 歷史移除（只影響 main；`data` branch 的 canonical 在 root path、不受影響）。
+```bash
+# 已備份：/tmp/ntutbox-pre-data-split.bundle 與 backup/pre-data-split branch
+git filter-repo --path data/canonical --invert-paths --force --refs main
+# 驗證：main 歷史不再含 canonical（應為 0）
+git rev-list main --objects | grep -c 'data/canonical' || true
+```
+> filter-repo 會改寫 main 所有 commit SHA（repo 尚未 push，安全）。`data` branch 不動。
+
 ## 1. GitHub repo（public）
 ```bash
 # 在 repo 根目錄
@@ -16,7 +26,7 @@ gh repo create ntutbox-course --public --source=. --remote=origin --description 
 git push -u origin main
 git push origin data          # 推 orphan data branch（canonical 時序）
 ```
-> ⚠️ 公開前確認：`git ls-files | grep -i -E 'env|secret|key'` 應為空；`infra/redline_scan.py`（CI 已含）對 `data` branch 乾淨。
+> ⚠️ 公開前確認：`git ls-files | grep -i -E 'env|secret|key'` 應為空；`python infra/redline_scan.py data/canonical` 乾淨（CI 也會擋）。
 
 ## 2. Cloudflare R2 bucket + 自訂網域 + CORS
 ```bash
