@@ -16,6 +16,7 @@ from typing import List
 
 from ntut_catalog.artifacts import build_v1, write_canonical, write_enrollment_snapshot
 from ntut_catalog.client import CatalogClient, detect_current_term
+from ntut_catalog.migrate import migrate_all
 from ntut_catalog.orchestrator import crawl_term, parse_term_key
 from ntut_catalog.rederive import rederive_all
 
@@ -79,6 +80,8 @@ def main(argv: List[str] | None = None) -> int:
     r = sub.add_parser("rederive", help="離線重建課程內嵌班級欄位（不重爬）")
     r.add_argument("--out", default="../data", help="輸出根目錄（預設 ../data）")
     sub.add_parser("current-term", help="偵測學校當前學期並印出（如 115-1）")
+    m = sub.add_parser("migrate", help="既有資料離線遷移成 structural canonical + snapshot（不重爬）")
+    m.add_argument("--out", default="../data", help="輸出根目錄（預設 ../data）")
     args = parser.parse_args(argv)
 
     if args.command == "current-term":
@@ -94,6 +97,13 @@ def main(argv: List[str] | None = None) -> int:
 
     if args.command == "rederive":
         return _cmd_rederive(out_dir)
+
+    if args.command == "migrate":
+        _setup_logging(out_dir, "migrate")
+        stats = migrate_all(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
+        logger.info("migrate done: %d terms (%d migrated)",
+                    len(stats), sum(1 for s in stats if s["migrated"]))
+        return 0
 
     _setup_logging(out_dir, "crawl")
     terms = expand_terms(args.terms)
