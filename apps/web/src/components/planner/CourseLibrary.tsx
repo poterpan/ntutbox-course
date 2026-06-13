@@ -1,16 +1,17 @@
 "use client";
 import { useMemo } from "react";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
+import { useSearchIndex } from "@/lib/planner/use-search-index";
 import { useUiStore } from "@/store/ui-store";
 import { applyFilters } from "@/lib/filters/apply";
 import { search } from "@/lib/search/search";
-import { buildIndex } from "@/lib/search/build-index";
 import { CourseSearchBar } from "./CourseSearchBar";
 import { FilterChips } from "./FilterChips";
 import { CourseList } from "./CourseList";
 
 export function CourseLibrary() {
   const { courses, classes } = useTermCourses();
+  const index = useSearchIndex();
   const { query, filters } = useUiStore();
 
   const units = useMemo(() => {
@@ -20,10 +21,10 @@ export function CourseLibrary() {
   }, [courses]);
 
   const results = useMemo(() => {
-    const filtered = applyFilters(courses, filters);
-    const ids = new Set(search(buildIndex(filtered), query).map((d) => d.offeringId));
-    return filtered.filter((c) => ids.has(c.offering_id));
-  }, [courses, filters, query]);
+    const filteredIds = new Set(applyFilters(courses, filters).map((c) => c.offering_id));
+    const searchIds = new Set(search(index, query).map((d) => d.offeringId));
+    return courses.filter((c) => filteredIds.has(c.offering_id) && searchIds.has(c.offering_id));
+  }, [courses, index, filters, query]);
 
   return (
     <div className="flex h-full flex-col gap-3 p-3">

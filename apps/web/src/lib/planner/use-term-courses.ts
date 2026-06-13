@@ -1,7 +1,6 @@
 "use client";
 import { useMemo } from "react";
 import { useTermStore } from "@/store/term-store";
-import { buildIndex } from "@/lib/search/build-index";
 import type { CourseOffering } from "@/lib/data/types";
 
 export function useTermCourses() {
@@ -12,7 +11,6 @@ export function useTermCourses() {
     return {
       courses,
       byId: (id: string) => map.get(id),
-      index: buildIndex(courses),
       periods: bundle?.periods,
       classes: bundle?.classes?.classes ?? [],
       enrollment: bundle?.enrollment?.counts ?? {},

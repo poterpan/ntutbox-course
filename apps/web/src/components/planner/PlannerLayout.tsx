@@ -1,5 +1,4 @@
 "use client";
-import { useTermBootstrap } from "@/lib/planner/use-term-bootstrap";
 import { useTermStore } from "@/store/term-store";
 import { useUiStore } from "@/store/ui-store";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -14,7 +13,6 @@ import { TermSwitcher } from "./TermSwitcher";
 import { FavoritesList } from "./FavoritesList";
 
 export function PlannerLayout() {
-  useTermBootstrap();
   const status = useTermStore((s) => s.status);
   const error = useTermStore((s) => s.error);
   const catalogAt = useTermStore((s) => s.catalogCrawledAt());
