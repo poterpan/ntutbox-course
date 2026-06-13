@@ -14,8 +14,38 @@ import hashlib
 import json
 from pathlib import Path
 
-from models import Manifest, ManifestEntry, ManifestTerm
+from models import (
+    CourseOffering,
+    Enrollment,
+    EnrollmentLatest,
+    Freshness,
+    Manifest,
+    ManifestEntry,
+    ManifestTerm,
+    TermCatalog,
+    TermInfo,
+)
 from ntut_catalog.orchestrator import TermResult
+
+# normalize.py 寫入 raw_fields 的 volatile 鍵（人數/撤選），結構檔需剔除以免每日 churn
+_VOLATILE_RAW_KEYS = ("enrolled", "withdrawn")
+
+
+def structural_course(c: CourseOffering) -> CourseOffering:
+    """回傳去掉 volatile enrollment（含 raw_fields 人數欄）的課程副本，**不 mutate 原物件**。"""
+    s = c.model_copy(deep=True)
+    s.enrollment = Enrollment()  # 全 None；capacity 本即 None
+    s.raw_fields = {k: v for k, v in s.raw_fields.items() if k not in _VOLATILE_RAW_KEYS}
+    return s
+
+
+def structural_catalog(cat: TermCatalog) -> TermCatalog:
+    """回傳純結構 catalog：去爬取時間戳 + 每課去 volatile，**不 mutate 原物件**。"""
+    s = cat.model_copy(deep=True)
+    s.generated_at = None
+    s.freshness = Freshness()
+    s.courses = [structural_course(c) for c in s.courses]
+    return s
 
 
 def write_term(result: TermResult, out_dir: Path) -> None:
