@@ -16,7 +16,7 @@ export function CourseList({ courses }: { courses: CourseOffering[] }) {
   const useVirtual = items.length > 0; // jsdom has no layout → render plain list in tests
 
   return (
-    <div ref={parentRef} className="thin-scroll h-full overflow-auto" data-testid="course-list">
+    <div ref={parentRef} className="thin-scroll h-full overflow-auto px-1 pt-1" data-testid="course-list">
       {useVirtual ? (
         <div style={{ height: rv.getTotalSize(), position: "relative" }}>
           {items.map((vi) => (

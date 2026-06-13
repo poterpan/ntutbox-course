@@ -8,6 +8,7 @@ import { useUiStore } from "@/store/ui-store";
 import { applyFilters } from "@/lib/filters/apply";
 import { EMPTY_FILTER } from "@/lib/filters/types";
 import { search } from "@/lib/search/search";
+import { cn } from "@/lib/utils";
 
 const DAY = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -17,6 +18,7 @@ export function SlotPopover() {
   const { placed, place, unplace, setPriority } = useDraftStore();
   const { activeSlot, openSlot, openDetail } = useUiStore();
   const [q, setQ] = useState("");
+  const [dragId, setDragId] = useState<string | null>(null);
 
   const placedHere = useMemo(() => {
     if (!activeSlot) return [];
@@ -51,6 +53,23 @@ export function SlotPopover() {
     setPriority(other.offering_id, cur.priority);
   };
 
+  // Reassign the group's existing priority values to a new visual order
+  // (keeps relative order vs. courses outside this slot).
+  const applyOrder = (orderedIds: string[]) => {
+    const prios = placedHere.map((p) => p.priority).slice().sort((a, b) => a - b);
+    orderedIds.forEach((id, i) => setPriority(id, prios[i]));
+  };
+  const dropOn = (targetId: string) => {
+    if (!dragId || dragId === targetId) return setDragId(null);
+    const ids = placedHere.map((p) => p.offering_id);
+    const from = ids.indexOf(dragId);
+    const to = ids.indexOf(targetId);
+    if (from < 0 || to < 0) return setDragId(null);
+    ids.splice(to, 0, ids.splice(from, 1)[0]);
+    applyOrder(ids);
+    setDragId(null);
+  };
+
   const openCourse = (id: string) => { openSlot(null); openDetail(id); };
 
   return (
@@ -68,13 +87,28 @@ export function SlotPopover() {
               </div>
               {placedHere.map((p, i) => {
                 const c = byId(p.offering_id);
+                const multi = placedHere.length > 1;
                 return (
-                  <div key={p.offering_id} className="flex items-center gap-2 rounded-xl bg-orange-50 px-2 py-1.5 text-xs ring-1 ring-orange-200">
+                  <div
+                    key={p.offering_id}
+                    draggable={multi}
+                    onDragStart={() => setDragId(p.offering_id)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => dropOn(p.offering_id)}
+                    onDragEnd={() => setDragId(null)}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded-xl bg-orange-50 px-2 py-1.5 text-xs ring-1 ring-orange-200 transition-opacity",
+                      dragId === p.offering_id && "opacity-40",
+                    )}
+                  >
+                    {multi && (
+                      <span className="shrink-0 cursor-grab select-none text-sm text-orange-400 active:cursor-grabbing" aria-hidden>⠿</span>
+                    )}
                     <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-orange-500 text-[10px] font-bold text-white">{i + 1}</span>
                     <button type="button" className="min-w-0 flex-1 truncate text-left font-medium hover:underline" onClick={() => openCourse(p.offering_id)}>
                       {c?.name.zh}
                     </button>
-                    {placedHere.length > 1 && (
+                    {multi && (
                       <>
                         <button type="button" className="flex size-6 items-center justify-center rounded-md text-[var(--ink-soft)] hover:bg-black/5 disabled:opacity-30" aria-label={`${c?.name.zh} 上移`} disabled={i === 0} onClick={() => swap(p.offering_id, -1)}>↑</button>
                         <button type="button" className="flex size-6 items-center justify-center rounded-md text-[var(--ink-soft)] hover:bg-black/5 disabled:opacity-30" aria-label={`${c?.name.zh} 下移`} disabled={i === placedHere.length - 1} onClick={() => swap(p.offering_id, 1)}>↓</button>
