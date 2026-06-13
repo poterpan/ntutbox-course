@@ -63,6 +63,15 @@ jobs:
         if: steps.gate.outputs.active == 'true'
         run: pip install -e ./crawler
 
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.active == 'true'
+        with:
+          node-version: "20"
+
+      - name: Install wrangler
+        if: steps.gate.outputs.active == 'true'
+        run: npm install -g wrangler@4
+
       - name: Resolve term
         id: term
         if: steps.gate.outputs.active == 'true'

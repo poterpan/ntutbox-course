@@ -48,6 +48,13 @@ jobs:
       - name: Install crawler
         run: pip install -e ./crawler
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install wrangler
+        run: npm install -g wrangler@4
+
       # 不可信輸入只經由 env 注入，不直接插入 shell（防 command injection）
       - name: Resolve terms
         id: terms
