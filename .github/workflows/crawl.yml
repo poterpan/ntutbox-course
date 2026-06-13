@@ -1,0 +1,120 @@
+name: crawl catalog
+
+# 每日 04:00 Asia/Taipei（= 20:00 UTC，台北無 DST）爬「當前學期」+ 手動全量。
+# 無 push trigger → 對 data branch 的 commit 不會自迴圈。
+on:
+  schedule:
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+    inputs:
+      terms:
+        description: "學期（如 115-1 或 110-1:115-1）；留空＝自動偵測當前學期"
+        required: false
+        default: ""
+      force:
+        description: "重爬已存在學期"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: crawl
+  cancel-in-progress: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    env:
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO || '0.95' }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - name: Checkout code (main)
+        uses: actions/checkout@v4
+
+      - name: Checkout canonical (data branch)
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data/canonical
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install crawler
+        run: pip install -e ./crawler
+
+      # 不可信輸入只經由 env 注入，不直接插入 shell（防 command injection）
+      - name: Resolve terms
+        id: terms
+        env:
+          INPUT_TERMS: ${{ github.event.inputs.terms }}
+          ACTIVE_TERMS: ${{ vars.ACTIVE_TERMS }}
+        run: |
+          set -euo pipefail
+          T="$INPUT_TERMS"
+          if [ -z "$T" ]; then T="$ACTIVE_TERMS"; fi
+          if [ -z "$T" ]; then
+            T="$(python -m ntut_catalog current-term)"
+            echo "auto-detected current term: $T"
+          else
+            echo "$T" | grep -Eq '^[0-9]{3}-[123]([:,][0-9]{3}-[123])*$' || { echo "invalid terms: $T"; exit 1; }
+          fi
+          echo "terms=$T" >> "$GITHUB_OUTPUT"
+
+      - name: Record previous course counts (quality-gate baseline)
+        id: prev
+        run: |
+          set -euo pipefail
+          python - "$GITHUB_OUTPUT" <<'PY'
+          import json, sys, pathlib
+          out = pathlib.Path(sys.argv[1])
+          base = pathlib.Path("data/canonical")
+          counts = {}
+          for d in sorted(base.glob("*/catalog.ndjson")):
+              term = d.parent.name
+              counts[term] = sum(1 for ln in d.read_text(encoding="utf-8").splitlines() if ln.strip())
+          with out.open("a", encoding="utf-8") as f:
+              f.write("counts=" + json.dumps(counts) + "\n")
+          PY
+
+      - name: Crawl
+        env:
+          TERMS: ${{ steps.terms.outputs.terms }}
+        run: python -m ntut_catalog crawl --terms "$TERMS" --force --out data
+
+      - name: Redline scan (block PII/secrets/error pages)
+        run: python infra/redline_scan.py data/canonical
+
+      - name: Commit canonical to data branch
+        working-directory: data/canonical
+        env:
+          TERMS: ${{ steps.terms.outputs.terms }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          DATE="$(TZ=Asia/Taipei date +%F)"
+          git add -- '*/catalog.ndjson' '*/classes.json' || true
+          git diff --cached --quiet || git commit -m "data(catalog): $TERMS $DATE"
+          git add -- '*/enrollment/*.ndjson' || true
+          git diff --cached --quiet || git commit -m "data(enrollment): $TERMS $DATE"
+          git pull --rebase origin data || true
+          git push origin HEAD:data
+
+      - name: Publish v1 to R2
+        env:
+          TERMS: ${{ steps.terms.outputs.terms }}
+          PREV_COUNTS: ${{ steps.prev.outputs.counts }}
+        run: |
+          python infra/publish.py \
+            --bucket "$R2_BUCKET" \
+            --terms "$TERMS" \
+            --out data \
+            --min-ratio "$MIN_RATIO" \
+            --previous-counts "$PREV_COUNTS" \
+            --generated-at "$(date -u +%FT%TZ)"
