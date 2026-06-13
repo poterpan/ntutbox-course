@@ -26,13 +26,10 @@ venv/
 .mypy_cache/
 .ruff_cache/
 
-# --- 爬蟲產生物 (發佈到 R2，不進 git；canonical NDJSON 例外，見 crawler/) ---
+# --- 爬蟲產生物：main 完全不放 data（canonical 在 orphan `data` branch，v1 為 R2 衍生物）---
 crawler/dist/
 crawler/.scratch/
-data/*-log-*.txt
-# v1 JSON artifacts = R2 發佈目標，由 CI 重生+推送，可由爬蟲/rederive 重產 → 不進 git
-# （canonical NDJSON 例外，進 git 留 enrollment 時序）
-data/v1/
+data/
 *.sqlite
 *.sqlite-*
 
