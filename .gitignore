@@ -38,3 +38,6 @@ data/
 Thumbs.db
 .idea/
 .vscode/
+
+# Superpowers brainstorm visual companion (local mockups)
+.superpowers/

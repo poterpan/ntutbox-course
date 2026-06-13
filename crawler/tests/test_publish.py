@@ -29,3 +29,17 @@ def test_plan_uploads_manifest_last():
     plan = plan_uploads(files)
     assert plan[-1] == "v1/manifest.json"           # manifest 最後（原子性）
     assert set(plan) == set(files)
+
+
+def test_v1_files_ignores_stray_files(tmp_path):
+    """回歸：data/v1/terms/ 下的 .DS_Store 等非目錄不可被當成學期。"""
+    from infra.publish import _v1_files_for
+    td = tmp_path / "v1" / "terms" / "115-1"
+    td.mkdir(parents=True)
+    for n in ["catalog.json", "classes.json", "periods.json", "enrollment.json"]:
+        (td / n).write_text("{}")
+    (tmp_path / "v1" / "terms" / ".DS_Store").write_text("junk")  # 干擾檔
+    files = _v1_files_for(tmp_path, None)  # --all 模式
+    assert not any(".DS_Store" in f for f in files)
+    assert "v1/manifest.json" in files
+    assert sum(1 for f in files if f.startswith("v1/terms/115-1/")) == 4

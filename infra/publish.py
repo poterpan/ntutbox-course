@@ -69,7 +69,7 @@ def _v1_files_for(out_dir: Path, terms: Optional[List[str]]) -> List[str]:
     files: List[str] = []
     term_dirs = (
         [v1 / "terms" / t for t in terms] if terms
-        else sorted((v1 / "terms").iterdir()) if (v1 / "terms").exists() else []
+        else sorted(p for p in (v1 / "terms").iterdir() if p.is_dir()) if (v1 / "terms").exists() else []
     )
     for td in term_dirs:
         for name in ["catalog.json", "classes.json", "periods.json", "enrollment.json"]:
@@ -117,7 +117,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     # 2. quality gate（對要發佈的學期）
     previous = json.loads(args.previous_counts)
     gate_terms = terms if terms else (
-        [p.name for p in sorted((out_dir / "v1" / "terms").iterdir())] if (out_dir / "v1" / "terms").exists() else []
+        [p.name for p in sorted((out_dir / "v1" / "terms").iterdir()) if p.is_dir()]
+        if (out_dir / "v1" / "terms").exists() else []
     )
     for t in gate_terms:
         ok, why = quality_gate(_term_count(out_dir, t), int(previous.get(t, 0)), args.min_ratio)
