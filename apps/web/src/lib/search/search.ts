@@ -23,15 +23,16 @@ export function search(docs: SearchDoc[], rawQuery: string, opts: SearchOptions 
     else if (doc.nameKey === q) score = 400;                          // name exact
     else if (doc.nameKey.startsWith(q)) score = 300;                  // name prefix
     else {
-      // substring match in blob (highest priority in fallback)
+      // contiguous substring is the strongest fallback signal
       if (doc.blob.includes(q)) {
-        score = 150;
+        score = 200;
       } else {
-        // bigram overlap (CJK) — only full overlap (all query bigrams present) to avoid false positives
-        // e.g. "李老師" shares "老師" bigram with "王老師" — require all bigrams to match
+        // bigram overlap (CJK) — only full overlap (all query bigrams present, but scattered)
+        // ranks below a contiguous substring. Avoids false positives:
+        // "李老師" shares only "老師" with "王老師" (partial) → no match.
         let shared = 0;
         for (const b of qbg) if (doc.bigrams.has(b)) shared++;
-        if (qbg.size > 0 && shared === qbg.size) score = Math.round((shared / qbg.size) * 200);
+        if (qbg.size > 0 && shared === qbg.size) score = 150;
       }
     }
     if (score > 0) scored.push({ doc, score });
