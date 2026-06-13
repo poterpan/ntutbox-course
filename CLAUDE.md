@@ -10,9 +10,11 @@
 - 母品牌北科盒子為 **iOS 專屬**、遵循 Apple 美學（Liquid Glass）；本 Web 視覺向其靠攏（可再豐富，但別偏離太多）。
 
 ## 現況（2026-06-13）
-設計階段完成、**進入實作**。資料來源、schema、選課規則、後端送件行為都已研究並 live 驗證（見 `docs/DESIGN.md`）。
-- 已有：`docs/DESIGN.md`（資料架構全文）、`crawler/models.py`（typed v1 Pydantic schema 草案）。
-- **下一步（建議起點）**：`crawler/` 第一個任務——實跑一次完整 catalog 爬蟲、產出真實 JSON、用 `models.py` 驗證 schema 撐得住真資料（兼最後的 schema 實證）。
+**P0 爬蟲完成**：`crawler/ntut_catalog/` 已實作（33 tests），110-1～115-1 共 11 學期 32,338 課爬畢，
+全過 `models.py` 驗證，產物在 `data/`（canonical NDJSON + v1 JSON artifacts + manifest）。
+實作與 live 探測結論（stime 必帶、「全校查詢被擋」其實只是前端 JS 等）見 `docs/superpowers/plans/2026-06-13-crawler-p0.md` 與 `crawler/README.md`。
+- **下一步**：P1 Web 排課器（`apps/web/`）或 infra（GitHub Actions cron + R2 發佈）。
+- 未爬（P1 需要再做）：課程描述/課綱詳情檔、微學程、課程標準（requirement.category 對映）。
 
 ## 路線（技術文件 Phase 0–4）
 - **P0：資料 + 爬蟲 PoC**（穩定產出 catalog JSON）← **現在**

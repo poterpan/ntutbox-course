@@ -1,0 +1,318 @@
+
+
+
+<HTML>
+<Head>
+<!-- 
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+-->
+<div class="view-mode-toolbar">
+    <div class="view-rocker-wrap mini ntut-style">
+        <label class="view-rocker" title="切換手機版 / 電腦版">
+            <input id="viewRockerToggle" type="checkbox">
+
+            <span class="rocker-left">
+                <span class="rocker-icon">📱</span>
+                <span class="rocker-text">手機</span>
+            </span>
+
+            <span class="rocker-right">
+                <span class="rocker-icon">💻</span>
+                <span class="rocker-text">電腦</span>
+            </span>
+        </label>
+    </div>
+</div>
+<Title>國立臺北科技大學 課程查詢系統</Title>
+<link type="text/css" href="../css/switch.css" rel="stylesheet"/>
+<Script src="https://font.ntut.edu.tw/wfs/js/lib/wfs.js" type="text/javascript" ></script>
+<Script Language=JavaScript>
+document.addEventListener("DOMContentLoaded", function () {
+    var toggle = document.getElementById("viewRockerToggle");
+    if (!toggle) return;
+
+    var path = window.location.pathname;
+    var search = window.location.search || "";
+    var hash = window.location.hash || "";
+
+    /*
+        checked = 電腦版
+        unchecked = 手機版
+    */
+    if (path.indexOf("/tw/") !== -1) {
+        toggle.checked = true;
+    } else if (path.indexOf("/mobile/") !== -1) {
+        toggle.checked = false;
+    }
+
+    toggle.addEventListener("change", function () {
+        var newPath = path;
+
+        if (toggle.checked) {
+            // 切到電腦版
+            newPath = path.replace("/mobile/", "/tw/");
+        } else {
+            // 切到手機版
+            newPath = path.replace("/tw/", "/mobile/");
+        }
+
+        if (newPath === path) {
+            alert("無法判斷目前頁面路徑，請確認網址是否包含 /tw/ 或 /mobile/");
+            return;
+        }
+
+        window.location.href = window.location.origin + newPath + search + hash;
+    });
+});
+
+var dayList = new Array(7);
+    prdList = new Array(14);
+//確認查詢的資料是否合法
+function check(){
+  if ((document.F1.matric.value == "'0','1','4','5','6','7','8','9','A','C','D','E','F'") &&
+      (document.F1.unit.value == "＊")) {
+     alert("由於速度的考量，\n請勿同時查詢【全校】及【所有系所】的開課資料!");
+     return false;     
+  }   
+  dayList[1] = document.F1.D0;  prdList[1]  = document.F1.P1;
+  dayList[2] = document.F1.D1;  prdList[2]  = document.F1.P2;
+  dayList[3] = document.F1.D2;  prdList[3]  = document.F1.P3;
+  dayList[4] = document.F1.D3;  prdList[4]  = document.F1.P4;
+  dayList[5] = document.F1.D4;  prdList[5]  = document.F1.PN;
+  dayList[6] = document.F1.D5;  prdList[6]  = document.F1.P5;
+  dayList[7] = document.F1.D6;  prdList[7]  = document.F1.P6;
+                                prdList[8]  = document.F1.P7;
+                                prdList[9]  = document.F1.P8;
+                                prdList[10] = document.F1.P9;
+                                prdList[11] = document.F1.P10;
+                                prdList[12] = document.F1.P11;
+                                prdList[13] = document.F1.P12;
+                                prdList[14] = document.F1.P13;
+  document.F1.stime.value = "";  stc = 0;
+  for (ii=1; ii<=7; ii++) {
+    if (dayList[ii].checked) {
+       for (jj=1; jj<=14;  jj++) {
+         if (prdList[jj].checked) {
+            if (document.F1.stime.value.length > 0) { document.F1.stime.value = document.F1.stime.value + ","; }
+            if (jj <= 4) { kk = jj; } else
+            if (jj == 5) { kk = 22; } else { kk = jj - 1; }
+            document.F1.stime.value = document.F1.stime.value + ((ii-1) * 100 + kk);
+            stc = stc + 1;
+         }
+       }
+    }
+  }
+  if ((stc >= 98) || (document.F1.stime.value == "")) { document.F1.stime.value = "0"; }
+
+  if ((document.F1.matric.value != "'1'") && (document.F1.matric.value != "'E'") &&
+      ((document.F1.matric.value == "'0','1','4','5','6','7','8','9','A','C','D','E','F'") || 
+       (document.F1.unit.value == "＊"))) {
+     if ((document.F1.cname.value == "") && (document.F1.ccode.value == "") &&
+         (document.F1.tname.value == "") && (document.F1.stime.value == "0")) {
+        alert("由於速度的考量，請於【課程名稱】、【課程代碼】、\n" + 
+              "【教師姓名】或【上課時間】之任何項目，指定查詢範圍！");
+        return false;
+     }   
+  }   
+
+  return true;
+}
+</Script>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+</Head>
+
+<Body  bgcolor=#ffffdf background="../image/grey918y.gif" text=#003398>
+<h3 align="center">國立臺北科技大學 課程查詢系統</h3>
+<FORM name = F1 method = "POST" TARGET = "_blank" ACTION="QueryCourse.jsp"  onSubmit="return(check())">
+   <Input type="hidden" NAME="stime"    Value="">
+
+   <TABLE BORDER=0 Align=Center>
+     <TR><TD>學年度：<select size="1" name="year" tabindex="1">
+                      <option selected>115</option>
+		      <option>114</option>
+                      <option>113</option>
+                      <option>112</option>
+                      <option>111</option>
+                      <option>110</option>
+                      <option>109</option>
+                      <option>108</option>
+                      <option>107</option>
+                      <option>106</option>
+                      <option>105</option>
+                      <option>104</option>
+                      <option>103</option>
+                      <option>102</option>
+                      <option>101</option>
+                      <option>100</option>
+                      <option>99</option>
+                      <option>98</option>
+                      <option>97</option>
+                      <option>96</option>
+                      <option>95</option>
+                      <option>94</option>
+                      <option>93</option>
+                      <option>92</option>
+                      <option>91</option>
+                      <option>90</option>
+                    </select></TD>
+         <TD width="1%"></TD>
+         <TD>學制(部別)：<select size="1" name="matric" tabindex="3">    
+                          <option value="'0','1','4','5','6','7','8','9','A','C','D','E','F'">全校</option>
+                          <option value="'1','5','6','7','8','9'" selected>日間部</option>
+                          <option value="'5'">日間部五專</option>
+                          <option value="'7'">日間部四技</option>
+                          <option value="'8','9'">日間部研究所(碩、博)</option>
+                          <option value="'4','A','D','C','E','F'">進修部</option>
+                          <option value="'4'">進修部二技</option>
+                          <option value="'E'">學士後學位學程</option>
+                          <option value="'F'">進修部四技</option>
+                          <option value="'A'">進修部碩士在職專班</option>
+                          <option value="'D'">ＥＭＢＡ</option>
+                          <option value="'C'">週末碩士班</option>
+                          <option value="'8','9','A','C','D'">研究所(日間部、進修部、週末碩士班)</option>
+                          <option value="'0'">進修學院(二技)</option>
+                          <option value="'0','4','6'">二技(日間部、進修部暨進修學院)</option>
+                          <option value="'7','F'">四技(日間部、進修部)</option>
+                          <option value="'1'">學程</option>
+                        </select></TD>     
+	 <TR><TD colspan="3"></TR>
+     <TR><TD>學　期：<select size="1" name="sem" tabindex="2">                                
+                       <option selected value="1">上學期</option>                               
+ 		       <option value="2">下學期</option>                               
+			         </select></TD>                              
+         <TD width="1%"></TD>
+         <TD>開 課 單 位：<select size="1" name="unit" tabindex="4">
+                           <option value="＊" selected>所有系所</option>
+                           <option value="01"         >教務處</option>
+                           <option value="05"         >進修部</option>
+                           <option value="06"         >進修學院</option>
+                           <option value="10"         >體育室</option>
+                           <option value="14"         >通識教育中心</option>
+                           <option value="2B"         >智慧自動化工程科</option>
+                           <option value="30"         >機械工程系</option>
+                           <option value="31"         >電機工程系</option>
+                           <option value="32"         >化學工程與生物科技系</option>
+                           <option value="33"         >材料及資源工程系</option>
+                           <option value="34"         >土木工程系</option>
+                           <option value="35"         >分子科學與工程系</option>
+                           <option value="36"         >電子工程系</option>
+                           <option value="37"         >工業工程與管理系</option>
+                           <option value="38"         >工業設計系</option>
+                           <option value="39"         >建築系</option>
+                           <option value="40"         >機電整合研究所</option>
+<!--                       <option value="41"         >電腦與通訊研究所</option> -->
+                           <option value="42"         >土木與防災研究所</option>
+                           <option value="44"         >車輛工程系</option>
+                           <option value="45"         >能源與冷凍空調工程系</option>
+                           <option value="49"         >技術及職業教育研究所</option>
+                           <option value="51"         >有機高分子研究所</option>
+                           <option value="52"         >建築與都市設計研究所</option>
+                           <option value="54"         >應用英文系</option>
+                           <option value="56"         >製造科技研究所</option>
+                           <option value="57"         >經營管理系</option>
+                           <option value="58"         >創新設計研究所</option>
+                           <option value="59"         >資訊工程系</option>
+                           <option value="60"         >環境工程與管理研究所</option>
+                           <option value="61"         >自動化科技研究所</option>
+                           <option value="62"         >師資培育中心</option>
+<!--                       <option value="63"         >光電科技中心</option>-->
+<!--                       <option value="64"         >自動化科技中心</option>-->
+                           <option value="65"         >光電工程系</option>
+                           <option value="66"         >機電科技研究所</option>
+<!--                       <option value="67"         >工程科技研究所</option> -->
+                           <option value="68"         >生化與生醫工程研究所</option>
+                           <option value="73"         >化學工程研究所</option>
+                           <option value="74"         >工商管理研究所</option>
+<!--                       <option value="76"         >軟體工程學程</option> -->
+                           <option value="78"         >材料科學與工程研究所</option>
+                           <option value="79"         >資源工程研究所</option>
+                           <option value="81"         >機電學士班</option>
+                           <option value="82"         >電資學士班</option>
+                           <option value="83"         >工程科技學士班</option>
+                           <option value="84"         >創意設計學士班</option>
+                           <option value="85"         >設計研究所</option>
+<!--                       <option value="86"         >電資碩士在職專班</option>   
+                           <option value="91"         >科技法律學程</option>
+<!--                       <option value="92"         >互動媒體設計研究所</option>
+                           <option value="93"         >資訊與運籌管理研究所</option>   -->
+                           <option value="98"         >管理學院外國學生專班</option>
+                           <option value="99"         >電資學院外國學生專班</option>
+                           <option value="A0"         >工程學院能源與光電材料外國學生專班</option>
+<!--                       <option value="A1"         >服務與科技管理研究所</option>   -->
+                           <option value="A4"         >智慧財產權研究所</option>
+                           <option value="A5"         >文化事業發展系</option>
+<!--                       <option value="A6"         >設計學院創意與永續建築研究所外國學生專班</option>  -->
+                           <option value="A8"         >機電科技研究所外國學生專班</option>
+<!--                       <option value="A9"         >工程學院土木與環境工程外國學生專班</option>  -->
+                           <option value="AA"         >校院級課程</option>
+                           <option value="AB"         >資訊與財金管理系</option>
+                           <option value="AC"         >互動設計系</option>
+                           <option value="AG"         >機械與自動化碩士外國學生專班</option>
+                           <option value="AS"         >金融科技與創新創業外國學生專班</option>
+                           <option value="AT"         >互動設計與創新外國學生專班</option>
+                           <option value="AU"         >能源冷凍空調與車輛外國學生專班</option>
+                           <option value="AW"         >智慧感測與應用學程</option>
+                           <option value="AY"         >太空系統工程研究所</option>
+                           <option value="C0"         >機電學院</option>
+                           <option value="C2"         >管理學院</option>
+                           <option value="C5"         >電資學院</option>
+                           <option value="C7"         >創新前瞻科技研究學院</option>
+			             </select></TD>                           
+     <TR><TD colspan="3">　</TD>
+     <TR><TD colspan="3"><font color="#000080"><b>※可於下列欄位中輸入欲查詢資料：</b></font><BR>
+        　<font color="#FF0000">例如：</font>可於課程名稱欄中填入「數位電子」(不含引號)查詢 數位電子 之開課資料；<BR>
+        　　　　若查無相關開課資料，則可改填「數位」進行查詢；或輸入「digital」查詢英文課程名稱含digital的課程。
+      </TD>
+     <TR><TD colspan="3">　<font color="#000080"><b>課程名稱：</b></font><input type="text" name="cname" size="50"></TD>
+     <TR><TD colspan="3">　<font color="#000080"><b>課程編碼：</b></font><input type="text" name="ccode" size="7"></TD>
+     <TR><TD colspan="3">　<font color="#000080"><b>教師姓名：</b></font><input type="text" name="tname" size="16"></TD>
+     <TR><TD colspan="3">　</TD>
+	 </TR>
+     <TR><TD colspan="3"><b><font color="#800080">※上課時間(可複選)：</font></b></TD></TR>
+     <TR>
+		 <TD colspan="3">
+			 <font color="#800080"><b>星期：</b></font>
+			          <input type="checkbox" name="D0" value="ON" checked>日
+                      <input type="checkbox" name="D1" value="ON" checked>一
+                      <input type="checkbox" name="D2" value="ON" checked>二
+                      <input type="checkbox" name="D3" value="ON" checked>三
+                      <input type="checkbox" name="D4" value="ON" checked>四
+                      <input type="checkbox" name="D5" value="ON" checked>五
+                      <input type="checkbox" name="D6" value="ON" checked>六
+         </TD>
+     </TR>
+     <TR><TD colspan="3">　<font color="#800080"><b>節次：</b></font>
+			                     <input type="checkbox" name="P1"  value="ON" checked>１
+                                 <input type="checkbox" name="P2"  value="ON" checked>２
+                                 <input type="checkbox" name="P3"  value="ON" checked>３
+                                 <input type="checkbox" name="P4"  value="ON" checked>４
+                                 <input type="checkbox" name="PN"  value="ON" checked>Ｎ
+                                 <input type="checkbox" name="P5"  value="ON" checked>５
+                                 <input type="checkbox" name="P6"  value="ON" checked>６
+                                 <input type="checkbox" name="P7"  value="ON" checked>７
+                                 <input type="checkbox" name="P8"  value="ON" checked>８
+                                 <input type="checkbox" name="P9"  value="ON" checked>９
+                                 <input type="checkbox" name="P10" value="ON" checked>Ａ
+                                 <input type="checkbox" name="P11" value="ON" checked>Ｂ
+                                 <input type="checkbox" name="P12" value="ON" checked>Ｃ
+                                 <input type="checkbox" name="P13" value="ON" checked>Ｄ
+         </TD>
+     </TR>
+     <TR><TD colspan="3"></TD></TR>
+     <TR><TD colspan="3" align=center>
+           <INPUT Type=Submit   VALUE="開始查詢" >　　
+           <input Type="Reset"  Value="重新設定" >　　
+           <input type="button" onClick="history.back()" value="回上一頁">
+         </TD>
+     </TR>
+   </TABLE>
+</FORM>
+<P>備註：</P>
+<OL>
+<LI>為避免欲查詢之資料量過大而影響速度，請適當地設定查詢條件。<BR>   
+<LI>本資料係由本校各教學單位、教務處課務組、進修部教務組、進修學院教務組及計網中心所共同提供！</LI>   
+<LI>若您對課程有任何問題，請洽各開課系所。</LI>               
+</OL>
+
+</Body>
+</HTML>

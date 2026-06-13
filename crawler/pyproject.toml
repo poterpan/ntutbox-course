@@ -1,0 +1,25 @@
+[project]
+name = "ntut-catalog-crawler"
+version = "0.1.0"
+description = "北科課程目錄爬蟲：aps.ntut.edu.tw/course/tw/ → typed v1 catalog (canonical NDJSON + JSON artifacts)"
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic>=2",
+    "httpx>=0.27",
+    "beautifulsoup4>=4.12",
+    "html5lib>=1.1",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["ntut_catalog"]
+py-modules = ["models"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
