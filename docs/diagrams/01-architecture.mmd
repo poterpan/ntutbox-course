@@ -1,0 +1,36 @@
+flowchart TB
+    ntut["NTUT 課程查詢系統<br/>(公開免登入)"]
+
+    subgraph GHA["GitHub Actions · cron 每日 04:00"]
+        crawler["crawler"]
+        build["build v1"]
+    end
+
+    subgraph GIT["git (單一 repo)"]
+        main["main branch<br/>code only"]
+        data["data branch<br/>canonical"]
+    end
+
+    subgraph CF["Cloudflare"]
+        r2["R2: ntutbox-cdn"]
+        cdn["cdn.ntutbox.com"]
+    end
+
+    web["Web 排課器<br/>(P1)"]
+    ios["北科盒子 App"]
+
+    ntut -->|爬取| crawler
+    crawler -->|commit| data
+    data -->|重建| build
+    build -->|wrangler push| r2
+    r2 --> cdn
+    cdn -->|fetch JSON| web
+    cdn -->|fetch JSON| ios
+    main -.->|P1 部署| web
+
+    classDef src fill:#fde68a,stroke:#b45309,color:#000
+    classDef store fill:#bfdbfe,stroke:#1e40af,color:#000
+    classDef out fill:#bbf7d0,stroke:#15803d,color:#000
+    class ntut src
+    class main,data store
+    class r2,cdn out

@@ -1,0 +1,31 @@
+flowchart LR
+    subgraph C["canonical (git data branch · 真相)"]
+        cat["catalog.ndjson<br/>純結構, 無人數/時間戳"]
+        cls["classes.json<br/>班級 + kind"]
+        snap["enrollment/{date}.ndjson<br/>每日人數時序"]
+    end
+
+    subgraph V["v1 (R2 · 由 canonical 重建)"]
+        vcat["catalog.json"]
+        vcls["classes.json"]
+        vper["periods.json"]
+        venr["enrollment.json<br/>最新 overlay"]
+        man["manifest.json"]
+    end
+
+    web["Web:<br/>結構catalog (快取久)<br/>+ 人數overlay (快取短)"]
+
+    cat --> vcat
+    cls --> vcls
+    snap -->|最新一筆| venr
+    vcat --> man
+    vcls --> man
+    vper --> man
+    venr --> man
+    vcat -.-> web
+    venr -.-> web
+
+    classDef canon fill:#fde68a,stroke:#b45309,color:#000
+    classDef v1c fill:#bfdbfe,stroke:#1e40af,color:#000
+    class cat,cls,snap canon
+    class vcat,vcls,vper,venr,man v1c

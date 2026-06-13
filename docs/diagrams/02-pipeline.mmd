@@ -1,0 +1,21 @@
+flowchart TD
+    A["cron / 手動觸發"] --> B["checkout main + data branch"]
+    B --> C{"有指定學期?"}
+    C -->|否| D["自動偵測當前學期"]
+    C -->|是| E["regex 驗證"]
+    D --> F["爬取 (--force)"]
+    E --> F
+    F --> G["寫 canonical<br/>結構catalog + 班級 + 人數快照"]
+    G --> H{"紅線掃描"}
+    H -->|命中個資/機密| HX["✗ 中止"]
+    H -->|乾淨| I["commit 到 data branch"]
+    I --> J["build v1<br/>(從全部 canonical 重建)"]
+    J --> K{"quality gate<br/>課數正常?"}
+    K -->|否 課數驟降/0| KX["✗ 不發佈"]
+    K -->|是| L["wrangler 上傳<br/>檔案先 → manifest 最後"]
+    L --> M["R2 / cdn.ntutbox.com"]
+
+    classDef bad fill:#fecaca,stroke:#b91c1c,color:#000
+    classDef ok fill:#bbf7d0,stroke:#15803d,color:#000
+    class HX,KX bad
+    class M ok
