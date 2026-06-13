@@ -20,6 +20,11 @@ catalog 純結構（快取久、結構沒變零 diff）；人數走 enrollment o
 
 ![資料模型](diagrams/03-datamodel.png)
 
+## 4. 抓取邏輯（`--terms` / `--force` / skip-resume）
+`--terms` 決定**抓哪些學期**（工作清單）；`--force` 決定**已抓過的要不要重抓**。逐學期判斷：canonical 已存在且無 `--force` → 跳過（resume）；否則整學期全爬。清單跑完一律重建全部 v1。
+
+![抓取邏輯](diagrams/04-crawl-logic.png)
+
 ## 設計要點
 - **運算 GitHub Actions、出口 Cloudflare R2**：R2 只能被 push（無「CF 拉 git」）；Worker 跑不動爬蟲（D6）。CF git 整合留給 P1 web 部署。
 - **canonical 完整可重建 v1**：CI 發佈前重建全部學期 → manifest 永遠涵蓋全學期、與 R2 物件一致。
