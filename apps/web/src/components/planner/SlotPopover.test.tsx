@@ -12,26 +12,52 @@ const courses = [
   { offering_id: "C", name: { zh: "機率論" }, credits: 3, teachers: [], meetings: [{ day: 3, periods: ["5"] }], classes: [] },
 ];
 
-beforeEach(() => {
-  useTermStore.setState({ status: "ready", termKey: "115-1", error: null, generation: 1,
-    bundle: { termKey: "115-1", catalog: { courses } as never, periods: { periods: [] } as never, classes: { classes: [] } as never, enrollment: null } as never });
-  useDraftStore.setState({ termKey: "115-1", favorites: [], placed: [{ offering_id: "A", priority: 1 }, { offering_id: "B", priority: 2 }] });
+function setTerm() {
+  useTermStore.setState({
+    status: "ready", termKey: "115-1", error: null, generation: 1,
+    bundle: { termKey: "115-1", catalog: { courses } as never, periods: { periods: [] } as never, classes: { classes: [] } as never, enrollment: null } as never,
+  });
   useUiStore.setState({ activeSlot: { day: 3, period: "5" } });
-});
+}
 
-describe("SlotPopover", () => {
-  it("lists placed-in-slot ordered by priority and addable others", () => {
+describe("SlotPopover — manage mode (occupied slot)", () => {
+  beforeEach(() => {
+    setTerm();
+    useDraftStore.setState({ termKey: "115-1", favorites: [], placed: [{ offering_id: "A", priority: 1 }, { offering_id: "B", priority: 2 }] });
+  });
+
+  it("lists placed courses by priority and hides addable (no 加選 from timetable)", () => {
     render(<SlotPopover />);
     expect(screen.getByText("資料結構")).toBeInTheDocument();
     expect(screen.getByText("演算法")).toBeInTheDocument();
-    expect(screen.getByText("機率論")).toBeInTheDocument(); // addable (not placed)
+    expect(screen.queryByText("機率論")).not.toBeInTheDocument(); // addable suppressed in manage mode
   });
-  it("move-up button raises priority (swaps B above A)", async () => {
+
+  it("退選 button removes a placed course", async () => {
+    render(<SlotPopover />);
+    await userEvent.click(screen.getByLabelText("退選 資料結構"));
+    expect(useDraftStore.getState().placed.map((p) => p.offering_id)).toEqual(["B"]);
+  });
+
+  it("move-up raises priority (B above A)", async () => {
     render(<SlotPopover />);
     await userEvent.click(screen.getByLabelText("演算法 上移"));
     const p = useDraftStore.getState().placed;
-    const A = p.find((x) => x.offering_id === "A")!.priority;
-    const B = p.find((x) => x.offering_id === "B")!.priority;
-    expect(B).toBeLessThan(A);
+    expect(p.find((x) => x.offering_id === "B")!.priority).toBeLessThan(p.find((x) => x.offering_id === "A")!.priority);
+  });
+});
+
+describe("SlotPopover — add mode (empty slot)", () => {
+  beforeEach(() => {
+    setTerm();
+    useDraftStore.setState({ termKey: "115-1", favorites: [], placed: [] });
+  });
+
+  it("shows search + addable courses for the slot, and ＋ places one", async () => {
+    render(<SlotPopover />);
+    expect(screen.getByLabelText("搜尋此時段")).toBeInTheDocument();
+    expect(screen.getByText("機率論")).toBeInTheDocument();
+    await userEvent.click(screen.getByLabelText("排入 機率論"));
+    expect(useDraftStore.getState().placed.map((p) => p.offering_id)).toEqual(["C"]);
   });
 });

@@ -50,21 +50,21 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
       <Popover>
         <PopoverTrigger
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
             timeActive > 0
-              ? "border-[var(--accent)]/40 bg-[var(--accent)]/12 text-[var(--accent)]"
-              : "border-black/8 bg-white/55 text-[var(--ink-soft)] hover:bg-white/80",
+              ? "border-transparent bg-[var(--accent)] text-white shadow-sm"
+              : "border-black/10 bg-white/70 text-[var(--ink)] hover:bg-white",
           )}
         >
           時間
           {timeActive > 0 && (
-            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-white">
+            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white/25 px-1 text-[10px] font-bold text-white">
               {timeActive}
             </span>
           )}
-          <span className="text-[9px] opacity-60">▾</span>
+          <span className="text-[9px] opacity-70">▾</span>
         </PopoverTrigger>
-        <PopoverContent align="start" sideOffset={6} className="glass-surface w-64 gap-3 p-3">
+        <PopoverContent align="start" sideOffset={6} className="w-64 gap-3 border-black/10 bg-white p-3 shadow-xl">
           <div>
             <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ink-soft)]">星期</div>
             <div className="flex flex-wrap gap-1">
@@ -86,15 +86,16 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
 
       <button
         type="button"
+        aria-pressed={filters.emiOnly}
         onClick={() => setEmiOnly(!filters.emiOnly)}
         className={cn(
-          "rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+          "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
           filters.emiOnly
-            ? "border-[var(--accent)]/40 bg-[var(--accent)]/12 text-[var(--accent)]"
-            : "border-black/8 bg-white/55 text-[var(--ink-soft)] hover:bg-white/80",
+            ? "border-transparent bg-[var(--accent)] text-white shadow-sm"
+            : "border-black/10 bg-white/70 text-[var(--ink)] hover:bg-white",
         )}
       >
-        英文授課
+        {filters.emiOnly ? "✓ " : ""}英文授課
       </button>
 
       {anyActive ? (

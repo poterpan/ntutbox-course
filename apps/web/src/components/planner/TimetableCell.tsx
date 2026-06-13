@@ -8,21 +8,30 @@ export function TimetableCell({ day, period }: { day: number; period: string }) 
   const { byId } = useTermCourses();
   const { occupants } = useScheduleView();
   const openSlot = useUiStore((s) => s.openSlot);
+  const openDetail = useUiStore((s) => s.openDetail);
   const ids = occupants(day, period);
   const conflicted = ids.length > 1;
   const first = ids[0] ? byId(ids[0]) : undefined;
   const room = first?.classrooms?.[0]?.name;
 
+  // empty → find courses for this time; single placed → its detail (退選); conflict → manage slot
+  const onClick = () => {
+    if (ids.length === 0) openSlot({ day, period });
+    else if (ids.length === 1) openDetail(ids[0]);
+    else openSlot({ day, period });
+  };
+
   return (
     <button
       type="button"
       data-testid={conflicted ? "conflict-cell" : undefined}
-      onClick={() => openSlot({ day, period })}
+      onClick={onClick}
       className={cn(
-        "size-full overflow-hidden rounded-lg p-1 text-left text-[11px] leading-tight transition-all",
-        ids.length === 0 && "bg-white/35 hover:bg-white/70 hover:ring-1 hover:ring-[var(--accent)]/30",
+        "size-full overflow-hidden rounded-md p-1 text-left text-[11px] leading-tight transition-all",
+        ids.length === 0 &&
+          "bg-white/30 ring-1 ring-inset ring-black/[0.06] hover:bg-white/70 hover:ring-[var(--accent)]/30",
         ids.length === 1 &&
-          "bg-gradient-to-br from-sky-400/85 to-blue-500/85 text-white shadow-sm hover:from-sky-400 hover:to-blue-500",
+          "bg-gradient-to-br from-sky-400/90 to-blue-500/90 text-white shadow-sm hover:from-sky-400 hover:to-blue-500",
         conflicted &&
           "bg-gradient-to-br from-amber-400/90 to-orange-500/90 text-white shadow-sm ring-2 ring-orange-400 hover:brightness-105",
       )}

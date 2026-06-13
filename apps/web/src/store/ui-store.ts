@@ -11,6 +11,7 @@ interface UiState {
   viewMode: "week" | "day";
   selectedDay: number;       // for mobile day view
   libraryOpen: boolean;      // mobile bottom sheet
+  libraryTab: "courses" | "favorites"; // right-panel content toggle
   staleDropped: string[];    // offering_ids removed by reconcile (spec §4 — never silently discard)
   setQuery: (q: string) => void;
   setFilters: (f: FilterState) => void;
@@ -21,13 +22,14 @@ interface UiState {
   setViewMode: (m: "week" | "day") => void;
   setSelectedDay: (d: number) => void;
   setLibraryOpen: (v: boolean) => void;
+  setLibraryTab: (t: "courses" | "favorites") => void;
   setStaleDropped: (ids: string[]) => void;
   dismissStale: () => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
   query: "", filters: EMPTY_FILTER, activeSlot: null, detailOfferingId: null,
-  viewMode: "week", selectedDay: 1, libraryOpen: false, staleDropped: [],
+  viewMode: "week", selectedDay: 1, libraryOpen: false, libraryTab: "courses", staleDropped: [],
   setQuery: (query) => set({ query }),
   setFilters: (filters) => set({ filters }),
   toggleFilterValue: (key, value) => set((s) => {
@@ -41,6 +43,7 @@ export const useUiStore = create<UiState>((set) => ({
   setViewMode: (viewMode) => set({ viewMode }),
   setSelectedDay: (selectedDay) => set({ selectedDay }),
   setLibraryOpen: (libraryOpen) => set({ libraryOpen }),
+  setLibraryTab: (libraryTab) => set({ libraryTab }),
   setStaleDropped: (staleDropped) => set({ staleDropped }),
   dismissStale: () => set({ staleDropped: [] }),
 }));

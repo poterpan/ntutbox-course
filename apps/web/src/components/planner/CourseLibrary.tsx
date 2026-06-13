@@ -34,14 +34,7 @@ export function CourseLibrary() {
   }, [courses, index, filters, query]);
 
   return (
-    <div className="flex h-full flex-col gap-3 p-4">
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-sm font-semibold text-[var(--ink)]">課程庫</h2>
-        <span className="text-[11px] tabular-nums text-[var(--ink-soft)]">
-          {results.length} 門{results.length > CAP ? `（顯示前 ${CAP}）` : ""}
-        </span>
-      </div>
-
+    <div className="flex h-full flex-col gap-3 p-4 pt-3">
       {/* prominent search */}
       <div className="relative">
         <svg className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-zinc-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -57,6 +50,10 @@ export function CourseLibrary() {
       </div>
 
       <FilterBar units={units} classes={classOpts} />
+
+      <div className="text-[11px] tabular-nums text-[var(--ink-soft)]">
+        {results.length} 門{results.length > CAP ? `（顯示前 ${CAP}）` : ""}
+      </div>
 
       <div className="min-h-0 flex-1">
         {results.length === 0 ? (

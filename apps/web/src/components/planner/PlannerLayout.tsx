@@ -1,6 +1,7 @@
 "use client";
 import { useTermStore } from "@/store/term-store";
 import { useUiStore } from "@/store/ui-store";
+import { useDraftStore } from "@/store/draft-store";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { GlassPanel } from "@/components/glass/GlassPanel";
@@ -60,12 +61,9 @@ export function PlannerLayout() {
           )}
         </GlassPanel>
 
-        {/* desktop course library + favorites */}
+        {/* desktop right panel: 課程庫 / 收藏 toggle */}
         <GlassPanel className="hidden w-[380px] min-h-0 shrink-0 flex-col overflow-hidden lg:flex">
-          <div className="min-h-0 flex-1">
-            <CourseLibrary />
-          </div>
-          <FavoritesPanel />
+          <RightPanel />
         </GlassPanel>
       </div>
 
@@ -81,8 +79,8 @@ export function PlannerLayout() {
           >
             課程庫
           </SheetTrigger>
-          <SheetContent side="bottom" className="glass-surface h-[82dvh] rounded-t-3xl p-0">
-            <CourseLibrary />
+          <SheetContent side="bottom" className="glass-surface flex h-[82dvh] flex-col rounded-t-3xl p-0">
+            <RightPanel />
           </SheetContent>
         </Sheet>
       </div>
@@ -93,13 +91,37 @@ export function PlannerLayout() {
   );
 }
 
-function FavoritesPanel() {
+function RightPanel() {
+  const tab = useUiStore((s) => s.libraryTab);
+  const setTab = useUiStore((s) => s.setLibraryTab);
+  const favCount = useDraftStore((s) => s.favorites.length);
+
   return (
-    <div className="shrink-0 border-t border-black/5">
-      <div className="px-4 pt-2.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-soft)]">收藏 · 帶選</div>
-      <div className="thin-scroll max-h-44 overflow-y-auto">
-        <FavoritesList />
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="flex gap-1 px-3 pt-3">
+        <PanelTab active={tab === "courses"} onClick={() => setTab("courses")}>課程庫</PanelTab>
+        <PanelTab active={tab === "favorites"} onClick={() => setTab("favorites")}>
+          收藏{favCount > 0 ? ` ${favCount}` : ""}
+        </PanelTab>
+      </div>
+      <div className="min-h-0 flex-1">
+        {tab === "courses" ? <CourseLibrary /> : <div className="thin-scroll h-full overflow-y-auto p-2"><FavoritesList /></div>}
       </div>
     </div>
+  );
+}
+
+function PanelTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={
+        "rounded-full px-4 py-1.5 text-sm font-semibold transition-colors " +
+        (active ? "bg-[var(--accent)] text-white shadow-sm" : "text-[var(--ink-soft)] hover:bg-black/5")
+      }
+    >
+      {children}
+    </button>
   );
 }

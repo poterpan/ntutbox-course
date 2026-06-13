@@ -42,21 +42,21 @@ export function FilterCombobox({
     <Popover>
       <PopoverTrigger
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
           active > 0
-            ? "border-[var(--accent)]/40 bg-[var(--accent)]/12 text-[var(--accent)]"
-            : "border-black/8 bg-white/55 text-[var(--ink-soft)] hover:bg-white/80",
+            ? "border-transparent bg-[var(--accent)] text-white shadow-sm"
+            : "border-black/10 bg-white/70 text-[var(--ink)] hover:bg-white",
         )}
       >
         {label}
         {active > 0 && (
-          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold text-white">
+          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white/25 px-1 text-[10px] font-bold text-white">
             {active}
           </span>
         )}
-        <span className="text-[9px] opacity-60">▾</span>
+        <span className="text-[9px] opacity-70">▾</span>
       </PopoverTrigger>
-      <PopoverContent align="start" className="glass-surface w-64 gap-2 p-2" sideOffset={6}>
+      <PopoverContent align="start" className="w-64 gap-2 border-black/10 bg-white p-2 shadow-xl" sideOffset={6}>
         <div className="flex items-center gap-2">
           <input
             value={q}
