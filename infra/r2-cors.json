@@ -1,12 +1,16 @@
-[
-  {
-    "AllowedOrigins": [
-      "https://course.ntutbox.com",
-      "http://localhost:3000"
-    ],
-    "AllowedMethods": ["GET", "HEAD"],
-    "AllowedHeaders": ["*"],
-    "ExposeHeaders": ["ETag"],
-    "MaxAgeSeconds": 86400
-  }
-]
+{
+  "rules": [
+    {
+      "allowed": {
+        "origins": [
+          "https://course.ntutbox.com",
+          "http://localhost:3000"
+        ],
+        "methods": ["GET", "HEAD"],
+        "headers": ["*"]
+      },
+      "exposeHeaders": ["ETag"],
+      "maxAgeSeconds": 86400
+    }
+  ]
+}

@@ -34,7 +34,7 @@ wrangler r2 bucket create ntutbox-cdn
 # 綁自訂網域（dashboard：R2 → ntutbox-cdn → Settings → Custom Domains → 加 cdn.ntutbox.com）
 #   或 API：見 https://developers.cloudflare.com/r2/buckets/public-buckets/#custom-domains
 # 套 CORS（允許 course.ntutbox.com 與本機 dev）
-wrangler r2 bucket cors put ntutbox-cdn --rules "$(cat infra/r2-cors.json)"
+wrangler r2 bucket cors set ntutbox-cdn --file infra/r2-cors.json
 ```
 物件 key 前綴 `course/v1/...` → 對外即 `https://cdn.ntutbox.com/course/v1/...`。
 
