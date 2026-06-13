@@ -85,7 +85,16 @@ jobs:
       - name: Crawl
         env:
           TERMS: ${{ steps.terms.outputs.terms }}
-        run: python -m ntut_catalog crawl --terms "$TERMS" --force --out data
+          FORCE: ${{ github.event.inputs.force }}
+        run: |
+          set -euo pipefail
+          # 排程（無輸入）→ 預設 force 重爬以刷新當前學期人數；
+          # dispatch backfill 想走 resume（只補缺的學期）→ 把 force 設 false。
+          if [ "$FORCE" = "false" ]; then
+            python -m ntut_catalog crawl --terms "$TERMS" --out data
+          else
+            python -m ntut_catalog crawl --terms "$TERMS" --force --out data
+          fi
 
       - name: Redline scan (block PII/secrets/error pages)
         run: python infra/redline_scan.py data/canonical
