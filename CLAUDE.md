@@ -62,3 +62,4 @@
 ## 慣例
 - 規模適配：簡單事直接做；研究/審查類大任務再 fan-out subagent。
 - 提交：**只有使用者明確要求才 commit / push**。
+- **多 agent 並行 → 各自開 git worktree + 專屬 branch**（2026-06-14 實戰教訓）：本專案常同時有多個 agent（如 crawler 與 web）作業。**切勿共用同一個工作目錄與 `main`**——會互相 `checkout`/`reset` 擠掉對方的 commit（曾把已 commit 的工作 orphan 掉）。做法：① 開工先 `git worktree add ../<repo>-<topic> <branch>` 建獨立工作區（各自 venv）；② 在自己的 topic branch 工作，**不直接推 `main`**（直推會被 auto-mode 擋、也會撞車）→ 走 PR；③ 跨 agent 共用檔（`CLAUDE.md`/`models.py` 等）改動也走 PR，避免覆寫。`main` 視為整合分支、由 PR 匯入。
