@@ -30,6 +30,14 @@ venv/
 crawler/dist/
 crawler/.scratch/
 data/
+# Allow web src/public directories named "data" (lib/data, public/data fixtures, etc.)
+!apps/web/src/**/data/
+!apps/web/src/**/data/**
+!apps/web/public/data/
+!apps/web/public/data/**
+# ...but NOT the per-course detail fixtures: 2400+ files, bulky; prod fetches them
+# lazily from the CDN. Built/copied locally for dev only.
+apps/web/public/data/v1/terms/*/course/
 *.sqlite
 *.sqlite-*
 
