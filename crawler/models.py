@@ -165,6 +165,40 @@ class SourceRefs(BaseModel):
     syllabus: List[Dict[str, str]] = Field(default_factory=list)  # [{teacher_code, snum}]
 
 
+# ============================================================== 課程詳情（描述 + 大綱）
+
+class Syllabus(BaseModel):
+    """單一教師的教學大綱（ShowSyllabus.jsp；label→textarea，用標籤文字定位）。"""
+    teacher_code: Optional[str] = None
+    teacher_name: str = ""
+    email: Optional[str] = None
+    office_hours_url: Optional[str] = None
+    updated_at: Optional[str] = None             # 來源「最後更新時間」
+    outline: Optional[str] = None                # 課程大綱
+    schedule: Optional[str] = None               # 課程進度
+    assessment: Optional[str] = None             # 評量方式與標準
+    materials: Optional[str] = None              # 使用教材、參考書目或其他
+    consultation: Optional[str] = None           # 課程諮詢管道
+    extended_resources: Optional[str] = None     # 延伸教學與資源
+    sdgs: Optional[str] = None                   # 課程對應 SDGs 指標
+    ai_usage: Optional[str] = None               # 課程是否導入 AI
+    notes: Optional[str] = None                  # 備註
+    extra: Dict[str, str] = Field(default_factory=dict)  # 來源新增的未知標籤欄（label→值）
+
+
+class CourseDetail(BaseModel):
+    """重文字詳情（描述 + 大綱），隨點隨取；與 catalog 分檔（catalog 保持輕、可搜尋）。"""
+    model_config = ConfigDict(extra="forbid")
+
+    term_key: str
+    offering_id: str
+    course_code: Optional[str] = None
+    name: LocalizedText = Field(default_factory=LocalizedText)  # zh(catalog) + en(Curr)
+    description: LocalizedText = Field(default_factory=LocalizedText)  # 中/英概述
+    syllabi: List[Syllabus] = Field(default_factory=list)       # 逐教師
+    generated_at: Optional[str] = None
+
+
 # ============================================================== 核心：開課實例
 
 class CourseOffering(BaseModel):
@@ -266,6 +300,50 @@ class EnrollmentLatest(BaseModel):
     counts: Dict[str, Enrollment] = Field(default_factory=dict)  # offering_id -> Enrollment
 
 
+class MicroProgram(BaseModel):
+    """微學程：SearchMProgram。offering_ids = 該學程該學期開課的課號。"""
+    code: str
+    name: str
+    offering_ids: List[str] = Field(default_factory=list)
+
+
+class MicroProgramDirectory(BaseModel):
+    """mprograms.json：逐學期微學程清單 + 各學程開課課號。"""
+    schema_version: int = SCHEMA_VERSION
+    term_key: str
+    programs: List[MicroProgram] = Field(default_factory=list)
+
+
+class StandardCourse(BaseModel):
+    """課程標準單列（Cprog format=-4）：某入學年/學制/系所的應修課程。"""
+    study_year: Optional[int] = None             # 建議修讀學年
+    study_sem: Optional[int] = None              # 建議修讀學期
+    requirement: Requirement = Field(default_factory=Requirement)  # 修別（符號→類別）
+    course_code: Optional[str] = None            # 課程編碼（與 catalog course_code 對接）
+    name_zh: str = ""
+    credits: Optional[float] = None
+    hours: Optional[float] = None
+    stage: Optional[str] = None
+    group_id: Optional[str] = None               # 群組編號（應修學分群）
+    notes: str = ""
+
+
+class ProgramStandard(BaseModel):
+    """某入學年×學制×系所的課程標準/畢業標準（Cprog 葉節點）。"""
+    entry_year: int
+    matric: str                                  # 學制碼
+    division: str                                # 系所/學程碼
+    title: str = ""                              # 頁面標題（如「四技 通識中心【博雅課程－自然】」）
+    courses: List[StandardCourse] = Field(default_factory=list)
+
+
+class StandardDirectory(BaseModel):
+    """standards/{entry_year}.json：某入學年所有 program 的課程標準。"""
+    schema_version: int = SCHEMA_VERSION
+    entry_year: int
+    programs: List[ProgramStandard] = Field(default_factory=list)
+
+
 class ManifestEntry(BaseModel):
     url: str
     sha256: str
@@ -279,6 +357,7 @@ class ManifestTerm(BaseModel):
     enrollment: Optional[ManifestEntry] = None
     classes: Optional[ManifestEntry] = None
     periods: Optional[ManifestEntry] = None
+    mprograms: Optional[ManifestEntry] = None     # 微學程（逐學期）
     dataset_version: Optional[str] = None         # payload 帶此值；App 過舊→提示重驗
 
 

@@ -23,9 +23,22 @@ _PATTERNS = [
 ]
 
 
-def scan_text(text: str) -> List[str]:
-    """回傳命中的紅線名稱清單（空＝乾淨）。"""
-    return [name for name, rx in _PATTERNS if rx.search(text)]
+# suspect_student_id（9+ 連續數字）對「結構化」資料才有意義（課號6-7碼、人數小→不該出現）；
+# 大綱/描述等自由文字本就含 ISBN/電話/社群連結等長數字，套此規則純誤判 → free_text 跳過。
+_FREE_TEXT_NAMES = ("details.ndjson",)
+_FREE_TEXT_DIRS = ("course",)
+
+
+def scan_text(text: str, free_text: bool = False) -> List[str]:
+    """回傳命中的紅線名稱清單（空＝乾淨）。free_text=True 跳過 suspect_student_id（自由文字）。"""
+    return [
+        name for name, rx in _PATTERNS
+        if not (free_text and name == "suspect_student_id") and rx.search(text)
+    ]
+
+
+def _is_free_text(rel: Path) -> bool:
+    return rel.name in _FREE_TEXT_NAMES or any(part in _FREE_TEXT_DIRS for part in rel.parts)
 
 
 def scan_paths(root: Path) -> Dict[str, List[str]]:
@@ -35,9 +48,10 @@ def scan_paths(root: Path) -> Dict[str, List[str]]:
     for p in sorted(root.rglob("*")):
         if p.suffix not in (".ndjson", ".json") or not p.is_file():
             continue
-        found = scan_text(p.read_text(encoding="utf-8", errors="replace"))
+        rel = p.relative_to(root)
+        found = scan_text(p.read_text(encoding="utf-8", errors="replace"), free_text=_is_free_text(rel))
         if found:
-            hits[str(p.relative_to(root))] = found
+            hits[str(rel)] = found
     return hits
 
 

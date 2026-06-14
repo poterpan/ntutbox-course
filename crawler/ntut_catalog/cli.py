@@ -14,8 +14,12 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List
 
+from models import CourseOffering
 from ntut_catalog.artifacts import build_v1, write_canonical, write_enrollment_snapshot
 from ntut_catalog.client import CatalogClient, detect_current_term
+from ntut_catalog.artifacts import write_mprograms, write_standards
+from ntut_catalog.detail import crawl_detail, write_details
+from ntut_catalog.programs import crawl_mprograms, crawl_standards
 from ntut_catalog.migrate import migrate_all
 from ntut_catalog.orchestrator import crawl_enrollment, crawl_term, parse_term_key
 from ntut_catalog.rederive import rederive_all
@@ -87,6 +91,21 @@ def main(argv: List[str] | None = None) -> int:
     re.add_argument("--terms", required=True, help="當前學期，如 115-1（可逗號多個）")
     re.add_argument("--out", default="../data", help="輸出根目錄（預設 ../data）")
     re.add_argument("--delay", type=float, default=0.5, help="每請求基礎延遲秒數")
+    cd = sub.add_parser("crawl-detail",
+                        help="爬課程描述(Curr)+教學大綱(ShowSyllabus) → details.ndjson + course/{id}.json")
+    cd.add_argument("--terms", required=True, help="學期，如 115-1（可逗號多個）")
+    cd.add_argument("--out", default="../data", help="輸出根目錄（預設 ../data）")
+    cd.add_argument("--delay", type=float, default=0.5, help="每請求基礎延遲秒數")
+    mp = sub.add_parser("crawl-mprograms", help="爬微學程(SearchMProgram) → mprograms.json")
+    mp.add_argument("--terms", required=True, help="學期，如 115-1（可逗號多個）")
+    mp.add_argument("--out", default="../data")
+    mp.add_argument("--delay", type=float, default=0.5)
+    st = sub.add_parser("crawl-standards", help="爬課程標準/畢業標準(Cprog) → standards/{year}.json")
+    st.add_argument("--years", required=True, help="入學年，如 115（可逗號/範圍 110:115）")
+    st.add_argument("--out", default="../data")
+    st.add_argument("--delay", type=float, default=0.5)
+    rc = sub.add_parser("recategorize", help="離線依符號補 requirement.category（不重爬）")
+    rc.add_argument("--out", default="../data")
     args = parser.parse_args(argv)
 
     if args.command == "current-term":
@@ -136,6 +155,79 @@ def main(argv: List[str] | None = None) -> int:
             client.close()
         build_v1(out_dir, now_iso)
         logger.info("enrollment refresh done. failed: %s", failed or "none")
+        return 1 if failed else 0
+
+    if args.command == "recategorize":
+        from ntut_catalog.reprocess import recategorize_canonical
+        _setup_logging(out_dir, "recategorize")
+        stats = recategorize_canonical(out_dir)
+        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
+        logger.info("recategorize done: %d terms, %d courses recategorized",
+                    len(stats), sum(s["recategorized"] for s in stats))
+        return 0
+
+    if args.command == "crawl-mprograms":
+        _setup_logging(out_dir, "crawl-mprograms")
+        client = CatalogClient(delay_range=(args.delay * 0.8, args.delay * 1.6))
+        try:
+            for term in expand_terms(args.terms):
+                write_mprograms(crawl_mprograms(client, term), out_dir)
+        finally:
+            client.close()
+        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
+        logger.info("crawl-mprograms done. requests: %d", client.request_count)
+        return 0
+
+    if args.command == "crawl-standards":
+        _setup_logging(out_dir, "crawl-standards")
+        years = []
+        for part in args.years.split(","):
+            if ":" in part:
+                a, b = part.split(":"); years += list(range(int(a), int(b) + 1))
+            else:
+                years.append(int(part))
+        client = CatalogClient(delay_range=(args.delay * 0.8, args.delay * 1.6))
+        try:
+            for y in years:
+                write_standards(crawl_standards(client, y), out_dir)
+        finally:
+            client.close()
+        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
+        logger.info("crawl-standards done. years: %s, requests: %d", years, client.request_count)
+        return 0
+
+    if args.command == "crawl-detail":
+        _setup_logging(out_dir, "crawl-detail")
+        terms = expand_terms(args.terms)
+        now_iso = datetime.now(TAIPEI).isoformat(timespec="seconds")
+        client = CatalogClient(delay_range=(args.delay * 0.8, args.delay * 1.6))
+        failed: List[str] = []
+        try:
+            for term in terms:
+                cat_nd = out_dir / "canonical" / term / "catalog.ndjson"
+                if not cat_nd.exists():
+                    logger.warning("[%s] no canonical catalog — 先 crawl 再 crawl-detail；跳過", term)
+                    continue
+                offerings = [
+                    CourseOffering.model_validate_json(line)
+                    for line in cat_nd.read_text(encoding="utf-8").splitlines() if line.strip()
+                ]
+                logger.info("[%s] crawl-detail: %d offerings ...", term, len(offerings))
+                try:
+                    details = crawl_detail(client, term, offerings, now_iso)
+                except Exception:
+                    logger.exception("[%s] crawl-detail failed", term)
+                    failed.append(term)
+                    continue
+                write_details(details, out_dir)
+                with_desc = sum(1 for d in details if d.description.zh or d.description.en)
+                with_syl = sum(1 for d in details if d.syllabi)
+                logger.info("[%s] detail done: %d courses, %d 有描述, %d 有大綱 (requests: %d)",
+                            term, len(details), with_desc, with_syl, client.request_count)
+        finally:
+            client.close()
+        logger.info("crawl-detail done. total requests: %d, failed: %s",
+                    client.request_count, failed or "none")
         return 1 if failed else 0
 
     _setup_logging(out_dir, "crawl")

@@ -24,3 +24,13 @@ def test_scan_paths(tmp_path):
     hits = scan_paths(tmp_path)
     assert "good.ndjson" not in str(hits)
     assert any("bad.ndjson" in str(p) for p in hits)
+
+
+def test_free_text_skips_student_id_but_keeps_secrets():
+    from infra.redline_scan import scan_text
+    # 自由文字（大綱）含 ISBN/電話 → 不該誤判 student-id
+    assert scan_text("ISBN：9789865034146 手機：0952391961", free_text=True) == []
+    # 但機密仍要擋（即使在自由文字）
+    assert "session" in scan_text("JSESSIONID=abc", free_text=True)
+    # 結構化資料(free_text=False)仍擋 9+ 位數字
+    assert "suspect_student_id" in scan_text("學號 123456789", free_text=False)
