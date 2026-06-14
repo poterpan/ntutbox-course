@@ -5,9 +5,10 @@ export interface FilterState {
   colleges: string[];   // 學院 names (via college-map)
   units: string[];      // unit_code
   classes: string[];    // class code
+  categories: string[]; // requirement.category: required/elective/general/program
   emiOnly: boolean;
 }
 
 export const EMPTY_FILTER: FilterState = {
-  weekdays: [], periods: [], colleges: [], units: [], classes: [], emiOnly: false,
+  weekdays: [], periods: [], colleges: [], units: [], classes: [], categories: [], emiOnly: false,
 };

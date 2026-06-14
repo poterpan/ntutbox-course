@@ -26,7 +26,7 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
   const timeActive = filters.weekdays.length + filters.periods.length;
   const anyActive =
     filters.weekdays.length || filters.periods.length || filters.colleges.length ||
-    filters.units.length || filters.classes.length || filters.emiOnly;
+    filters.units.length || filters.classes.length || filters.categories.length || filters.emiOnly;
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -83,6 +83,24 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
           </div>
         </PopoverContent>
       </Popover>
+
+      {([["required", "必修"], ["elective", "選修"]] as const).map(([val, label]) => {
+        const on = filters.categories.includes(val);
+        return (
+          <button
+            key={val}
+            type="button"
+            aria-pressed={on}
+            onClick={() => toggleFilterValue("categories", val)}
+            className={cn(
+              "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+              on ? "border-transparent bg-[var(--accent)] text-white shadow-sm" : "border-black/10 bg-white/70 text-[var(--ink)] hover:bg-white",
+            )}
+          >
+            {on ? "✓ " : ""}{label}
+          </button>
+        );
+      })}
 
       <button
         type="button"

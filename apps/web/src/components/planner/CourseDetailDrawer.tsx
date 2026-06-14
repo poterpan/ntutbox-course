@@ -57,16 +57,11 @@ export function CourseDetailDrawer() {
 
   return (
     <Dialog open={!!c} onOpenChange={(o) => { if (!o) openDetail(null); }}>
-      <DialogContent className="flex h-[88vh] w-[94vw] max-w-3xl flex-col gap-0 overflow-hidden p-0">
+      <DialogContent className="flex h-[88vh] w-[94vw] max-w-[94vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
         {c && (
           <>
             <DialogHeader className="border-b border-black/5 px-6 py-4">
-              <DialogTitle className="text-xl font-bold">
-                {c.name.zh}
-                {(desc?.en || c.name.en) && (
-                  <span className="ml-2 text-sm font-normal text-[var(--ink-soft)]">{desc?.en || c.name.en}</span>
-                )}
-              </DialogTitle>
+              <DialogTitle className="text-xl font-bold">{c.name.zh}</DialogTitle>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--ink-soft)]">
                 <Badge>{c.credits ?? "?"} 學分</Badge>
                 {c.requirement?.symbol && <Badge>{c.requirement.symbol}</Badge>}

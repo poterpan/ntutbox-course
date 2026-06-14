@@ -15,7 +15,7 @@ interface UiState {
   staleDropped: string[];    // offering_ids removed by reconcile (spec §4 — never silently discard)
   setQuery: (q: string) => void;
   setFilters: (f: FilterState) => void;
-  toggleFilterValue: (key: "weekdays" | "periods" | "colleges" | "units" | "classes", value: string | number) => void;
+  toggleFilterValue: (key: "weekdays" | "periods" | "colleges" | "units" | "classes" | "categories", value: string | number) => void;
   setEmiOnly: (v: boolean) => void;
   openSlot: (s: ActiveSlot | null) => void;
   openDetail: (id: string | null) => void;

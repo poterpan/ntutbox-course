@@ -36,6 +36,11 @@ describe("applyFilters", () => {
     // but Mon(1) + period 3 → matches (Mon 3,4 meeting satisfies both)
     expect(applyFilters([split], { ...EMPTY_FILTER, weekdays: [1], periods: ["3"] }).map((c) => c.offering_id)).toEqual(["split"]);
   });
+  it("category filter keeps only the chosen 修別 (必修/選修)", () => {
+    const req = mk({ offering_id: "r", requirement: { category: "required" } as never, meetings: [] as never });
+    const ele = mk({ offering_id: "e", requirement: { category: "elective" } as never, meetings: [] as never });
+    expect(applyFilters([req, ele], { ...EMPTY_FILTER, categories: ["required"] }).map((c) => c.offering_id)).toEqual(["r"]);
+  });
   it("emiOnly keeps only English-taught", () => {
     expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, emiOnly: true }).map((c) => c.offering_id)).toEqual(["b"]);
   });

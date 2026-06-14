@@ -18,7 +18,8 @@ describe("CourseDetailDrawer", () => {
   it("shows catalog fields for the selected course", () => {
     render(<CourseDetailDrawer />);
     expect(screen.getByText("資料結構")).toBeInTheDocument();
-    expect(screen.getByText(/Data Structures/)).toBeInTheDocument();
+    // English name intentionally NOT shown (zh-only until an English site exists)
+    expect(screen.queryByText(/Data Structures/)).not.toBeInTheDocument();
     expect(screen.getByText(/2B05003/)).toBeInTheDocument();
     expect(screen.getByText(/王老師/)).toBeInTheDocument();
     expect(screen.getByText(/資工五/)).toBeInTheDocument();
