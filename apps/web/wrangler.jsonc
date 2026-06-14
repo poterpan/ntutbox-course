@@ -1,0 +1,13 @@
+{
+  // Cloudflare Workers — Static Assets (assets-only). Serves the Next static export
+  // in ./out. No Worker script / bindings (output: 'export' → pure static).
+  // Deploy: pnpm build && wrangler deploy   (Dashboard "Workers Builds" runs the same).
+  // Custom domain (course.ntutbox.com) is added in the dashboard after the first deploy.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ntutbox-course-web",
+  "compatibility_date": "2025-06-05",
+  "assets": {
+    "directory": "./out",
+    "not_found_handling": "single-page-application"
+  }
+}
