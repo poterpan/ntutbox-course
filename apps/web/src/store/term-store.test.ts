@@ -19,7 +19,7 @@ describe("term-store", () => {
 
   it("loadTerm moves idle→loading→ready and stores bundle", async () => {
     const ds: DataSource = {
-      getManifest: vi.fn(),
+      getManifest: vi.fn(), getCourseDetail: vi.fn(),
       getTerm: vi.fn().mockResolvedValue(fakeBundle("115-1")),
     };
     await useTermStore.getState().loadTerm("115-1", ds);
@@ -34,7 +34,7 @@ describe("term-store", () => {
     let resolveSlow!: (b: TermBundle) => void;
     const slow = new Promise<TermBundle>((r) => (resolveSlow = r));
     const ds: DataSource = {
-      getManifest: vi.fn(),
+      getManifest: vi.fn(), getCourseDetail: vi.fn(),
       getTerm: vi.fn()
         .mockImplementationOnce(() => slow)              // first (114-2) is slow
         .mockResolvedValueOnce(fakeBundle("115-1")),     // second (115-1) is fast
@@ -48,7 +48,7 @@ describe("term-store", () => {
   });
 
   it("sets status=error on failure", async () => {
-    const ds: DataSource = { getManifest: vi.fn(), getTerm: vi.fn().mockRejectedValue(new Error("boom")) };
+    const ds: DataSource = { getManifest: vi.fn(), getTerm: vi.fn().mockRejectedValue(new Error("boom")), getCourseDetail: vi.fn() };
     await useTermStore.getState().loadTerm("115-1", ds);
     expect(useTermStore.getState().status).toBe("error");
     expect(useTermStore.getState().error).toContain("boom");

@@ -16,6 +16,15 @@
     },
     "Manifest": {
       "$ref": "#/$defs/Manifest"
+    },
+    "CourseDetail": {
+      "$ref": "#/$defs/CourseDetail"
+    },
+    "MicroProgramDirectory": {
+      "$ref": "#/$defs/MicroProgramDirectory"
+    },
+    "StandardDirectory": {
+      "$ref": "#/$defs/StandardDirectory"
     }
   },
   "$defs": {
@@ -965,6 +974,17 @@
           ],
           "default": null
         },
+        "mprograms": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManifestEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "dataset_version": {
           "anyOf": [
             {
@@ -1025,6 +1045,456 @@
         }
       },
       "title": "Manifest",
+      "type": "object"
+    },
+    "Syllabus": {
+      "description": "單一教師的教學大綱（ShowSyllabus.jsp；label→textarea，用標籤文字定位）。",
+      "properties": {
+        "teacher_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Teacher Code"
+        },
+        "teacher_name": {
+          "default": "",
+          "title": "Teacher Name",
+          "type": "string"
+        },
+        "email": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Email"
+        },
+        "office_hours_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Office Hours Url"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "outline": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outline"
+        },
+        "schedule": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schedule"
+        },
+        "assessment": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Assessment"
+        },
+        "materials": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Materials"
+        },
+        "consultation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Consultation"
+        },
+        "extended_resources": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Extended Resources"
+        },
+        "sdgs": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sdgs"
+        },
+        "ai_usage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ai Usage"
+        },
+        "notes": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Notes"
+        },
+        "extra": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Extra",
+          "type": "object"
+        }
+      },
+      "title": "Syllabus",
+      "type": "object"
+    },
+    "CourseDetail": {
+      "additionalProperties": false,
+      "description": "重文字詳情（描述 + 大綱），隨點隨取；與 catalog 分檔（catalog 保持輕、可搜尋）。",
+      "properties": {
+        "term_key": {
+          "title": "Term Key",
+          "type": "string"
+        },
+        "offering_id": {
+          "title": "Offering Id",
+          "type": "string"
+        },
+        "course_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Course Code"
+        },
+        "name": {
+          "$ref": "#/$defs/LocalizedText"
+        },
+        "description": {
+          "$ref": "#/$defs/LocalizedText"
+        },
+        "syllabi": {
+          "items": {
+            "$ref": "#/$defs/Syllabus"
+          },
+          "title": "Syllabi",
+          "type": "array"
+        },
+        "generated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generated At"
+        }
+      },
+      "required": [
+        "term_key",
+        "offering_id"
+      ],
+      "title": "CourseDetail",
+      "type": "object"
+    },
+    "MicroProgram": {
+      "description": "微學程：SearchMProgram。offering_ids = 該學程該學期開課的課號。",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "offering_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Offering Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "code",
+        "name"
+      ],
+      "title": "MicroProgram",
+      "type": "object"
+    },
+    "MicroProgramDirectory": {
+      "description": "mprograms.json：逐學期微學程清單 + 各學程開課課號。",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "term_key": {
+          "title": "Term Key",
+          "type": "string"
+        },
+        "programs": {
+          "items": {
+            "$ref": "#/$defs/MicroProgram"
+          },
+          "title": "Programs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "term_key"
+      ],
+      "title": "MicroProgramDirectory",
+      "type": "object"
+    },
+    "ProgramStandard": {
+      "description": "某入學年×學制×系所的課程標準/畢業標準（Cprog 葉節點）。",
+      "properties": {
+        "entry_year": {
+          "title": "Entry Year",
+          "type": "integer"
+        },
+        "matric": {
+          "title": "Matric",
+          "type": "string"
+        },
+        "division": {
+          "title": "Division",
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "title": "Title",
+          "type": "string"
+        },
+        "courses": {
+          "items": {
+            "$ref": "#/$defs/StandardCourse"
+          },
+          "title": "Courses",
+          "type": "array"
+        }
+      },
+      "required": [
+        "entry_year",
+        "matric",
+        "division"
+      ],
+      "title": "ProgramStandard",
+      "type": "object"
+    },
+    "StandardCourse": {
+      "description": "課程標準單列（Cprog format=-4）：某入學年/學制/系所的應修課程。",
+      "properties": {
+        "study_year": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Study Year"
+        },
+        "study_sem": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Study Sem"
+        },
+        "requirement": {
+          "$ref": "#/$defs/Requirement"
+        },
+        "course_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Course Code"
+        },
+        "name_zh": {
+          "default": "",
+          "title": "Name Zh",
+          "type": "string"
+        },
+        "credits": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credits"
+        },
+        "hours": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hours"
+        },
+        "stage": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Stage"
+        },
+        "group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Group Id"
+        },
+        "notes": {
+          "default": "",
+          "title": "Notes",
+          "type": "string"
+        }
+      },
+      "title": "StandardCourse",
+      "type": "object"
+    },
+    "StandardDirectory": {
+      "description": "standards/{entry_year}.json：某入學年所有 program 的課程標準。",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "entry_year": {
+          "title": "Entry Year",
+          "type": "integer"
+        },
+        "programs": {
+          "items": {
+            "$ref": "#/$defs/ProgramStandard"
+          },
+          "title": "Programs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "entry_year"
+      ],
+      "title": "StandardDirectory",
       "type": "object"
     }
   }

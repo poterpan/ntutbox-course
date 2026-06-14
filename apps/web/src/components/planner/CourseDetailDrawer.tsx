@@ -1,20 +1,59 @@
 "use client";
+import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
+import { useTermStore } from "@/store/term-store";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
+import { getDataSource } from "@/lib/data";
+import type { CourseDetail } from "@/lib/data/types";
 import { cn } from "@/lib/utils";
 
 const DAY = ["日", "一", "二", "三", "四", "五", "六"];
 
+const SYLLABUS_FIELDS: [keyof NonNullable<CourseDetail["syllabi"]>[number], string][] = [
+  ["outline", "課程大綱"],
+  ["schedule", "課程進度"],
+  ["assessment", "評量方式"],
+  ["materials", "教材／參考書"],
+  ["consultation", "課程諮詢"],
+  ["extended_resources", "延伸教學與資源"],
+  ["sdgs", "對應 SDGs"],
+  ["ai_usage", "AI 導入"],
+  ["notes", "備註"],
+];
+
 export function CourseDetailDrawer() {
   const { byId, enrollment } = useTermCourses();
+  const termKey = useTermStore((s) => s.termKey);
   const { detailOfferingId, openDetail } = useUiStore();
   const { favorites, placed, place, unplace, toggleFavorite } = useDraftStore();
   const c = detailOfferingId ? byId(detailOfferingId) : undefined;
   const isFav = c ? favorites.includes(c.offering_id) : false;
   const isPlaced = c ? placed.some((p) => p.offering_id === c.offering_id) : false;
   const e = c ? enrollment[c.offering_id] : undefined;
+
+  const [detail, setDetail] = useState<CourseDetail | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  useEffect(() => {
+    if (!detailOfferingId || !termKey) {
+      setDetail(null);
+      return;
+    }
+    let alive = true;
+    setLoadingDetail(true);
+    setDetail(null);
+    getDataSource()
+      .getCourseDetail(termKey, detailOfferingId)
+      .then((d) => { if (alive) setDetail(d); })
+      .catch(() => { if (alive) setDetail(null); })
+      .finally(() => { if (alive) setLoadingDetail(false); });
+    return () => { alive = false; };
+  }, [detailOfferingId, termKey]);
+
+  const desc = detail?.description;
+  const syllabi = detail?.syllabi ?? [];
 
   return (
     <Dialog open={!!c} onOpenChange={(o) => { if (!o) openDetail(null); }}>
@@ -24,7 +63,9 @@ export function CourseDetailDrawer() {
             <DialogHeader className="border-b border-black/5 px-6 py-4">
               <DialogTitle className="text-xl font-bold">
                 {c.name.zh}
-                {c.name.en && <span className="ml-2 text-sm font-normal text-[var(--ink-soft)]">{c.name.en}</span>}
+                {(desc?.en || c.name.en) && (
+                  <span className="ml-2 text-sm font-normal text-[var(--ink-soft)]">{desc?.en || c.name.en}</span>
+                )}
               </DialogTitle>
               <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--ink-soft)]">
                 <Badge>{c.credits ?? "?"} 學分</Badge>
@@ -48,18 +89,57 @@ export function CourseDetailDrawer() {
               </dl>
 
               {c.notes_raw && (
-                <div className="mt-5">
-                  <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--ink-soft)]">備註</h3>
+                <Section title="備註">
                   <p className="whitespace-pre-wrap text-sm text-[var(--ink)]">{c.notes_raw}</p>
-                </div>
+                </Section>
               )}
 
-              <div className="mt-5">
-                <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-[var(--ink-soft)]">課程大綱</h3>
-                <p className="rounded-xl bg-black/[0.03] px-3 py-3 text-sm text-[var(--ink-soft)]">
-                  課綱／課程描述資料尚未匯入（來源需另爬 syllabus 頁，列於後續里程碑）。目前以課程目錄欄位為準。
+              {/* 課程概述 (Curr description) */}
+              {desc?.zh && (
+                <Section title="課程概述">
+                  <p className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--ink)]">{desc.zh}</p>
+                </Section>
+              )}
+
+              {/* 教學大綱 (per teacher) */}
+              {syllabi.length > 0 && (
+                <Section title="教學大綱">
+                  <div className="space-y-4">
+                    {syllabi.map((s, i) => (
+                      <div key={i} className="rounded-xl bg-black/[0.025] p-4">
+                        <div className="mb-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                          <span className="text-sm font-semibold text-[var(--ink)]">{s.teacher_name || "教師"}</span>
+                          {s.email && (
+                            <a href={`mailto:${s.email}`} className="text-xs text-[var(--accent-ink)] hover:underline">{s.email}</a>
+                          )}
+                          {s.updated_at && <span className="text-[10px] text-[var(--ink-faint)]">更新 {s.updated_at}</span>}
+                        </div>
+                        <dl className="space-y-2.5">
+                          {SYLLABUS_FIELDS.map(([key, label]) => {
+                            const val = s[key];
+                            return typeof val === "string" && val.trim() ? (
+                              <div key={key}>
+                                <dt className="text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-soft)]">{label}</dt>
+                                <dd className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-[var(--ink)]">{val}</dd>
+                              </div>
+                            ) : null;
+                          })}
+                        </dl>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* loading / empty states */}
+              {loadingDetail && !desc && (
+                <p className="mt-5 text-sm text-[var(--ink-soft)]">載入課程概述與大綱中…</p>
+              )}
+              {!loadingDetail && !desc?.zh && syllabi.length === 0 && (
+                <p className="mt-5 rounded-xl bg-black/[0.03] px-3 py-3 text-sm text-[var(--ink-soft)]">
+                  本課程暫無課程概述／教學大綱資料。
                 </p>
-              </div>
+              )}
             </div>
 
             <div className="flex items-center gap-2 border-t border-black/5 px-6 py-4">
@@ -107,6 +187,15 @@ function Row({ k, v }: { k: string; v: string }) {
   );
 }
 
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="mt-5">
+      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-[var(--ink-soft)]">{title}</h3>
+      {children}
+    </div>
+  );
+}
+
 function Badge({ children }: { children: React.ReactNode }) {
-  return <span className="rounded-md bg-[var(--accent)]/10 px-1.5 py-0.5 text-[11px] font-medium text-[var(--accent)]">{children}</span>;
+  return <span className="rounded-md bg-[var(--accent)]/10 px-1.5 py-0.5 text-[11px] font-medium text-[var(--accent-ink)]">{children}</span>;
 }

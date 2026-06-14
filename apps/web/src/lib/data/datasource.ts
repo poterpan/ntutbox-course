@@ -1,8 +1,11 @@
-import type { Manifest, TermBundle } from "./types";
+import type { Manifest, TermBundle, CourseDetail } from "./types";
 
 export interface DataSource {
   getManifest(signal?: AbortSignal): Promise<Manifest>;
   getTerm(termKey: string, signal?: AbortSignal): Promise<TermBundle>;
+  /** Heavy per-course detail (description + syllabi), fetched on demand.
+   *  Returns null if not available (e.g. 404 — details are an optional overlay). */
+  getCourseDetail(termKey: string, offeringId: string, signal?: AbortSignal): Promise<CourseDetail | null>;
 }
 
 export class DataLoadError extends Error {

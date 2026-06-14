@@ -39,4 +39,20 @@ describe("HttpDataSource", () => {
     const ds = new HttpDataSource("/data/v1");
     await expect(ds.getManifest()).rejects.toBeInstanceOf(DataLoadError);
   });
+
+  it("getCourseDetail fetches course/<id>.json and returns the detail", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      jsonResponse({ term_key: "115-1", offering_id: "360748", description: { zh: "概述" }, syllabi: [] }),
+    );
+    const ds = new HttpDataSource("/data/v1");
+    const d = await ds.getCourseDetail("115-1", "360748");
+    expect(d?.offering_id).toBe("360748");
+    expect(fetchMock).toHaveBeenCalledWith("/data/v1/terms/115-1/course/360748.json", { signal: undefined });
+  });
+
+  it("getCourseDetail returns null when detail is missing (404 — optional overlay)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(jsonResponse(null, false, 404));
+    const ds = new HttpDataSource("/data/v1");
+    expect(await ds.getCourseDetail("115-1", "nope")).toBeNull();
+  });
 });

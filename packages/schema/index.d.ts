@@ -117,6 +117,48 @@ export type Size = number;
 export type ContentEncoding = string | null;
 export type SchemaVersion5 = number;
 export type DatasetVersion = string | null;
+export type TermKey3 = string;
+export type OfferingId1 = string;
+export type CourseCode1 = string | null;
+export type TeacherCode = string | null;
+export type TeacherName = string;
+export type Email = string | null;
+export type OfficeHoursUrl = string | null;
+export type UpdatedAt = string | null;
+export type Outline = string | null;
+export type Schedule = string | null;
+export type Assessment = string | null;
+export type Materials = string | null;
+export type Consultation = string | null;
+export type ExtendedResources = string | null;
+export type Sdgs = string | null;
+export type AiUsage = string | null;
+export type Notes = string | null;
+export type Syllabi = Syllabus1[];
+export type GeneratedAt2 = string | null;
+export type SchemaVersion6 = number;
+export type TermKey4 = string;
+export type Code2 = string;
+export type Name2 = string;
+export type OfferingIds = string[];
+export type Programs = MicroProgram[];
+export type SchemaVersion7 = number;
+export type EntryYear = number;
+export type EntryYear1 = number;
+export type Matric = string;
+export type Division = string;
+export type Title = string;
+export type StudyYear = number | null;
+export type StudySem = number | null;
+export type CourseCode2 = string | null;
+export type NameZh = string;
+export type Credits1 = number | null;
+export type Hours1 = number | null;
+export type Stage1 = string | null;
+export type GroupId = string | null;
+export type Notes1 = string;
+export type Courses1 = StandardCourse[];
+export type Programs1 = ProgramStandard[];
 
 export interface NtutboxCourseV1 {
   TermCatalog?: TermCatalog;
@@ -124,6 +166,9 @@ export interface NtutboxCourseV1 {
   ClassDirectory?: ClassDirectory;
   EnrollmentLatest?: EnrollmentLatest;
   Manifest?: Manifest;
+  CourseDetail?: CourseDetail;
+  MicroProgramDirectory?: MicroProgramDirectory;
+  StandardDirectory?: StandardDirectory;
   [k: string]: unknown;
 }
 /**
@@ -314,6 +359,7 @@ export interface ManifestTerm {
   enrollment?: ManifestEntry | null;
   classes?: ManifestEntry | null;
   periods?: ManifestEntry | null;
+  mprograms?: ManifestEntry | null;
   dataset_version?: DatasetVersion;
   [k: string]: unknown;
 }
@@ -323,5 +369,95 @@ export interface ManifestEntry {
   size: Size;
   content_encoding?: ContentEncoding;
   schema_version?: SchemaVersion5;
+  [k: string]: unknown;
+}
+/**
+ * 重文字詳情（描述 + 大綱），隨點隨取；與 catalog 分檔（catalog 保持輕、可搜尋）。
+ */
+export interface CourseDetail {
+  term_key: TermKey3;
+  offering_id: OfferingId1;
+  course_code?: CourseCode1;
+  name?: LocalizedText;
+  description?: LocalizedText;
+  syllabi?: Syllabi;
+  generated_at?: GeneratedAt2;
+}
+/**
+ * 單一教師的教學大綱（ShowSyllabus.jsp；label→textarea，用標籤文字定位）。
+ */
+export interface Syllabus1 {
+  teacher_code?: TeacherCode;
+  teacher_name?: TeacherName;
+  email?: Email;
+  office_hours_url?: OfficeHoursUrl;
+  updated_at?: UpdatedAt;
+  outline?: Outline;
+  schedule?: Schedule;
+  assessment?: Assessment;
+  materials?: Materials;
+  consultation?: Consultation;
+  extended_resources?: ExtendedResources;
+  sdgs?: Sdgs;
+  ai_usage?: AiUsage;
+  notes?: Notes;
+  extra?: Extra;
+  [k: string]: unknown;
+}
+export interface Extra {
+  [k: string]: string;
+}
+/**
+ * mprograms.json：逐學期微學程清單 + 各學程開課課號。
+ */
+export interface MicroProgramDirectory {
+  schema_version?: SchemaVersion6;
+  term_key: TermKey4;
+  programs?: Programs;
+  [k: string]: unknown;
+}
+/**
+ * 微學程：SearchMProgram。offering_ids = 該學程該學期開課的課號。
+ */
+export interface MicroProgram {
+  code: Code2;
+  name: Name2;
+  offering_ids?: OfferingIds;
+  [k: string]: unknown;
+}
+/**
+ * standards/{entry_year}.json：某入學年所有 program 的課程標準。
+ */
+export interface StandardDirectory {
+  schema_version?: SchemaVersion7;
+  entry_year: EntryYear;
+  programs?: Programs1;
+  [k: string]: unknown;
+}
+/**
+ * 某入學年×學制×系所的課程標準/畢業標準（Cprog 葉節點）。
+ */
+export interface ProgramStandard {
+  entry_year: EntryYear1;
+  matric: Matric;
+  division: Division;
+  title?: Title;
+  courses?: Courses1;
+  [k: string]: unknown;
+}
+/**
+ * 課程標準單列（Cprog format=-4）：某入學年/學制/系所的應修課程。
+ */
+export interface StandardCourse {
+  study_year?: StudyYear;
+  study_sem?: StudySem;
+  requirement?: Requirement;
+  course_code?: CourseCode2;
+  name_zh?: NameZh;
+  credits?: Credits1;
+  hours?: Hours1;
+  stage?: Stage1;
+  group_id?: GroupId;
+  notes?: Notes1;
   [k: string]: unknown;
 }

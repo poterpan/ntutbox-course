@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / "crawler"))
 
 from models import (  # noqa: E402
     TermCatalog, PeriodTable, ClassDirectory, EnrollmentLatest, Manifest,
+    CourseDetail, MicroProgramDirectory, StandardDirectory,
 )
 
 ROOTS = {
@@ -19,6 +20,9 @@ ROOTS = {
     "ClassDirectory": ClassDirectory,
     "EnrollmentLatest": EnrollmentLatest,
     "Manifest": Manifest,
+    "CourseDetail": CourseDetail,
+    "MicroProgramDirectory": MicroProgramDirectory,
+    "StandardDirectory": StandardDirectory,
 }
 
 def main() -> None:

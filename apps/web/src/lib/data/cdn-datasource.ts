@@ -1,6 +1,6 @@
 import type { DataSource } from "./datasource";
 import { fetchJson, DataLoadError, isAbortError } from "./datasource";
-import type { Manifest, TermBundle, TermCatalog, PeriodTable, ClassDirectory, EnrollmentLatest } from "./types";
+import type { Manifest, TermBundle, TermCatalog, PeriodTable, ClassDirectory, EnrollmentLatest, CourseDetail } from "./types";
 
 export class HttpDataSource implements DataSource {
   constructor(private base: string) {}
@@ -25,5 +25,15 @@ export class HttpDataSource implements DataSource {
       enrollment = null;
     }
     return { termKey, catalog, periods, classes, enrollment };
+  }
+
+  async getCourseDetail(termKey: string, offeringId: string, signal?: AbortSignal): Promise<CourseDetail | null> {
+    const url = `${this.base}/terms/${termKey}/course/${offeringId}.json`;
+    try {
+      return await fetchJson<CourseDetail>(url, signal);
+    } catch (e) {
+      if (e instanceof DataLoadError && isAbortError(e.cause)) throw e;
+      return null; // details are an optional overlay; tolerate missing
+    }
   }
 }

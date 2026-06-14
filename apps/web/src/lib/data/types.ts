@@ -12,6 +12,7 @@ export type {
   Manifest,
   ManifestTerm,
   Meeting,
+  CourseDetail,
 } from "../../../../../packages/schema/index";
 
 // App-side bundle of one term's files.
