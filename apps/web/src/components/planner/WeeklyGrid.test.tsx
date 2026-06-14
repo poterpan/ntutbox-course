@@ -22,12 +22,16 @@ describe("WeeklyGrid", () => {
   beforeEach(() => {
     useDraftStore.setState({ termKey: "115-1", favorites: [], placed: [{ offering_id: "A", priority: 1 }] });
     useTermStore.setState({ status: "ready", termKey: "115-1", error: null, generation: 1,
-      bundle: bundleWith([{ offering_id: "A", name: { zh: "微積分" }, meetings: [{ day: 1, periods: ["1"] }], teachers: [{ name: "王" }], classes: [], credits: 3 }]) });
+      bundle: bundleWith([
+        { offering_id: "A", name: { zh: "微積分" }, meetings: [{ day: 1, periods: ["1"] }], teachers: [{ name: "王" }], classes: [], credits: 3 },
+        { offering_id: "S", name: { zh: "週末班" }, meetings: [{ day: 6, periods: ["1"] }], teachers: [], classes: [], credits: 3 }, // 週六 course
+      ]) });
   });
 
-  it("renders weekday headers 週一..週六 and period rows", () => {
+  it("data-driven columns: 週一~週五 always + 週六 (has a course); 週日 omitted (none)", () => {
     render(<WeeklyGrid />);
     ["週一", "週二", "週三", "週四", "週五", "週六"].forEach((d) => expect(screen.getByText(d)).toBeInTheDocument());
+    expect(screen.queryByText("週日")).not.toBeInTheDocument();
   });
 
   it("renders a placed single course in its slot", () => {

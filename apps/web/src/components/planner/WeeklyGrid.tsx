@@ -6,14 +6,21 @@ import { orderedPeriodTokens } from "@/lib/schedule/periods";
 import { TimetableCell } from "./TimetableCell";
 import { cn } from "@/lib/utils";
 
-const WEEK = [1, 2, 3, 4, 5, 6];
+const WEEK = [1, 2, 3, 4, 5]; // Mon–Fri baseline; weekend days added only when present
 const DAY_LABEL: Record<number, string> = { 0: "日", 1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六" };
 
 export function WeeklyGrid() {
-  const { periods } = useTermCourses();
+  const { periods, courses } = useTermCourses();
   const viewMode = useUiStore((s) => s.viewMode);
   const selectedDay = useUiStore((s) => s.selectedDay);
-  const DAYS = viewMode === "day" ? [selectedDay] : WEEK;
+  // Data-driven columns: Mon–Fri always + any weekend day that actually has courses
+  // this term (so 週六 shows when ~50 weekend-program courses exist; 週日 only if real).
+  const weekDays = useMemo(() => {
+    const days = new Set<number>(WEEK); // 1..5 baseline
+    for (const c of courses) for (const m of c.meetings ?? []) if (m.day === 0 || m.day === 6) days.add(m.day);
+    return [...days].sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b)); // 日 (0) sorts last
+  }, [courses]);
+  const DAYS = viewMode === "day" ? [selectedDay] : weekDays;
   const tokens = useMemo(() => (periods ? orderedPeriodTokens(periods) : []), [periods]);
   const startOf = useMemo(() => {
     const m = new Map<string, string>();
