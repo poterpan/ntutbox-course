@@ -1,6 +1,7 @@
 "use client";
 import { useMemo } from "react";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
+import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
 import { orderedPeriodTokens } from "@/lib/schedule/periods";
 import { TimetableCell } from "./TimetableCell";
@@ -10,16 +11,21 @@ const WEEK = [1, 2, 3, 4, 5]; // Mon–Fri baseline; weekend days added only whe
 const DAY_LABEL: Record<number, string> = { 0: "日", 1: "一", 2: "二", 3: "三", 4: "四", 5: "五", 6: "六" };
 
 export function WeeklyGrid() {
-  const { periods, courses } = useTermCourses();
+  const { periods, byId } = useTermCourses();
+  const placed = useDraftStore((s) => s.placed);
   const viewMode = useUiStore((s) => s.viewMode);
   const selectedDay = useUiStore((s) => s.selectedDay);
-  // Data-driven columns: Mon–Fri always + any weekend day that actually has courses
-  // this term (so 週六 shows when ~50 weekend-program courses exist; 週日 only if real).
+  // Weekend columns are driven by the user's *placed* courses, not the catalog:
+  // every term's catalog always carries Saturday courses, so scanning it would pin
+  // 週六 on forever. 週一~週五 always; 週六/週日 appear only once the user places a
+  // course on that day (週日 always sorts last).
   const weekDays = useMemo(() => {
     const days = new Set<number>(WEEK); // 1..5 baseline
-    for (const c of courses) for (const m of c.meetings ?? []) if (m.day === 0 || m.day === 6) days.add(m.day);
+    for (const p of placed) for (const m of byId(p.offering_id)?.meetings ?? []) {
+      if (m.day === 0 || m.day === 6) days.add(m.day);
+    }
     return [...days].sort((a, b) => (a === 0 ? 7 : a) - (b === 0 ? 7 : b)); // 日 (0) sorts last
-  }, [courses]);
+  }, [placed, byId]);
   const DAYS = viewMode === "day" ? [selectedDay] : weekDays;
   const tokens = useMemo(() => (periods ? orderedPeriodTokens(periods) : []), [periods]);
   const startOf = useMemo(() => {

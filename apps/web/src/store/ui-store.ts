@@ -8,6 +8,7 @@ interface UiState {
   filters: FilterState;
   activeSlot: ActiveSlot | null;
   detailOfferingId: string | null;
+  hoveredOfferingId: string | null; // desktop course-library hover → weekly-grid ghost preview
   viewMode: "week" | "day";
   selectedDay: number;       // for mobile day view
   libraryOpen: boolean;      // mobile bottom sheet
@@ -19,6 +20,7 @@ interface UiState {
   setEmiOnly: (v: boolean) => void;
   openSlot: (s: ActiveSlot | null) => void;
   openDetail: (id: string | null) => void;
+  setHoveredOffering: (id: string | null) => void;
   setViewMode: (m: "week" | "day") => void;
   setSelectedDay: (d: number) => void;
   setLibraryOpen: (v: boolean) => void;
@@ -28,7 +30,7 @@ interface UiState {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  query: "", filters: EMPTY_FILTER, activeSlot: null, detailOfferingId: null,
+  query: "", filters: EMPTY_FILTER, activeSlot: null, detailOfferingId: null, hoveredOfferingId: null,
   viewMode: "week", selectedDay: 1, libraryOpen: false, libraryTab: "courses", staleDropped: [],
   setQuery: (query) => set({ query }),
   setFilters: (filters) => set({ filters }),
@@ -40,6 +42,7 @@ export const useUiStore = create<UiState>((set) => ({
   setEmiOnly: (emiOnly) => set((s) => ({ filters: { ...s.filters, emiOnly } })),
   openSlot: (activeSlot) => set({ activeSlot }),
   openDetail: (detailOfferingId) => set({ detailOfferingId }),
+  setHoveredOffering: (hoveredOfferingId) => set({ hoveredOfferingId }),
   setViewMode: (viewMode) => set({ viewMode }),
   setSelectedDay: (selectedDay) => set({ selectedDay }),
   setLibraryOpen: (libraryOpen) => set({ libraryOpen }),

@@ -1,4 +1,5 @@
 "use client";
+import type { PointerEvent } from "react";
 import type { CourseOffering } from "@/lib/data/types";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
@@ -7,13 +8,26 @@ import { cn } from "@/lib/utils";
 export function CourseListItem({ course }: { course: CourseOffering }) {
   const { favorites, placed, place, toggleFavorite } = useDraftStore();
   const openDetail = useUiStore((s) => s.openDetail);
+  const setHoveredOffering = useUiStore((s) => s.setHoveredOffering);
   const isFav = favorites.includes(course.offering_id);
   const isPlaced = placed.some((p) => p.offering_id === course.offering_id);
   const teachers = (course.teachers ?? []).map((t) => t.name).join("、") || "—";
   const noTime = (course.meetings ?? []).length === 0;
 
+  // Desktop-only ghost preview: gate on mouse pointers so touch (tap-scroll) never
+  // fires a phantom hover. (`@media (hover:hover) and (pointer:fine)` is also applied
+  // on the grid side, but the JS gate is the authoritative no-touch guard.)
+  const previewOn = (e: PointerEvent) => { if (e.pointerType === "mouse") setHoveredOffering(course.offering_id); };
+  const previewOff = (e: PointerEvent) => { if (e.pointerType === "mouse") setHoveredOffering(null); };
+  const handlePlace = () => { setHoveredOffering(null); place(course.offering_id); };
+
   return (
-    <div className="group flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-black/[0.07] transition-colors hover:bg-blue-50/60 hover:ring-[var(--accent)]/30">
+    <div
+      data-offering-id={course.offering_id}
+      onPointerEnter={previewOn}
+      onPointerLeave={previewOff}
+      className="group flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-black/[0.07] transition-colors hover:bg-blue-50/60 hover:ring-[var(--accent)]/30"
+    >
       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openDetail(course.offering_id)}>
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[13px] font-semibold text-[var(--ink)]">{course.name.zh}</span>
@@ -54,7 +68,7 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
         <button
           type="button"
           aria-label="排入"
-          onClick={() => place(course.offering_id)}
+          onClick={handlePlace}
           className="flex h-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] px-3 text-xs font-semibold text-white shadow-sm transition-[filter] hover:brightness-110"
         >
           ＋ 排入

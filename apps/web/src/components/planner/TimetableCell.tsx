@@ -9,10 +9,19 @@ export function TimetableCell({ day, period }: { day: number; period: string }) 
   const { occupants } = useScheduleView();
   const openSlot = useUiStore((s) => s.openSlot);
   const openDetail = useUiStore((s) => s.openDetail);
+  const hoveredOfferingId = useUiStore((s) => s.hoveredOfferingId);
   const ids = occupants(day, period);
   const conflicted = ids.length > 1;
   const first = ids[0] ? byId(ids[0]) : undefined;
   const room = first?.classrooms?.[0]?.name;
+
+  // Hover ghost (desktop): the course hovered in the library meets at this (day, period).
+  // Touch is gated upstream (CourseListItem only sets hover for mouse pointers).
+  const ghostHere = hoveredOfferingId != null &&
+    (byId(hoveredOfferingId)?.meetings ?? []).some((m) => m.day === day && (m.periods as string[]).includes(period));
+  // 衝堂預檢: this cell is already taken by a *placed* course that isn't the hovered one.
+  const ghostConflict = ghostHere && ids.some((id) => id !== hoveredOfferingId);
+  const ghostPreview = ghostHere && !ghostConflict;
 
   // empty → find courses for this time; single placed → its detail (退選); conflict → manage slot
   const onClick = () => {
@@ -27,7 +36,7 @@ export function TimetableCell({ day, period }: { day: number; period: string }) 
       data-testid={conflicted ? "conflict-cell" : undefined}
       onClick={onClick}
       className={cn(
-        "size-full overflow-hidden rounded-md p-1 text-left text-[11px] leading-tight transition-all",
+        "relative size-full overflow-hidden rounded-md p-1 text-left text-[11px] leading-tight transition-all",
         ids.length === 0 &&
           "bg-white/30 ring-1 ring-inset ring-black/[0.06] hover:bg-white/70 hover:ring-[var(--accent)]/30",
         ids.length === 1 &&
@@ -59,6 +68,25 @@ export function TimetableCell({ day, period }: { day: number; period: string }) 
             +{ids.length - 1}
           </span>
         </div>
+      )}
+
+      {/* Ghost preview overlay — dashed outline + low-opacity fill, distinct from
+          placed (實心藍) / conflict (橘). Red when it would clash with a placed course. */}
+      {ghostPreview && (
+        <span
+          data-testid="ghost-cell"
+          aria-hidden
+          className="pointer-events-none absolute inset-0 rounded-md border-2 border-dashed border-[var(--accent)] bg-[var(--accent)]/15"
+        />
+      )}
+      {ghostConflict && (
+        <span
+          data-testid="ghost-conflict-cell"
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-orange-500 bg-orange-400/70"
+        >
+          <span className="text-sm font-bold leading-none text-white drop-shadow-sm">⚠</span>
+        </span>
       )}
     </button>
   );
