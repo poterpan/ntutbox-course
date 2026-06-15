@@ -8,6 +8,7 @@ import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
 import { getDataSource } from "@/lib/data";
 import type { CourseDetail } from "@/lib/data/types";
+import { resolveMatric } from "@/lib/planner/matric";
 import { cn } from "@/lib/utils";
 
 const DAY = ["日", "一", "二", "三", "四", "五", "六"];
@@ -33,6 +34,7 @@ export function CourseDetailDrawer() {
   const isFav = c ? favorites.includes(c.offering_id) : false;
   const isPlaced = c ? placed.some((p) => p.offering_id === c.offering_id) : false;
   const e = c ? enrollment[c.offering_id] : undefined;
+  const division = c ? resolveMatric(c) : null;
 
   const [detail, setDetail] = useState<CourseDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -77,6 +79,7 @@ export function CourseDetailDrawer() {
             <div ref={scrollRef} tabIndex={-1} className="thin-scroll flex-1 overflow-y-auto overscroll-contain px-6 py-5 outline-none [touch-action:pan-y]">
               <dl className="grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
                 <Row k="授課教師" v={(c.teachers ?? []).map((t) => t.name).join("、") || "—"} />
+                <Row k="學制" v={division?.label ?? "—"} />
                 <Row k="開課單位" v={c.unit_name ?? "—"} />
                 <Row k="開課班級" v={(c.classes ?? []).map((k) => `${k.name}${k.kind === "pool" ? "(池)" : k.kind === "virtual" ? "(佔位)" : ""}`).join("、") || "—"} />
                 <Row k="時數" v={c.hours != null ? String(c.hours) : "—"} />
