@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
+import { useTouchScrollFocus } from "@/lib/planner/use-touch-scroll-focus";
 import { useSearchIndex } from "@/lib/planner/use-search-index";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
@@ -19,6 +20,8 @@ export function SlotPopover() {
   const { activeSlot, openSlot, openDetail } = useUiStore();
   const [q, setQ] = useState("");
   const [dragId, setDragId] = useState<string | null>(null);
+  // Avoid auto-focusing the search input on touch so the course list scrolls on first drag.
+  const { scrollRef, initialFocus } = useTouchScrollFocus();
 
   const placedHere = useMemo(() => {
     if (!activeSlot) return [];
@@ -74,14 +77,17 @@ export function SlotPopover() {
 
   return (
     <Dialog open onOpenChange={(o) => { if (!o) openSlot(null); }}>
-      <DialogContent className="flex max-h-[80vh] w-[92vw] max-w-md flex-col gap-0 overflow-hidden p-0">
+      <DialogContent
+        initialFocus={initialFocus}
+        className="flex max-h-[80vh] w-[92vw] max-w-md flex-col gap-0 overflow-hidden p-0"
+      >
         <DialogHeader className="border-b border-black/5 px-5 py-3">
           <DialogTitle>週{DAY[activeSlot.day]} · 第 {activeSlot.period} 節</DialogTitle>
         </DialogHeader>
 
         {manage ? (
           <>
-            <div className="thin-scroll min-h-0 flex-1 space-y-1.5 overflow-y-auto p-3">
+            <div ref={scrollRef} tabIndex={-1} className="thin-scroll min-h-0 flex-1 space-y-1.5 overflow-y-auto overscroll-contain p-3 outline-none [touch-action:pan-y]">
               <div className="px-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--ink-soft)]">
                 已排入此格{placedHere.length > 1 ? "（拖／按鈕調整志願序）" : ""}
               </div>
@@ -134,7 +140,7 @@ export function SlotPopover() {
                 className="w-full rounded-lg bg-black/[0.04] px-3 py-2 text-sm outline-none ring-1 ring-black/5 placeholder:text-zinc-400 focus:ring-[var(--accent)]/40"
               />
             </div>
-            <div className="thin-scroll min-h-0 flex-1 space-y-1 overflow-y-auto p-3">
+            <div ref={scrollRef} tabIndex={-1} className="thin-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3 outline-none [touch-action:pan-y]">
               {addable.length === 0 && <p className="py-6 text-center text-xs text-[var(--ink-soft)]">此時段沒有可加入的課程</p>}
               {addable.map((c) => (
                 <div key={c.offering_id} className="flex items-center gap-2 rounded-xl bg-white px-2.5 py-1.5 text-xs ring-1 ring-black/5">

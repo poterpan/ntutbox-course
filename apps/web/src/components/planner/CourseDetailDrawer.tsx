@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
+import { useTouchScrollFocus } from "@/lib/planner/use-touch-scroll-focus";
 import { useTermStore } from "@/store/term-store";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
@@ -54,10 +55,12 @@ export function CourseDetailDrawer() {
 
   const desc = detail?.description;
   const syllabi = detail?.syllabi ?? [];
+  // Focus the scroll container (not the close button) on touch so the body scrolls on first drag.
+  const { scrollRef, initialFocus } = useTouchScrollFocus();
 
   return (
     <Dialog open={!!c} onOpenChange={(o) => { if (!o) openDetail(null); }}>
-      <DialogContent className="flex h-[88vh] w-[94vw] max-w-[94vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
+      <DialogContent initialFocus={initialFocus} className="flex h-[88vh] w-[94vw] max-w-[94vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-5xl">
         {c && (
           <>
             <DialogHeader className="border-b border-black/5 px-6 py-4">
@@ -71,7 +74,7 @@ export function CourseDetailDrawer() {
               </div>
             </DialogHeader>
 
-            <div className="thin-scroll flex-1 overflow-y-auto px-6 py-5">
+            <div ref={scrollRef} tabIndex={-1} className="thin-scroll flex-1 overflow-y-auto overscroll-contain px-6 py-5 outline-none [touch-action:pan-y]">
               <dl className="grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
                 <Row k="授課教師" v={(c.teachers ?? []).map((t) => t.name).join("、") || "—"} />
                 <Row k="開課單位" v={c.unit_name ?? "—"} />
