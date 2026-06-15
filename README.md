@@ -38,7 +38,7 @@
 
 ## 架構
 
-![系統架構](docs/diagrams/01-architecture.png)
+<p align="center"><img src="docs/diagrams/01-architecture.png" alt="系統架構" width="460"></p>
 
 ```
 GitHub Actions（Python 爬蟲, cron）
