@@ -178,6 +178,26 @@
           ],
           "default": null
         },
+        "matric_codes": {
+          "description": "該課全部學制碼集合（跨多次查詢匯集）",
+          "items": {
+            "type": "string"
+          },
+          "title": "Matric Codes",
+          "type": "array"
+        },
+        "matric_division": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MatricDivision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "升級後的可顯示學制：中文標籤 + 體系（多碼依優先序裁定，無碼為 None）"
+        },
         "unit_code": {
           "anyOf": [
             {
@@ -308,7 +328,7 @@
       "type": "object"
     },
     "DivisionGroup": {
-      "description": "學制大類（取代學長按中文檔名切分）。",
+      "description": "學制大類（取代學長按中文檔名切分）。\n\n⚠️ 偏粗、會蓋掉「進修部」語意（如在職碩專班 matric=A 被歸 graduate）。\n顯示/學分規則請改用 CourseOffering.matric_division（matric 升級的第一級欄位）。\n暫留以免破壞既有消費者，日後 deprecate。",
       "enum": [
         "day",
         "extension",
@@ -445,6 +465,40 @@
       },
       "title": "LocalizedText",
       "type": "object"
+    },
+    "MatricDivision": {
+      "description": "學制（matric）升為第一級的可顯示欄位：逐碼中文標籤 + 體系軸。\n\ncode = 被選中的單一 matric 碼（多碼時依優先序裁定，見 MATRIC_LABELS 註解）；\nlabel = 該碼中文學制（如「進修部碩士在職專班」）；system = 體系（學分規則用）。\n無 matric 碼 → CourseOffering.matric_division 為 None。",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "system": {
+          "$ref": "#/$defs/MatricSystem"
+        }
+      },
+      "required": [
+        "code",
+        "label",
+        "system"
+      ],
+      "title": "MatricDivision",
+      "type": "object"
+    },
+    "MatricSystem": {
+      "description": "體系（system）分類軸——與 DivisionGroup 正交，供學分規則用。\n\n日間部={day}；進修部系統={extension, on_job}（含進修部碩士在職專班/週末碩/EMBA）。\n日間部學生的學分加總應排除非 day 體系的課（不同體系，與選課階段分類一致）。",
+      "enum": [
+        "day",
+        "extension",
+        "on_job",
+        "other"
+      ],
+      "title": "MatricSystem",
+      "type": "string"
     },
     "Meeting": {
       "description": "單一上課時段。weekPattern/dateRange/教室對應＝來源未提供（§4.7）→ optional。",

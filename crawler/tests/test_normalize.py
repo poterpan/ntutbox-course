@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from models import ClassKind, ClassRef, DivisionGroup, WeekPattern
+from models import ClassKind, ClassRef, DivisionGroup, MatricSystem, WeekPattern
 from ntut_catalog.parse_course_table import parse_course_rows
 from ntut_catalog.normalize import matric_codes_to_division, to_offering
 
@@ -46,9 +46,36 @@ def test_full_offering_347322(rows):
     assert c.selection.cwish_subj == "347322"
     assert c.selection.candidate_cunums == ["2798"]
     assert c.division_group == DivisionGroup.day
+    assert c.matric_codes == ["7"]
+    assert c.matric_division is not None
+    assert c.matric_division.code == "7"
+    assert c.matric_division.label == "日四技"
+    assert c.matric_division.system == MatricSystem.day
     assert c.is_placeholder is False
     assert c.unit_code == "59"
     assert c.raw_fields["matric_codes"] == "7"
+
+
+def test_matric_division_populated_for_on_job(rows):
+    """進修部碩士在職專班(A)：matric_division 標出 on_job，不被 division_group=graduate 蓋掉。"""
+    c = _make(rows, "347322", matric_codes={"A"})
+    assert c.matric_codes == ["A"]
+    assert c.matric_division.label == "進修部碩士在職專班"
+    assert c.matric_division.system == MatricSystem.on_job
+    assert c.division_group == DivisionGroup.graduate  # 舊欄位仍粗（保留、不破壞）
+
+
+def test_matric_division_multi_code_prefers_day(rows):
+    c = _make(rows, "347322", matric_codes={"7", "A"})
+    assert c.matric_codes == ["7", "A"]          # 保留全集合（已排序）
+    assert c.matric_division.code == "7"          # day 優先
+    assert c.matric_division.system == MatricSystem.day
+
+
+def test_matric_division_none_when_no_codes(rows):
+    c = _make(rows, "347322", matric_codes=set())
+    assert c.matric_codes == []
+    assert c.matric_division is None
 
 
 def test_embedded_class_filled_from_directory_lookup(rows):

@@ -46,12 +46,29 @@ class RequirementCategory(str, Enum):
 
 
 class DivisionGroup(str, Enum):
-    """學制大類（取代學長按中文檔名切分）。"""
+    """學制大類（取代學長按中文檔名切分）。
+
+    ⚠️ 偏粗、會蓋掉「進修部」語意（如在職碩專班 matric=A 被歸 graduate）。
+    顯示/學分規則請改用 CourseOffering.matric_division（matric 升級的第一級欄位）。
+    暫留以免破壞既有消費者，日後 deprecate。
+    """
     day = "day"                 # 日間部
     extension = "extension"     # 進修部/進修學院
     graduate = "graduate"       # 研究所/碩博/EMBA/學位學程
     program = "program"         # 學程
     other = "other"
+
+
+class MatricSystem(str, Enum):
+    """體系（system）分類軸——與 DivisionGroup 正交，供學分規則用。
+
+    日間部={day}；進修部系統={extension, on_job}（含進修部碩士在職專班/週末碩/EMBA）。
+    日間部學生的學分加總應排除非 day 體系的課（不同體系，與選課階段分類一致）。
+    """
+    day = "day"                 # 日間部（含日間研究所碩博）
+    extension = "extension"     # 進修部/進修學院
+    on_job = "on_job"           # 在職（進修部碩士在職專班/週末碩士/EMBA）
+    other = "other"             # 學程/學士後學位學程
 
 
 class ClassKind(str, Enum):
@@ -146,6 +163,67 @@ class Requirement(BaseModel):
     label_zh: Optional[str] = None
 
 
+class MatricDivision(BaseModel):
+    """學制（matric）升為第一級的可顯示欄位：逐碼中文標籤 + 體系軸。
+
+    code = 被選中的單一 matric 碼（多碼時依優先序裁定，見 MATRIC_LABELS 註解）；
+    label = 該碼中文學制（如「進修部碩士在職專班」）；system = 體系（學分規則用）。
+    無 matric 碼 → CourseOffering.matric_division 為 None。
+    """
+    code: str                                    # 被選中的 matric 碼
+    label: str                                   # 中文學制標籤
+    system: MatricSystem
+
+
+# 權威 matric → (學制中文標籤, 體系)。來源＝QueryCurrPage 下拉（client.py ALL_MATRIC_CODES）。
+# system 軸與 DivisionGroup 正交：進修部碩士在職專班(A) 體系 on_job，但 DivisionGroup 仍是 graduate。
+MATRIC_LABELS: Dict[str, "MatricDivision"] = {
+    "5": MatricDivision(code="5", label="日五專", system=MatricSystem.day),
+    "6": MatricDivision(code="6", label="日二技", system=MatricSystem.day),
+    "7": MatricDivision(code="7", label="日四技", system=MatricSystem.day),
+    "8": MatricDivision(code="8", label="碩士", system=MatricSystem.day),
+    "9": MatricDivision(code="9", label="博士", system=MatricSystem.day),
+    "0": MatricDivision(code="0", label="進修學院二技", system=MatricSystem.extension),
+    "4": MatricDivision(code="4", label="進修部二技", system=MatricSystem.extension),
+    "F": MatricDivision(code="F", label="進修部四技", system=MatricSystem.extension),
+    "A": MatricDivision(code="A", label="進修部碩士在職專班", system=MatricSystem.on_job),
+    "C": MatricDivision(code="C", label="週末碩士", system=MatricSystem.on_job),
+    "D": MatricDivision(code="D", label="EMBA", system=MatricSystem.on_job),
+    "1": MatricDivision(code="1", label="學程", system=MatricSystem.other),
+    "E": MatricDivision(code="E", label="學士後學位學程", system=MatricSystem.other),
+}
+
+# 多碼選取優先序（一門課的 matric_codes 是跨多次查詢匯集的集合）。
+# 規則：以「學制具體程度」排序，把該課最主要/最具識別性的體系放在前面——
+# day(5,6,7,8,9) 是主流體系優先；進修部明確標出(extension/on_job)優於泛用學程(other)。
+# 同一 system 內依碼字典序取最小，確保結果【確定且可重現】。
+_MATRIC_SYSTEM_PRIORITY = [
+    MatricSystem.day,
+    MatricSystem.extension,
+    MatricSystem.on_job,
+    MatricSystem.other,
+]
+
+
+def select_matric_division(codes) -> Optional["MatricDivision"]:
+    """從一組 matric 碼裁定單一可顯示的 MatricDivision（確定性）。
+
+    未知碼歸 system=other（不亂猜、不回退預設）；空集合 → None。
+    多碼：先依 _MATRIC_SYSTEM_PRIORITY 取體系，再於該體系內取字典序最小的碼。
+    """
+    known = [MATRIC_LABELS[c] for c in codes if c in MATRIC_LABELS]
+    unknown = sorted(c for c in codes if c and c not in MATRIC_LABELS)
+    if not known:
+        if unknown:
+            return MatricDivision(code=unknown[0], label=unknown[0], system=MatricSystem.other)
+        return None
+    for system in _MATRIC_SYSTEM_PRIORITY:
+        in_system = sorted((d for d in known if d.system == system), key=lambda d: d.code)
+        if in_system:
+            return in_system[0]
+    return min(known, key=lambda d: d.code)
+
+
 class Enrollment(BaseModel):
     """人數（爬取當下快照）。⚠️ 容量上限來源不提供→capacity 多為 None，僅 cwish live 可補。"""
     enrolled_count: Optional[int] = None         # 已選人數
@@ -217,7 +295,10 @@ class CourseOffering(BaseModel):
 
     requirement: Requirement = Field(default_factory=Requirement)
 
-    division_group: Optional[DivisionGroup] = None
+    division_group: Optional[DivisionGroup] = None  # 偏粗、會蓋掉進修部語意；顯示請用 matric_division
+    matric_codes: List[str] = Field(default_factory=list, description="該課全部學制碼集合（跨多次查詢匯集）")
+    matric_division: Optional[MatricDivision] = Field(
+        default=None, description="升級後的可顯示學制：中文標籤 + 體系（多碼依優先序裁定，無碼為 None）")
     unit_code: Optional[str] = None              # 開課單位/系所碼
     unit_name: Optional[str] = None
     classes: List[ClassRef] = Field(default_factory=list, description="開課班級（本班/外班分類用，含 kind）")

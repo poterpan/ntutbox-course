@@ -22,6 +22,7 @@ from models import (
     Selection,
     SourceRefs,
     WeekPattern,
+    select_matric_division,
 )
 from ntut_catalog.classes_builder import resolve_class_ref
 from ntut_catalog.parse_course_table import RawCourseRow
@@ -113,6 +114,8 @@ def to_offering(
         stage_raw=row.stage_raw,
         requirement=build_requirement(row.req_symbol),
         division_group=matric_codes_to_division(matric_codes),
+        matric_codes=sorted(matric_codes),
+        matric_division=select_matric_division(matric_codes),
         unit_code=unit_code,
         unit_name=unit_name,
         classes=classes,
