@@ -1,6 +1,7 @@
 """CLI：
   python -m ntut_catalog crawl    --terms 110-1:115-1 --out ../data   # 爬取
   python -m ntut_catalog rederive --out ../data                        # 離線重建內嵌班級（不重爬）
+  python -m ntut_catalog rematric --out ../data                        # 離線回算學制欄位（不重爬）
 
 term 範圍只展開 sem 1/2（暑期 3 不在 P0 範圍）。
 已存在的學期預設跳過（resume），--force 重抓。
@@ -106,6 +107,8 @@ def main(argv: List[str] | None = None) -> int:
     st.add_argument("--delay", type=float, default=0.5)
     rc = sub.add_parser("recategorize", help="離線依符號補 requirement.category（不重爬）")
     rc.add_argument("--out", default="../data")
+    rm = sub.add_parser("rematric", help="離線依 raw_fields.matric_codes 回算 matric_codes/matric_division（不重爬）")
+    rm.add_argument("--out", default="../data")
     args = parser.parse_args(argv)
 
     if args.command == "current-term":
@@ -164,6 +167,15 @@ def main(argv: List[str] | None = None) -> int:
         build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
         logger.info("recategorize done: %d terms, %d courses recategorized",
                     len(stats), sum(s["recategorized"] for s in stats))
+        return 0
+
+    if args.command == "rematric":
+        from ntut_catalog.rematric import rematric_canonical
+        _setup_logging(out_dir, "rematric")
+        stats = rematric_canonical(out_dir)
+        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
+        logger.info("rematric done: %d terms, %d courses rematriced",
+                    len(stats), sum(s["rematriced"] for s in stats))
         return 0
 
     if args.command == "crawl-mprograms":

@@ -47,11 +47,28 @@ export type RequirementCategory = "required" | "elective" | "general" | "program
 export type LabelZh = string | null;
 /**
  * 學制大類（取代學長按中文檔名切分）。
+ *
+ * ⚠️ 偏粗、會蓋掉「進修部」語意（如在職碩專班 matric=A 被歸 graduate）。
+ * 顯示/學分規則請改用 CourseOffering.matric_division（matric 升級的第一級欄位）。
+ * 暫留以免破壞既有消費者，日後 deprecate。
  */
 export type DivisionGroup = "day" | "extension" | "graduate" | "program" | "other";
+/**
+ * 該課全部學制碼集合（跨多次查詢匯集）
+ */
+export type MatricCodes = string[];
+export type Code = string;
+export type Label1 = string;
+/**
+ * 體系（system）分類軸——與 DivisionGroup 正交，供學分規則用。
+ *
+ * 日間部={day}；進修部系統={extension, on_job}（含進修部碩士在職專班/週末碩/EMBA）。
+ * 日間部學生的學分加總應排除非 day 體系的課（不同體系，與選課階段分類一致）。
+ */
+export type MatricSystem = "day" | "extension" | "on_job" | "other";
 export type UnitCode = string | null;
 export type UnitName = string | null;
-export type Code = string;
+export type Code1 = string;
 export type Name = string;
 /**
  * 班級種類——分類地雷：pool/virtual 班學生班級碼永不在其中（博雅/體育/英文 ~12%）。
@@ -63,7 +80,7 @@ export type Grade = number | null;
  * 開課班級（本班/外班分類用，含 kind）
  */
 export type Classes = ClassRef[];
-export type Code1 = string;
+export type Code2 = string;
 export type Name1 = string;
 export type Teachers = EntityRef[];
 export type Classrooms = EntityRef[];
@@ -100,7 +117,7 @@ export type Token = "1" | "2" | "3" | "4" | "N" | "5" | "6" | "7" | "8" | "9" | 
 export type Order = number;
 export type StartHm = string;
 export type EndHm = string;
-export type Label1 = string;
+export type Label2 = string;
 export type Periods1 = PeriodRef[];
 export type SchemaVersion2 = number;
 export type TermKey1 = string;
@@ -138,7 +155,7 @@ export type Syllabi = Syllabus1[];
 export type GeneratedAt2 = string | null;
 export type SchemaVersion6 = number;
 export type TermKey4 = string;
-export type Code2 = string;
+export type Code3 = string;
 export type Name2 = string;
 export type OfferingIds = string[];
 export type Programs = MicroProgram[];
@@ -217,6 +234,11 @@ export interface CourseOffering {
   stage_raw?: StageRaw;
   requirement?: Requirement;
   division_group?: DivisionGroup | null;
+  matric_codes?: MatricCodes;
+  /**
+   * 升級後的可顯示學制：中文標籤 + 體系（多碼依優先序裁定，無碼為 None）
+   */
+  matric_division?: MatricDivision | null;
   unit_code?: UnitCode;
   unit_name?: UnitName;
   classes?: Classes;
@@ -245,10 +267,23 @@ export interface Requirement {
   [k: string]: unknown;
 }
 /**
+ * 學制（matric）升為第一級的可顯示欄位：逐碼中文標籤 + 體系軸。
+ *
+ * code = 被選中的單一 matric 碼（多碼時依優先序裁定，見 MATRIC_LABELS 註解）；
+ * label = 該碼中文學制（如「進修部碩士在職專班」）；system = 體系（學分規則用）。
+ * 無 matric 碼 → CourseOffering.matric_division 為 None。
+ */
+export interface MatricDivision {
+  code: Code;
+  label: Label1;
+  system: MatricSystem;
+  [k: string]: unknown;
+}
+/**
  * 開課班級 / classes.json 條目。班級碼 == cwish cunum（同命名空間、逐年重編）。
  */
 export interface ClassRef {
-  code: Code;
+  code: Code1;
   name?: Name;
   kind?: ClassKind;
   unit_code?: UnitCode1;
@@ -259,7 +294,7 @@ export interface ClassRef {
  * 教師/教室等實體：只留 code（丟棄學長的 JSP link，避免綁死校方路徑）。
  */
 export interface EntityRef {
-  code: Code1;
+  code: Code2;
   name?: Name1;
   [k: string]: unknown;
 }
@@ -316,7 +351,7 @@ export interface PeriodRef {
   order: Order;
   start_hm: StartHm;
   end_hm: EndHm;
-  label: Label1;
+  label: Label2;
   [k: string]: unknown;
 }
 /**
@@ -420,7 +455,7 @@ export interface MicroProgramDirectory {
  * 微學程：SearchMProgram。offering_ids = 該學程該學期開課的課號。
  */
 export interface MicroProgram {
-  code: Code2;
+  code: Code3;
   name: Name2;
   offering_ids?: OfferingIds;
   [k: string]: unknown;
