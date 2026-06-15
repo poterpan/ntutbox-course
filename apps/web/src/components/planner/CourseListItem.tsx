@@ -3,16 +3,22 @@ import type { PointerEvent } from "react";
 import type { CourseOffering } from "@/lib/data/types";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
+import { useIdentityStore } from "@/store/identity-store";
+import { resolveMatric, libraryBadge } from "@/lib/planner/matric";
 import { cn } from "@/lib/utils";
 
 export function CourseListItem({ course }: { course: CourseOffering }) {
   const { favorites, placed, place, toggleFavorite } = useDraftStore();
   const openDetail = useUiStore((s) => s.openDetail);
   const setHoveredOffering = useUiStore((s) => s.setHoveredOffering);
+  const userGroup = useIdentityStore((s) => s.matricGroup);
   const isFav = favorites.includes(course.offering_id);
   const isPlaced = placed.some((p) => p.offering_id === course.offering_id);
   const teachers = (course.teachers ?? []).map((t) => t.name).join("、") || "—";
   const noTime = (course.meetings ?? []).length === 0;
+  // 學制徽章（學制感知）：未選學制→全標；已選→只標非本學制。
+  const division = resolveMatric(course);
+  const matricBadge = division ? libraryBadge(division.group, userGroup) : null;
 
   // Desktop-only ghost preview: gate on mouse pointers so touch (tap-scroll) never
   // fires a phantom hover. (`@media (hover:hover) and (pointer:fine)` is also applied
@@ -34,6 +40,11 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
           <span className="shrink-0 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-blue-700">
             {course.credits ?? "?"} 學分
           </span>
+          {matricBadge && (
+            <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium", matricBadge.className)}>
+              {matricBadge.label}
+            </span>
+          )}
           {noTime && (
             <span className="shrink-0 rounded-md bg-zinc-100 px-1.5 py-0.5 text-[10px] font-medium text-[var(--ink-soft)]">
               無時段

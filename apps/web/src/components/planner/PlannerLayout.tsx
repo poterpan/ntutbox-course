@@ -11,6 +11,7 @@ import { SlotPopover } from "./SlotPopover";
 import { CourseDetailDrawer } from "./CourseDetailDrawer";
 import { CreditSummary } from "./CreditSummary";
 import { TermSwitcher } from "./TermSwitcher";
+import { MatricSwitcher } from "./MatricSwitcher";
 import { FavoritesList } from "./FavoritesList";
 import { NoTimeTray } from "./NoTimeTray";
 
@@ -33,6 +34,7 @@ export function PlannerLayout() {
           北科盒子 <span className="text-[var(--accent)]">排課</span>
         </h1>
         <TermSwitcher />
+        <MatricSwitcher />
         <div className="ml-auto hidden items-center gap-1.5 text-[11px] text-[var(--ink-faint)] sm:flex">
           <span>資料更新</span>
           <span className="font-medium text-[var(--ink-soft)]">{fmtDate(enrollAt ?? catalogAt)}</span>

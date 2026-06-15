@@ -6,9 +6,11 @@ import { useTouchScrollFocus } from "@/lib/planner/use-touch-scroll-focus";
 import { useSearchIndex } from "@/lib/planner/use-search-index";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
+import { useIdentityStore } from "@/store/identity-store";
 import { applyFilters } from "@/lib/filters/apply";
 import { EMPTY_FILTER } from "@/lib/filters/types";
 import { search } from "@/lib/search/search";
+import { resolveMatric, GROUP_LABEL } from "@/lib/planner/matric";
 import { cn } from "@/lib/utils";
 
 const DAY = ["日", "一", "二", "三", "四", "五", "六"];
@@ -18,7 +20,9 @@ export function SlotPopover() {
   const index = useSearchIndex();
   const { placed, place, unplace, setPriority } = useDraftStore();
   const { activeSlot, openSlot, openDetail } = useUiStore();
+  const userGroup = useIdentityStore((s) => s.matricGroup);
   const [q, setQ] = useState("");
+  const [showAllMatric, setShowAllMatric] = useState(false);
   const [dragId, setDragId] = useState<string | null>(null);
   // Avoid auto-focusing the search input on touch so the course list scrolls on first drag.
   const { scrollRef, initialFocus } = useTouchScrollFocus();
@@ -36,14 +40,21 @@ export function SlotPopover() {
 
   const manage = placedHere.length > 0;
 
-  const addable = useMemo(() => {
+  const candidates = useMemo(() => {
     if (!activeSlot || manage) return [];
     const inSlot = applyFilters(courses, { ...EMPTY_FILTER, weekdays: [activeSlot.day], periods: [activeSlot.period] });
     const placedIds = new Set(placed.map((p) => p.offering_id));
     const inSlotIds = new Set(inSlot.map((c) => c.offering_id));
     const ranked = q.trim() ? search(index, q).map((d) => d.offeringId).filter((id) => inSlotIds.has(id)) : inSlot.map((c) => c.offering_id);
-    return ranked.filter((id) => !placedIds.has(id)).map((id) => byId(id)!).filter(Boolean).slice(0, 100);
+    return ranked.filter((id) => !placedIds.has(id)).map((id) => byId(id)!).filter(Boolean);
   }, [courses, index, activeSlot, placed, q, manage, byId]);
+
+  // 學制感知：選了學制時，預設只顯本學制的課；「顯示其他學制」開關可展開。
+  const { addable, hiddenByMatric } = useMemo(() => {
+    if (userGroup == null || showAllMatric) return { addable: candidates.slice(0, 100), hiddenByMatric: 0 };
+    const own = candidates.filter((c) => { const d = resolveMatric(c); return !d || d.group === userGroup; });
+    return { addable: own.slice(0, 100), hiddenByMatric: candidates.length - own.length };
+  }, [candidates, userGroup, showAllMatric]);
 
   if (!activeSlot) return null;
 
@@ -140,6 +151,18 @@ export function SlotPopover() {
                 className="w-full rounded-lg bg-black/[0.04] px-3 py-2 text-sm outline-none ring-1 ring-black/5 placeholder:text-zinc-400 focus:ring-[var(--accent)]/40"
               />
             </div>
+            {userGroup != null && (
+              <button
+                type="button"
+                onClick={() => setShowAllMatric((v) => !v)}
+                className="flex w-full items-center justify-between border-b border-black/5 px-4 py-2 text-[11px] text-[var(--ink-soft)] transition-colors hover:bg-black/[0.03]"
+              >
+                <span>{showAllMatric ? "顯示所有學制" : `只顯示〔${GROUP_LABEL[userGroup]}〕`}</span>
+                <span className="font-medium text-[var(--accent-ink)]">
+                  {showAllMatric ? "只看本學制" : hiddenByMatric > 0 ? `顯示其他學制 +${hiddenByMatric}` : "顯示其他學制"}
+                </span>
+              </button>
+            )}
             <div ref={scrollRef} tabIndex={-1} className="thin-scroll min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain p-3 outline-none [touch-action:pan-y]">
               {addable.length === 0 && <p className="py-6 text-center text-xs text-[var(--ink-soft)]">此時段沒有可加入的課程</p>}
               {addable.map((c) => (
