@@ -5,6 +5,7 @@ import { CourseListItem } from "./CourseListItem";
 import type { CourseOffering } from "@/lib/data/types";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
+import { useIdentityStore } from "@/store/identity-store";
 
 const course = {
   offering_id: "A", name: { zh: "微積分" }, credits: 3,
@@ -14,6 +15,7 @@ const course = {
 beforeEach(() => {
   useDraftStore.setState({ termKey: "115-1", favorites: [], placed: [] });
   useUiStore.setState({ hoveredOfferingId: null });
+  useIdentityStore.setState({ matricGroup: null });
 });
 
 describe("CourseListItem hover preview (desktop)", () => {
@@ -41,5 +43,31 @@ describe("CourseListItem hover preview (desktop)", () => {
     await userEvent.click(screen.getByLabelText("排入"));
     expect(useDraftStore.getState().placed.map((p) => p.offering_id)).toEqual(["A"]);
     expect(useUiStore.getState().hoveredOfferingId).toBe(null);
+  });
+});
+
+describe("CourseListItem 學制徽章（學制感知）", () => {
+  const withMatric = (code: string) => ({ ...course, raw_fields: { matric_codes: code } } as unknown as CourseOffering);
+
+  it("未選學制 → 每組都標（含日間部大學部 matric 7）", () => {
+    render(<CourseListItem course={withMatric("7")} />);
+    expect(screen.getByText("日間部")).toBeInTheDocument();
+  });
+
+  it("未選學制 → 在職(A) 標『在職』、碩士(8) 標『研究所』", () => {
+    const { unmount } = render(<CourseListItem course={withMatric("A")} />);
+    expect(screen.getByText("在職")).toBeInTheDocument();
+    unmount();
+    render(<CourseListItem course={withMatric("8")} />);
+    expect(screen.getByText("研究所")).toBeInTheDocument();
+  });
+
+  it("選了研究所 → 本學制(碩士 8) 不標，大學部(7) 反而被標", () => {
+    useIdentityStore.setState({ matricGroup: "grad_day" });
+    const { unmount } = render(<CourseListItem course={withMatric("8")} />);
+    expect(screen.queryByText("研究所")).not.toBeInTheDocument();
+    unmount();
+    render(<CourseListItem course={withMatric("7")} />);
+    expect(screen.getByText("日間部")).toBeInTheDocument();
   });
 });

@@ -13,6 +13,8 @@ export type {
   ManifestTerm,
   Meeting,
   CourseDetail,
+  MatricDivision,
+  MatricSystem,
 } from "../../../../../packages/schema/index";
 
 // App-side bundle of one term's files.
