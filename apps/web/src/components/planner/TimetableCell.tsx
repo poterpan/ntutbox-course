@@ -83,8 +83,10 @@ export function TimetableCell({ day, period }: { day: number; period: string }) 
         <span
           data-testid="ghost-conflict-cell"
           aria-hidden
-          className="pointer-events-none absolute inset-0 rounded-md border-2 border-dashed border-red-500 bg-red-500/20"
-        />
+          className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-orange-500 bg-orange-400/70"
+        >
+          <span className="text-sm font-bold leading-none text-white drop-shadow-sm">⚠</span>
+        </span>
       )}
     </button>
   );
