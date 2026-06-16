@@ -3,10 +3,7 @@ import type { CourseOffering } from "@/lib/data/types";
 export const slotKey = (day: number, period: string): string => `${day}-${period}`;
 
 /** day-period slot → offering_ids occupying it. */
-export function slotMap(
-  courses: CourseOffering[],
-  _byId?: unknown,
-): Map<string, string[]> {
+export function slotMap(courses: CourseOffering[]): Map<string, string[]> {
   const m = new Map<string, string[]>();
   for (const c of courses) {
     for (const mt of c.meetings ?? []) {

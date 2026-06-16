@@ -40,11 +40,12 @@ export function CourseDetailDrawer() {
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   useEffect(() => {
-    if (!detailOfferingId || !termKey) {
-      setDetail(null);
-      return;
-    }
+    if (!detailOfferingId || !termKey) return; // drawer closed → no sync reset needed; reopen clears below
     let alive = true;
+    // Data-fetch effect: setting loading + clearing stale detail synchronously before the async
+    // fetch is intentional (spinner + no stale flash on course switch); runs only on
+    // (detailOfferingId, termKey) change, not every render. React Compiler over-flags this.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoadingDetail(true);
     setDetail(null);
     getDataSource()
