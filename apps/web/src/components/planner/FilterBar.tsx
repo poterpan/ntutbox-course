@@ -13,7 +13,7 @@ export interface UnitOption { code: string; name: string }
 export interface ClassOption { code: string; name: string; kind?: string }
 
 export function FilterBar({ units, classes }: { units: UnitOption[]; classes: ClassOption[] }) {
-  const { filters, toggleFilterValue, setEmiOnly, setFilters } = useUiStore();
+  const { filters, toggleFilterValue, cycleEmi, setFilters } = useUiStore();
 
   const collegeOpts: ComboOption[] = allColleges().map((c) => ({ value: c, label: c }));
   const unitOpts: ComboOption[] = units.map((u) => ({ value: u.code, label: u.name || u.code }));
@@ -26,7 +26,7 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
   const timeActive = filters.weekdays.length + filters.periods.length;
   const anyActive =
     filters.weekdays.length || filters.periods.length || filters.colleges.length ||
-    filters.units.length || filters.classes.length || filters.categories.length || filters.emiOnly;
+    filters.units.length || filters.classes.length || filters.categories.length || filters.emi !== "all";
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -104,16 +104,16 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
 
       <button
         type="button"
-        aria-pressed={filters.emiOnly}
-        onClick={() => setEmiOnly(!filters.emiOnly)}
+        aria-label={`英文授課篩選：${filters.emi === "all" ? "關閉" : filters.emi === "emi" ? "只看英文授課" : "排除英文授課"}（點擊循環）`}
+        onClick={cycleEmi}
         className={cn(
           "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-          filters.emiOnly
+          filters.emi !== "all"
             ? "border-transparent bg-[var(--accent)] text-white shadow-sm"
             : "border-black/10 bg-white/70 text-[var(--ink)] hover:bg-white",
         )}
       >
-        {filters.emiOnly ? "✓ " : ""}英文授課
+        {filters.emi === "emi" ? "✓ 英文授課" : filters.emi === "non_emi" ? "✕ 非英文授課" : "英文授課"}
       </button>
 
       {anyActive ? (

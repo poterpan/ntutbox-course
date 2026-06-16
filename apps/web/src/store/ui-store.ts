@@ -1,5 +1,8 @@
 import { create } from "zustand";
-import { EMPTY_FILTER, type FilterState } from "@/lib/filters/types";
+import { EMPTY_FILTER, type FilterState, type EmiFilter } from "@/lib/filters/types";
+
+// 英文授課三態循環：關閉 → 只看英文授課 → 排除英文授課 → 關閉。
+const EMI_CYCLE: Record<EmiFilter, EmiFilter> = { all: "emi", emi: "non_emi", non_emi: "all" };
 
 export interface ActiveSlot { day: number; period: string; }
 
@@ -17,7 +20,8 @@ interface UiState {
   setQuery: (q: string) => void;
   setFilters: (f: FilterState) => void;
   toggleFilterValue: (key: "weekdays" | "periods" | "colleges" | "units" | "classes" | "categories", value: string | number) => void;
-  setEmiOnly: (v: boolean) => void;
+  setEmi: (v: EmiFilter) => void;
+  cycleEmi: () => void;
   openSlot: (s: ActiveSlot | null) => void;
   openDetail: (id: string | null) => void;
   setHoveredOffering: (id: string | null) => void;
@@ -39,7 +43,8 @@ export const useUiStore = create<UiState>((set) => ({
     const next = arr.includes(value) ? arr.filter((x) => x !== value) : [...arr, value];
     return { filters: { ...s.filters, [key]: next } };
   }),
-  setEmiOnly: (emiOnly) => set((s) => ({ filters: { ...s.filters, emiOnly } })),
+  setEmi: (emi) => set((s) => ({ filters: { ...s.filters, emi } })),
+  cycleEmi: () => set((s) => ({ filters: { ...s.filters, emi: EMI_CYCLE[s.filters.emi] } })),
   openSlot: (activeSlot) => set({ activeSlot }),
   openDetail: (detailOfferingId) => set({ detailOfferingId }),
   setHoveredOffering: (hoveredOfferingId) => set({ hoveredOfferingId }),

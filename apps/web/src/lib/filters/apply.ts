@@ -20,7 +20,8 @@ export function applyFilters(courses: CourseOffering[], f: FilterState): CourseO
     if (f.colleges.length && !f.colleges.includes(collegeOf(c.unit_code))) return false;
     if (f.classes.length && !(c.classes ?? []).some((k) => f.classes.includes(k.code))) return false;
     if (f.categories.length && !f.categories.includes(c.requirement?.category ?? "unknown")) return false;
-    if (f.emiOnly && !isEmi(c.language)) return false;
+    if (f.emi === "emi" && !isEmi(c.language)) return false;
+    if (f.emi === "non_emi" && isEmi(c.language)) return false; // 排除英文授課；未標語言者保留
     return true;
   });
 }

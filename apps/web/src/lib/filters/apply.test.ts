@@ -41,8 +41,15 @@ describe("applyFilters", () => {
     const ele = mk({ offering_id: "e", requirement: { category: "elective" } as never, meetings: [] as never });
     expect(applyFilters([req, ele], { ...EMPTY_FILTER, categories: ["required"] }).map((c) => c.offering_id)).toEqual(["r"]);
   });
-  it("emiOnly keeps only English-taught", () => {
-    expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, emiOnly: true }).map((c) => c.offering_id)).toEqual(["b"]);
+  it("emi='emi' keeps only English-taught", () => {
+    expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, emi: "emi" }).map((c) => c.offering_id)).toEqual(["b"]);
+  });
+  it("emi='non_emi' excludes English-taught (keeps everything else)", () => {
+    expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, emi: "non_emi" }).map((c) => c.offering_id)).toEqual(["a"]);
+  });
+  it("emi='non_emi' keeps courses with no language recorded", () => {
+    const noLang = mk({ offering_id: "n", language: null as never, meetings: [] as never });
+    expect(applyFilters([noLang], { ...EMPTY_FILTER, emi: "non_emi" }).map((c) => c.offering_id)).toEqual(["n"]);
   });
   it("class filter matches by class code", () => {
     expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, classes: ["2652"] }).map((c) => c.offering_id)).toEqual(["a"]);
