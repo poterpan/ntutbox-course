@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { useTermStore } from "./term-store";
 import type { DataSource } from "@/lib/data";
-import type { TermBundle, Manifest } from "@/lib/data/types";
+import type { TermBundle } from "@/lib/data/types";
 
 function fakeBundle(termKey: string): TermBundle {
   return {

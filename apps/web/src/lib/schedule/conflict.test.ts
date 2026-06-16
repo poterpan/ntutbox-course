@@ -14,7 +14,7 @@ describe("conflict", () => {
   it("slotKey is day-period", () => expect(slotKey(1, "4")).toBe("1-4"));
 
   it("slotMap groups placed courses by slot", () => {
-    const m = slotMap([A, B], (id: string) => ({ A, B }[id as "A" | "B"]!));
+    const m = slotMap([A, B]);
     expect(m.get("1-4")?.sort()).toEqual(["A", "B"]); // both at Mon 4
     expect(m.get("1-3")).toEqual(["A"]);
   });
