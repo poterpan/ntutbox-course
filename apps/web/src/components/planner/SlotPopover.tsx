@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { SearchInput } from "@/components/ui/search-input";
+import { AccentButton } from "@/components/ui/accent-button";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
 import { useTouchScrollFocus } from "@/lib/planner/use-touch-scroll-focus";
 import { useSearchIndex } from "@/lib/planner/use-search-index";
@@ -172,7 +173,7 @@ export function SlotPopover() {
                     <span className="font-medium">{c.name.zh}</span>
                     <span className="ml-1.5 text-[10px] text-[var(--ink-soft)]">{c.credits ?? "?"}學分 · {(c.teachers ?? []).map((t) => t.name).join("、") || "—"}</span>
                   </button>
-                  <button type="button" className="flex h-7 shrink-0 items-center rounded-lg bg-[var(--accent)] px-3 text-[11px] font-semibold text-white hover:brightness-110" aria-label={`排入 ${c.name.zh}`} onClick={() => place(c.offering_id)}>＋ 排入</button>
+                  <AccentButton aria-label={`排入 ${c.name.zh}`} onClick={() => place(c.offering_id)}>＋ 排入</AccentButton>
                 </div>
               ))}
             </div>

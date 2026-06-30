@@ -1,6 +1,7 @@
 "use client";
 import type { PointerEvent } from "react";
 import type { CourseOffering } from "@/lib/data/types";
+import { AccentButton } from "@/components/ui/accent-button";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
 import { useIdentityStore } from "@/store/identity-store";
@@ -76,14 +77,9 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
           ✓ 已排
         </button>
       ) : (
-        <button
-          type="button"
-          aria-label="排入"
-          onClick={handlePlace}
-          className="flex h-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] px-3 text-xs font-semibold text-white shadow-sm transition-[filter] hover:brightness-110"
-        >
+        <AccentButton aria-label="排入" onClick={handlePlace}>
           ＋ 排入
-        </button>
+        </AccentButton>
       )}
     </div>
   );
