@@ -52,7 +52,7 @@ export function CourseLibrary() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="搜尋任何：課名 / 教師 / 課號 / 課程編碼"
           aria-label="搜尋課程"
-          className="w-full rounded-xl bg-white py-2.5 pl-9 pr-3 text-sm text-[var(--ink)] shadow-sm outline-none ring-1 ring-black/10 placeholder:text-[var(--ink-faint)] focus:ring-2 focus:ring-[var(--accent)]"
+          className="w-full rounded-xl bg-white py-2.5 pl-9 pr-3 text-base text-[var(--ink)] shadow-sm outline-none ring-1 ring-black/10 placeholder:text-[var(--ink-faint)] focus:ring-2 focus:ring-[var(--accent)] md:text-sm"
         />
       </div>
 
