@@ -63,7 +63,7 @@ export function FilterCombobox({
             onChange={(e) => setQ(e.target.value)}
             placeholder={searchPlaceholder ?? `搜尋${label}…`}
             aria-label={`搜尋${label}`}
-            className="min-w-0 flex-1 rounded-lg bg-white/70 px-2.5 py-1.5 text-xs outline-none ring-1 ring-black/5 placeholder:text-zinc-400 focus:ring-[var(--accent)]/40"
+            className="min-w-0 flex-1 rounded-lg bg-white/70 px-2.5 py-1.5 text-base outline-none ring-1 ring-black/5 placeholder:text-sm placeholder:text-[var(--ink-faint)]/75 focus:ring-[var(--accent)]/40 md:text-xs md:placeholder:text-xs"
           />
           {active > 0 && (
             <button
@@ -79,16 +79,26 @@ export function FilterCombobox({
           {filtered.length === 0 && (
             <p className="px-2 py-3 text-center text-xs text-zinc-400">無符合項目</p>
           )}
-          {filtered.map((o) => {
+          {filtered.map((o, i) => {
             const on = selected.includes(o.value);
+            // Merge consecutive selected rows into one block: only the run's
+            // outer corners are rounded (iOS grouped-list feel).
+            const prevOn = i > 0 && selected.includes(filtered[i - 1].value);
+            const nextOn = i < filtered.length - 1 && selected.includes(filtered[i + 1].value);
             return (
               <button
                 key={o.value}
                 type="button"
                 onClick={() => onToggle(o.value)}
                 className={cn(
-                  "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs transition-colors",
-                  on ? "bg-blue-100 font-semibold text-blue-800" : "text-[var(--ink)] hover:bg-black/5",
+                  "flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs transition-colors",
+                  on
+                    ? cn(
+                        "bg-blue-100 font-semibold text-blue-800",
+                        prevOn ? "rounded-t-none" : "rounded-t-lg",
+                        nextOn ? "rounded-b-none" : "rounded-b-lg",
+                      )
+                    : "rounded-lg text-[var(--ink)] hover:bg-black/5",
                 )}
               >
                 <span
