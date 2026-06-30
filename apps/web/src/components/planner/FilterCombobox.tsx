@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SearchInput } from "@/components/ui/search-input";
+import { filterChipVariants, CountBadge } from "@/components/ui/filter-chip";
 import { cn } from "@/lib/utils";
 
 export interface ComboOption {
@@ -42,19 +43,10 @@ export function FilterCombobox({
   return (
     <Popover>
       <PopoverTrigger
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-          active > 0
-            ? "border-transparent bg-[var(--accent)] text-white shadow-sm"
-            : "border-black/10 bg-white/70 text-[var(--ink)] hover:bg-white",
-        )}
+        className={cn("inline-flex items-center gap-1.5", filterChipVariants({ active: active > 0 }))}
       >
         {label}
-        {active > 0 && (
-          <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white/25 px-1 text-[10px] font-bold text-white">
-            {active}
-          </span>
-        )}
+        {active > 0 && <CountBadge>{active}</CountBadge>}
         <span className="text-[9px] opacity-70">▾</span>
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 gap-2 border-black/10 bg-white p-2 shadow-xl" sideOffset={6}>
