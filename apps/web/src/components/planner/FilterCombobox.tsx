@@ -71,7 +71,7 @@ export function FilterCombobox({
         </div>
         <div className="thin-scroll max-h-64 overflow-y-auto pr-0.5">
           {filtered.length === 0 && (
-            <p className="px-2 py-3 text-center text-xs text-zinc-400">無符合項目</p>
+            <p className="px-2 py-3 text-center text-xs text-[var(--ink-soft)]">無符合項目</p>
           )}
           {filtered.map((o, i) => {
             const on = selected.includes(o.value);
@@ -88,7 +88,7 @@ export function FilterCombobox({
                   "flex w-full items-center gap-2 px-2 py-1.5 text-left text-xs transition-colors",
                   on
                     ? cn(
-                        "bg-blue-100 font-semibold text-blue-800",
+                        "bg-[var(--accent)]/12 font-semibold text-[var(--accent-ink)]",
                         prevOn ? "rounded-t-none" : "rounded-t-lg",
                         nextOn ? "rounded-b-none" : "rounded-b-lg",
                       )

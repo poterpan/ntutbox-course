@@ -66,7 +66,7 @@ function FragmentRow({ token, start, days, muted }: { token: string; start?: str
     <>
       <div className={cn("flex flex-col items-center justify-center leading-none", muted && "opacity-70")}>
         <span className="text-xs font-semibold text-[var(--ink-soft)]">{token}</span>
-        {start && <span className="mt-0.5 text-[9px] tabular-nums text-zinc-400">{start}</span>}
+        {start && <span className="mt-0.5 text-[9px] tabular-nums text-[var(--ink-faint)]">{start}</span>}
       </div>
       {days.map((d) => <TimetableCell key={`${d}-${token}`} day={d} period={token} />)}
     </>

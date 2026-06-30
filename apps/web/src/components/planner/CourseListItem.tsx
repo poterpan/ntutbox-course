@@ -32,12 +32,12 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
       data-offering-id={course.offering_id}
       onPointerEnter={previewOn}
       onPointerLeave={previewOff}
-      className="group flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-black/[0.07] transition-colors hover:bg-blue-50/60 hover:ring-[var(--accent)]/30"
+      className="group flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-black/[0.07] transition-colors hover:bg-[var(--accent)]/[0.06] hover:ring-[var(--accent)]/30"
     >
       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openDetail(course.offering_id)}>
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[13px] font-semibold text-[var(--ink)]">{course.name.zh}</span>
-          <span className="shrink-0 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-blue-700">
+          <span className="shrink-0 rounded-md bg-[var(--accent)]/12 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[var(--accent-ink)]">
             {course.credits ?? "?"} 學分
           </span>
           {matricBadge && (
