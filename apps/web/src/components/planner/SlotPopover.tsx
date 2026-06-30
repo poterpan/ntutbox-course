@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SearchInput } from "@/components/ui/search-input";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
 import { useTouchScrollFocus } from "@/lib/planner/use-touch-scroll-focus";
 import { useSearchIndex } from "@/lib/planner/use-search-index";
@@ -143,12 +144,12 @@ export function SlotPopover() {
         ) : (
           <>
             <div className="border-b border-black/5 p-3">
-              <input
+              <SearchInput
+                variant="inset"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="搜尋此時段課程…"
                 aria-label="搜尋此時段"
-                className="w-full rounded-lg bg-black/[0.04] px-3 py-2 text-base outline-none ring-1 ring-black/5 placeholder:text-sm placeholder:text-[var(--ink-faint)]/75 focus:ring-[var(--accent)]/40 md:text-sm"
               />
             </div>
             {userGroup != null && (

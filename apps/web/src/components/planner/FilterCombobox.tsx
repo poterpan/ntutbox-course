@@ -1,6 +1,7 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { SearchInput } from "@/components/ui/search-input";
 import { cn } from "@/lib/utils";
 
 export interface ComboOption {
@@ -58,12 +59,13 @@ export function FilterCombobox({
       </PopoverTrigger>
       <PopoverContent align="start" className="w-64 gap-2 border-black/10 bg-white p-2 shadow-xl" sideOffset={6}>
         <div className="flex items-center gap-2">
-          <input
+          <SearchInput
+            variant="popover"
+            className="min-w-0 flex-1"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={searchPlaceholder ?? `搜尋${label}…`}
             aria-label={`搜尋${label}`}
-            className="min-w-0 flex-1 rounded-lg bg-white/70 px-2.5 py-1.5 text-base outline-none ring-1 ring-black/5 placeholder:text-sm placeholder:text-[var(--ink-faint)]/75 focus:ring-[var(--accent)]/40 md:text-xs md:placeholder:text-xs"
           />
           {active > 0 && (
             <button
