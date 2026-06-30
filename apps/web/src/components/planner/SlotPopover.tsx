@@ -148,7 +148,7 @@ export function SlotPopover() {
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="搜尋此時段課程…"
                 aria-label="搜尋此時段"
-                className="w-full rounded-lg bg-black/[0.04] px-3 py-2 text-base outline-none ring-1 ring-black/5 placeholder:text-zinc-400 focus:ring-[var(--accent)]/40 md:text-sm"
+                className="w-full rounded-lg bg-black/[0.04] px-3 py-2 text-base outline-none ring-1 ring-black/5 placeholder:text-sm placeholder:text-[var(--ink-faint)]/75 focus:ring-[var(--accent)]/40 md:text-sm"
               />
             </div>
             {userGroup != null && (

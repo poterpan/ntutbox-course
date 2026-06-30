@@ -63,7 +63,7 @@ export function FilterCombobox({
             onChange={(e) => setQ(e.target.value)}
             placeholder={searchPlaceholder ?? `搜尋${label}…`}
             aria-label={`搜尋${label}`}
-            className="min-w-0 flex-1 rounded-lg bg-white/70 px-2.5 py-1.5 text-base outline-none ring-1 ring-black/5 placeholder:text-zinc-400 focus:ring-[var(--accent)]/40 md:text-xs"
+            className="min-w-0 flex-1 rounded-lg bg-white/70 px-2.5 py-1.5 text-base outline-none ring-1 ring-black/5 placeholder:text-sm placeholder:text-[var(--ink-faint)]/75 focus:ring-[var(--accent)]/40 md:text-xs md:placeholder:text-xs"
           />
           {active > 0 && (
             <button
@@ -75,7 +75,7 @@ export function FilterCombobox({
             </button>
           )}
         </div>
-        <div className="thin-scroll max-h-64 overflow-y-auto pr-0.5">
+        <div className="thin-scroll max-h-64 space-y-0.5 overflow-y-auto pr-0.5">
           {filtered.length === 0 && (
             <p className="px-2 py-3 text-center text-xs text-zinc-400">無符合項目</p>
           )}
