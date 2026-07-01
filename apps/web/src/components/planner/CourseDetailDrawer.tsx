@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { ShareIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AccentButton } from "@/components/ui/accent-button";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
@@ -94,11 +95,7 @@ export function CourseDetailDrawer() {
                   onClick={handleShare}
                   className="ml-auto flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 font-medium text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/10"
                 >
-                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-                    <path d="M12 3v12" strokeLinecap="round" />
-                    <path d="M8 7l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" strokeLinecap="round" />
-                  </svg>
+                  <ShareIcon className="size-3.5" aria-hidden />
                   分享
                 </button>
               </div>
