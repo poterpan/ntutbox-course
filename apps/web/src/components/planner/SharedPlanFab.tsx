@@ -11,7 +11,7 @@ export function SharedPlanFab() {
 
   if (!sharedPlan || open) return null;
   return (
-    <div className="fixed bottom-20 left-4 z-40 flex items-center gap-0.5 rounded-full bg-[var(--accent)] py-1 pl-3.5 pr-1 text-sm font-semibold text-white shadow-lg sm:bottom-24">
+    <div className="fixed bottom-28 left-4 z-40 flex items-center gap-0.5 rounded-full bg-[var(--accent)] py-1 pl-3.5 pr-1 text-sm font-semibold text-white shadow-lg sm:bottom-20">
       <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-1.5 py-1" aria-label="開啟分享的課表">
         <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
           <rect x="3" y="4" width="18" height="16" rx="2" />
