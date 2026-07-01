@@ -86,7 +86,7 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
             onClick={() => toggleFilterValue("categories", val)}
             className={filterChipVariants({ active: on })}
           >
-            {on ? "✓ " : ""}{label}
+            {label}
           </button>
         );
       })}

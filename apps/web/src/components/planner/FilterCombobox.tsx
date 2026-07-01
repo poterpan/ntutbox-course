@@ -97,7 +97,7 @@ export function FilterCombobox({
               >
                 <span
                   className={cn(
-                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-[5px] border text-[10px]",
+                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-md border text-[10px]",
                     on ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-black/25",
                   )}
                 >
