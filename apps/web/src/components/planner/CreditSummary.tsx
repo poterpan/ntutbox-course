@@ -59,7 +59,7 @@ export function CreditSummary() {
           tone="solid"
           size="lg"
           onClick={handleExportSoon}
-          className="flex-1 gap-1.5 px-3 sm:flex-none sm:px-6"
+          className="relative flex-1 gap-1.5 sm:flex-none"
         >
           <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
             <path d="M14 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
@@ -67,7 +67,10 @@ export function CreditSummary() {
             <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           匯出到 App
-          <span className="rounded bg-white/25 px-1.5 py-0.5 text-[10px] font-semibold leading-none">即將上線</span>
+          {/* 角標：絕對定位、不佔按鈕行內寬度（避免 CJK 翻行）；overhang 頂緣，glass-surface 無 overflow-hidden 不會被裁 */}
+          <span className="pointer-events-none absolute -top-2 right-1 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold leading-none text-[var(--accent-ink)] shadow-sm ring-1 ring-black/10">
+            即將上線
+          </span>
         </AccentButton>
         <AccentButton
           tone="soft"
