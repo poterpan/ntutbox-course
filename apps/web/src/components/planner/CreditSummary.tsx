@@ -34,7 +34,7 @@ export function CreditSummary() {
   return (
     <GlassBar className="mx-3 mb-3 flex flex-col gap-1.5 rounded-2xl px-4 py-2.5 sm:mx-4 sm:flex-row sm:items-center sm:gap-4 sm:px-5">
       {/* 數據列（一行、含顯眼的第一志願學分大數字當錨點）— 固定不與動作同行，避免窄機翻行 */}
-      <div className="flex flex-1 flex-wrap items-center gap-x-2.5 gap-y-1 text-xs tabular-nums text-[var(--ink-soft)]">
+      <div className="flex flex-1 flex-wrap items-baseline gap-x-2.5 gap-y-1 text-xs tabular-nums text-[var(--ink-soft)]">
         <span className="flex items-baseline gap-1.5">
           <span className="font-medium">第一志願學分</span>
           <b className="text-xl font-bold text-[var(--accent-ink)]">{s.firstChoiceCredits}</b>
@@ -52,13 +52,14 @@ export function CreditSummary() {
       </div>
 
       {/* 動作列：匯出到 App（primary、預留、按下顯示即將上線）+ 分享課表（soft）兩顆平分整列，
-          主次靠顏色而非尺寸——不做成全頁最大的按鈕。手機各半、桌機靠右 auto。 */}
+          主次靠顏色而非尺寸——不做成全頁最大的按鈕。手機各半、桌機靠右 auto。
+          匯出仍是主色錨點，但掛「即將上線」小標——按下前就誠實告知 F-C 未上線。 */}
       <div className="flex items-center gap-2">
         <AccentButton
           tone="solid"
           size="lg"
           onClick={handleExportSoon}
-          className="flex-1 gap-1.5 sm:flex-none"
+          className="flex-1 gap-1.5 px-3 sm:flex-none sm:px-6"
         >
           <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
             <path d="M14 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
@@ -66,6 +67,7 @@ export function CreditSummary() {
             <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           匯出到 App
+          <span className="rounded bg-white/25 px-1.5 py-0.5 text-[10px] font-semibold leading-none">即將上線</span>
         </AccentButton>
         <AccentButton
           tone="soft"

@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AccentButton } from "@/components/ui/accent-button";
 import { SharedTimetableGrid } from "./SharedTimetableGrid";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
+import { useTermStore } from "@/store/term-store";
 import { creditSummary } from "@/lib/schedule/credits";
 import { useDraftStore, type PlacedCourse } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
@@ -16,7 +17,8 @@ export function SharedTimetableModal() {
   const open = useUiStore((s) => s.sharedPlanOpen);
   const setOpen = useUiStore((s) => s.setSharedPlanOpen);
   const clearSharedPlan = useUiStore((s) => s.clearSharedPlan);
-  const { courses, byId } = useTermCourses();
+  const { byId } = useTermCourses();
+  const status = useTermStore((s) => s.status);
   const showToast = useToast((s) => s.show);
   const [choosing, setChoosing] = useState(false);
 
@@ -30,8 +32,14 @@ export function SharedTimetableModal() {
     [validIds],
   );
   const summary = useMemo(() => creditSummary(placed, byId), [placed, byId]);
-  const loading = courses.length === 0; // term catalog not loaded yet
+  // 依 term 載入狀態判斷 loading —— term 不存在時 status 會變 error，才不會卡在「載入中」。
+  const loading = status === "idle" || status === "loading";
   const dropped = (sharedPlan?.offeringIds.length ?? 0) - validIds.length;
+  // 無固定時段的分享課（不會出現在上方週課表格線，需另外提示）。
+  const noTimeShared = useMemo(
+    () => validIds.map((id) => byId(id)).filter((c): c is NonNullable<typeof c> => !!c && (c.meetings ?? []).length === 0),
+    [validIds, byId],
+  );
 
   if (!sharedPlan) return null;
 
@@ -59,6 +67,7 @@ export function SharedTimetableModal() {
           <p className="mt-0.5 text-xs text-[var(--ink-soft)] tabular-nums">
             {sharedPlan.termKey} · {validIds.length} 門 · {summary.placedCredits} 學分
             {summary.conflictGroupCount > 0 && <span className="text-orange-600">・衝堂 {summary.conflictGroupCount}</span>}
+            {noTimeShared.length > 0 && <span>・無固定時段 {noTimeShared.length}</span>}
           </p>
         </DialogHeader>
 
@@ -70,6 +79,20 @@ export function SharedTimetableModal() {
           ) : (
             <>
               <SharedTimetableGrid placed={placed} />
+              {noTimeShared.length > 0 && (
+                <div className="rounded-lg bg-black/[0.03] p-2.5">
+                  <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ink-soft)]">
+                    無固定時段（{noTimeShared.length}）· 不顯示在上方格線
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {noTimeShared.map((c) => (
+                      <span key={c.offering_id} className="rounded-full bg-white/85 px-2.5 py-1 text-xs text-[var(--ink)] ring-1 ring-black/10">
+                        {c.name.zh}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
               <ul className="space-y-1">
                 {validIds.map((id, i) => {
                   const c = byId(id);
@@ -91,13 +114,18 @@ export function SharedTimetableModal() {
         {!loading && validIds.length > 0 && (
           <div className="border-t border-black/5 px-5 py-3">
             {choosing ? (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-[var(--ink-soft)]">你該學期已有排課：</span>
-                <AccentButton onClick={() => doImport("merge")}>合併</AccentButton>
-                <AccentButton tone="soft" onClick={() => doImport("replace")}>取代</AccentButton>
-                <button type="button" className="ml-auto rounded-lg px-2 py-1 text-xs text-[var(--ink-soft)] hover:bg-black/5" onClick={() => setChoosing(false)}>
-                  取消
-                </button>
+              <div className="space-y-2">
+                <p className="text-xs leading-relaxed text-[var(--ink-soft)]">
+                  你該學期已有排課：<b className="text-[var(--ink)]">合併</b>＝保留現有再加入分享的課；
+                  <b className="text-[var(--ink)]">取代</b>＝<span className="text-orange-600">清空</span>目前排課後改用分享課表。
+                </p>
+                <div className="flex items-center gap-2">
+                  <AccentButton onClick={() => doImport("merge")}>合併</AccentButton>
+                  <AccentButton tone="soft" onClick={() => doImport("replace")}>取代</AccentButton>
+                  <button type="button" className="ml-auto rounded-lg px-2 py-1 text-xs text-[var(--ink-soft)] hover:bg-black/5" onClick={() => setChoosing(false)}>
+                    取消
+                  </button>
+                </div>
               </div>
             ) : (
               <AccentButton size="lg" className="w-full" onClick={onImportClick}>
