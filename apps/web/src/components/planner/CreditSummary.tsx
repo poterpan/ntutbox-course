@@ -26,7 +26,8 @@ export function CreditSummary() {
   }
 
   return (
-    <GlassBar className="mx-3 mb-3 flex items-center gap-4 rounded-2xl px-5 py-2.5 text-xs sm:mx-4">
+    <GlassBar className="mx-3 mb-3 flex flex-col gap-2 rounded-2xl px-5 py-2.5 text-xs sm:mx-4 sm:flex-row sm:items-center sm:gap-4">
+      <div className="flex flex-1 items-center gap-4">
       <div className="flex items-baseline gap-1.5">
         <span className="font-medium text-[var(--ink-soft)]">第一志願學分</span>
         <b className="text-xl font-bold tabular-nums text-[var(--accent-ink)]">{s.firstChoiceCredits}</b>
@@ -46,6 +47,8 @@ export function CreditSummary() {
       {s.unknownCreditCount > 0 && (
         <span className="text-[11px] tabular-nums text-[var(--ink-faint)]">學分未知 {s.unknownCreditCount}</span>
       )}
+      </div>
+      <div className="flex items-center justify-end gap-2">
       <button
         type="button"
         onClick={handleSharePlan}
@@ -60,6 +63,7 @@ export function CreditSummary() {
         </svg>
         分享
       </button>
+      </div>
     </GlassBar>
   );
 }
