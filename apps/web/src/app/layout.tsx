@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 const SITE_URL = "https://course.ntutbox.com";
-const TITLE = "北科盒子 排課 — 台北科大公開排課規劃";
+const TITLE = "北科盒子 排課 — 北科大排課規劃";
 const DESCRIPTION =
-  "台北科大公開、免登入的排課規劃器：查課、排週課表，即時檢查衝堂／學分／選課階段。排好一鍵匯入北科盒子 App 送件。";
+  "北科盒子排課助手：查課、看課綱、排週課表，即時檢查衝堂與學分，一鍵匯入北科盒子 App。";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "北科盒子 排課",
-    description: "台北科大公開、免登入的排課規劃器。",
+    description: DESCRIPTION,
   },
 };
 
