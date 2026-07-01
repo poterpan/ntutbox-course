@@ -68,14 +68,13 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
         {isFav ? "★" : "☆"}
       </button>
       {isPlaced ? (
-        <button
-          type="button"
+        <AccentButton
+          tone="soft"
           aria-label="已排入，點擊查看或退選"
           onClick={() => openDetail(course.offering_id)}
-          className="flex h-7 shrink-0 items-center justify-center rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-2.5 text-xs font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/20"
         >
           ✓ 已排
-        </button>
+        </AccentButton>
       ) : (
         <AccentButton aria-label="排入" onClick={handlePlace}>
           ＋ 排入
