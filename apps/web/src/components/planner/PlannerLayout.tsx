@@ -9,6 +9,8 @@ import { WeeklyGrid } from "./WeeklyGrid";
 import { CourseLibrary } from "./CourseLibrary";
 import { SlotPopover } from "./SlotPopover";
 import { CourseDetailDrawer } from "./CourseDetailDrawer";
+import { SharedTimetableModal } from "./SharedTimetableModal";
+import { SharedPlanFab } from "./SharedPlanFab";
 import { CreditSummary } from "./CreditSummary";
 import { TermSwitcher } from "./TermSwitcher";
 import { MatricSwitcher } from "./MatricSwitcher";
@@ -97,6 +99,8 @@ export function PlannerLayout() {
 
       <SlotPopover />
       <CourseDetailDrawer />
+      <SharedTimetableModal />
+      <SharedPlanFab />
       <Toaster />
     </main>
   );
