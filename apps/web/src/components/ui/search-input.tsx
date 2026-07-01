@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { SearchIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -50,17 +51,10 @@ export function SearchInput({
   if (!icon) return field;
   return (
     <div className={cn("relative", containerClassName)}>
-      <svg
+      <SearchIcon
         className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--ink-soft)]"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2}
         aria-hidden
-      >
-        <circle cx="11" cy="11" r="7" />
-        <path d="m21 21-4.3-4.3" strokeLinecap="round" />
-      </svg>
+      />
       {field}
     </div>
   );

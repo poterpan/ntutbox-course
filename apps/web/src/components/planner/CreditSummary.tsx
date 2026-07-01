@@ -1,5 +1,6 @@
 "use client";
 import { useMemo } from "react";
+import { ExternalLinkIcon, ShareIcon } from "lucide-react";
 import { useDraftStore } from "@/store/draft-store";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
 import { creditSummary } from "@/lib/schedule/credits";
@@ -61,11 +62,7 @@ export function CreditSummary() {
           onClick={handleExportSoon}
           className="relative flex-1 gap-1.5 sm:flex-none"
         >
-          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-            <path d="M14 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M20 4 11 13" strokeLinecap="round" />
-            <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <ExternalLinkIcon className="size-4" aria-hidden />
           匯出到 App
           {/* 角標：絕對定位、不佔按鈕行內寬度（避免 CJK 翻行）；overhang 頂緣，glass-surface 無 overflow-hidden 不會被裁 */}
           <span className="pointer-events-none absolute -top-2 right-1 rounded-full bg-white px-1.5 py-0.5 text-[9px] font-bold leading-none text-[var(--accent-ink)] shadow-sm ring-1 ring-black/10">
@@ -79,11 +76,7 @@ export function CreditSummary() {
           disabled={placed.length === 0}
           className="flex-1 gap-1.5 sm:flex-none"
         >
-          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
-            <path d="M12 3v12" strokeLinecap="round" />
-            <path d="M8 7l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" strokeLinecap="round" />
-          </svg>
+          <ShareIcon className="size-4" aria-hidden />
           分享課表
         </AccentButton>
       </div>

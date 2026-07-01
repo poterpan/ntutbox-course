@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { CheckIcon } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { SearchInput } from "@/components/ui/search-input";
 import { filterChipVariants, CountBadge } from "@/components/ui/filter-chip";
@@ -101,11 +102,7 @@ export function FilterCombobox({
                     on ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-black/25",
                   )}
                 >
-                  {on && (
-                    <svg className="size-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} aria-hidden>
-                      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
+                  {on && <CheckIcon className="size-2.5" strokeWidth={3} aria-hidden />}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>
                 {o.hint && <span className="shrink-0 text-[10px] text-[var(--ink-soft)]">{o.hint}</span>}
