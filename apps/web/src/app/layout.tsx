@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 const SITE_URL = "https://course.ntutbox.com";
-const TITLE = "北科盒子 排課 — 北科大排課規劃";
+const TITLE = "北科盒子 · 排課";
 const DESCRIPTION =
   "北科盒子排課助手：查課、看課綱、排週課表，即時檢查衝堂與學分，一鍵匯入北科盒子 App。";
 
