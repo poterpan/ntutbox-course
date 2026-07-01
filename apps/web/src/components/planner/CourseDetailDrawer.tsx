@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AccentButton } from "@/components/ui/accent-button";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
 import { useTouchScrollFocus } from "@/lib/planner/use-touch-scroll-focus";
 import { useTermStore } from "@/store/term-store";
@@ -164,13 +165,13 @@ export function CourseDetailDrawer() {
                   退選（從課表移除）
                 </button>
               ) : (
-                <button
-                  type="button"
+                <AccentButton
+                  size="lg"
+                  className="ml-auto"
                   onClick={() => { place(c.offering_id); openDetail(null); }}
-                  className="ml-auto rounded-xl bg-[var(--accent)] px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-[filter] hover:brightness-110"
                 >
                   ＋ 排入課表
-                </button>
+                </AccentButton>
               )}
             </div>
           </>

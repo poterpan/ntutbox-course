@@ -4,6 +4,7 @@ import { EMPTY_FILTER } from "@/lib/filters/types";
 import { allColleges } from "@/lib/filters/college-map";
 import { FilterCombobox, type ComboOption } from "./FilterCombobox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { filterChipVariants, CountBadge } from "@/components/ui/filter-chip";
 import { cn } from "@/lib/utils";
 
 const WEEKDAYS: [number, string][] = [[1, "一"], [2, "二"], [3, "三"], [4, "四"], [5, "五"], [6, "六"]];
@@ -49,19 +50,10 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
       {/* 時間 (weekday + period) */}
       <Popover>
         <PopoverTrigger
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-            timeActive > 0
-              ? "border-transparent bg-[var(--accent)] text-white shadow-sm"
-              : "border-black/10 bg-white/70 text-[var(--ink)] hover:bg-white",
-          )}
+          className={cn("inline-flex items-center gap-1.5", filterChipVariants({ active: timeActive > 0 }))}
         >
           時間
-          {timeActive > 0 && (
-            <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-white/25 px-1 text-[10px] font-bold text-white">
-              {timeActive}
-            </span>
-          )}
+          {timeActive > 0 && <CountBadge>{timeActive}</CountBadge>}
           <span className="text-[9px] opacity-70">▾</span>
         </PopoverTrigger>
         <PopoverContent align="start" sideOffset={6} className="w-64 gap-3 border-black/10 bg-white p-3 shadow-xl">
@@ -92,12 +84,9 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
             type="button"
             aria-pressed={on}
             onClick={() => toggleFilterValue("categories", val)}
-            className={cn(
-              "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-              on ? "border-transparent bg-[var(--accent)] text-white shadow-sm" : "border-black/10 bg-white/70 text-[var(--ink)] hover:bg-white",
-            )}
+            className={filterChipVariants({ active: on })}
           >
-            {on ? "✓ " : ""}{label}
+            {label}
           </button>
         );
       })}
@@ -106,12 +95,7 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
         type="button"
         aria-label={`英文授課篩選：${filters.emi === "all" ? "關閉" : filters.emi === "emi" ? "只看英文授課" : "排除英文授課"}（點擊循環）`}
         onClick={cycleEmi}
-        className={cn(
-          "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-          filters.emi !== "all"
-            ? "border-transparent bg-[var(--accent)] text-white shadow-sm"
-            : "border-black/10 bg-white/70 text-[var(--ink)] hover:bg-white",
-        )}
+        className={filterChipVariants({ active: filters.emi !== "all" })}
       >
         {filters.emi === "emi" ? "✓ 英文授課" : filters.emi === "non_emi" ? "✕ 非英文授課" : "英文授課"}
       </button>

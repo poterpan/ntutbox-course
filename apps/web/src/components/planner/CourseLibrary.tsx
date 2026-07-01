@@ -6,6 +6,7 @@ import { useUiStore } from "@/store/ui-store";
 import { applyFilters } from "@/lib/filters/apply";
 import { collegeOf } from "@/lib/filters/college-map";
 import { search } from "@/lib/search/search";
+import { SearchInput } from "@/components/ui/search-input";
 import { FilterBar } from "./FilterBar";
 import { CourseList } from "./CourseList";
 
@@ -43,18 +44,13 @@ export function CourseLibrary() {
   return (
     <div className="flex h-full flex-col gap-3 p-4 pt-3">
       {/* prominent search */}
-      <div className="relative">
-        <svg className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[var(--ink-soft)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" strokeLinecap="round" />
-        </svg>
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="搜尋課程、教師或課號…"
-          aria-label="搜尋課程"
-          className="w-full rounded-xl bg-white py-2.5 pl-9 pr-3 text-base text-[var(--ink)] shadow-sm outline-none ring-1 ring-black/10 placeholder:text-sm placeholder:text-[var(--ink-faint)]/75 focus:ring-2 focus:ring-[var(--accent)] md:text-sm"
-        />
-      </div>
+      <SearchInput
+        variant="prominent"
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="搜尋課程、教師或課號…"
+        aria-label="搜尋課程"
+      />
 
       <FilterBar units={units} classes={classOpts} />
 

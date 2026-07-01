@@ -29,7 +29,7 @@ export function CreditSummary() {
         衝堂 {s.conflictGroupCount}
       </span>
       {s.unknownCreditCount > 0 && (
-        <span className="text-[11px] tabular-nums text-zinc-400">學分未知 {s.unknownCreditCount}</span>
+        <span className="text-[11px] tabular-nums text-[var(--ink-faint)]">學分未知 {s.unknownCreditCount}</span>
       )}
     </GlassBar>
   );

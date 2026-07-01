@@ -1,6 +1,7 @@
 "use client";
 import type { PointerEvent } from "react";
 import type { CourseOffering } from "@/lib/data/types";
+import { AccentButton } from "@/components/ui/accent-button";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
 import { useIdentityStore } from "@/store/identity-store";
@@ -32,12 +33,12 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
       data-offering-id={course.offering_id}
       onPointerEnter={previewOn}
       onPointerLeave={previewOff}
-      className="group flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-black/[0.07] transition-colors hover:bg-blue-50/60 hover:ring-[var(--accent)]/30"
+      className="group flex items-center gap-2 rounded-xl bg-white px-3 py-2 ring-1 ring-black/[0.07] transition-colors hover:bg-[var(--accent)]/[0.06] hover:ring-[var(--accent)]/30"
     >
       <button type="button" className="min-w-0 flex-1 text-left" onClick={() => openDetail(course.offering_id)}>
         <div className="flex items-center gap-1.5">
           <span className="truncate text-[13px] font-semibold text-[var(--ink)]">{course.name.zh}</span>
-          <span className="shrink-0 rounded-md bg-blue-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-blue-700">
+          <span className="shrink-0 rounded-md bg-[var(--accent)]/12 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-[var(--accent-ink)]">
             {course.credits ?? "?"} 學分
           </span>
           {matricBadge && (
@@ -67,23 +68,17 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
         {isFav ? "★" : "☆"}
       </button>
       {isPlaced ? (
-        <button
-          type="button"
+        <AccentButton
+          tone="soft"
           aria-label="已排入，點擊查看或退選"
           onClick={() => openDetail(course.offering_id)}
-          className="flex h-7 shrink-0 items-center justify-center rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/10 px-2.5 text-xs font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/20"
         >
           ✓ 已排
-        </button>
+        </AccentButton>
       ) : (
-        <button
-          type="button"
-          aria-label="排入"
-          onClick={handlePlace}
-          className="flex h-7 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] px-3 text-xs font-semibold text-white shadow-sm transition-[filter] hover:brightness-110"
-        >
+        <AccentButton aria-label="排入" onClick={handlePlace}>
           ＋ 排入
-        </button>
+        </AccentButton>
       )}
     </div>
   );

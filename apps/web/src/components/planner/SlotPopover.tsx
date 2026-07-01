@@ -1,6 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { SearchInput } from "@/components/ui/search-input";
+import { AccentButton } from "@/components/ui/accent-button";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
 import { useTouchScrollFocus } from "@/lib/planner/use-touch-scroll-focus";
 import { useSearchIndex } from "@/lib/planner/use-search-index";
@@ -143,12 +145,12 @@ export function SlotPopover() {
         ) : (
           <>
             <div className="border-b border-black/5 p-3">
-              <input
+              <SearchInput
+                variant="inset"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 placeholder="搜尋此時段課程…"
                 aria-label="搜尋此時段"
-                className="w-full rounded-lg bg-black/[0.04] px-3 py-2 text-base outline-none ring-1 ring-black/5 placeholder:text-sm placeholder:text-[var(--ink-faint)]/75 focus:ring-[var(--accent)]/40 md:text-sm"
               />
             </div>
             {userGroup != null && (
@@ -171,7 +173,7 @@ export function SlotPopover() {
                     <span className="font-medium">{c.name.zh}</span>
                     <span className="ml-1.5 text-[10px] text-[var(--ink-soft)]">{c.credits ?? "?"}學分 · {(c.teachers ?? []).map((t) => t.name).join("、") || "—"}</span>
                   </button>
-                  <button type="button" className="flex h-7 shrink-0 items-center rounded-lg bg-[var(--accent)] px-3 text-[11px] font-semibold text-white hover:brightness-110" aria-label={`排入 ${c.name.zh}`} onClick={() => place(c.offering_id)}>＋ 排入</button>
+                  <AccentButton aria-label={`排入 ${c.name.zh}`} onClick={() => place(c.offering_id)}>＋ 排入</AccentButton>
                 </div>
               ))}
             </div>
