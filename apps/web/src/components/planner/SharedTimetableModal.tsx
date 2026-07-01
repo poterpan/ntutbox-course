@@ -102,7 +102,7 @@ export function SharedTimetableModal() {
             <p className="py-10 text-center text-sm text-[var(--ink-soft)]">此課表的課程多已更新或不存在。</p>
           ) : (
             <>
-              <SharedTimetableGrid placed={placed} />
+              <SharedTimetableGrid placed={placed} onCourseClick={setDetailId} />
               {noTimeShared.length > 0 && (
                 <div className="rounded-lg bg-black/[0.03] p-2.5">
                   <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ink-soft)]">
