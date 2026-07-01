@@ -18,6 +18,8 @@ interface UiState {
   libraryOpen: boolean;      // mobile bottom sheet
   libraryTab: "courses" | "favorites"; // right-panel content toggle
   staleDropped: string[];    // offering_ids removed by reconcile (spec §4 — never silently discard)
+  sharedPlan: { termKey: string; offeringIds: string[] } | null; // 收到的分享課表（唯讀對比，非草稿）— F-B
+  sharedPlanOpen: boolean;
   setQuery: (q: string) => void;
   setSelectedTerm: (t: string) => void;
   setFilters: (f: FilterState) => void;
@@ -33,11 +35,15 @@ interface UiState {
   setLibraryTab: (t: "courses" | "favorites") => void;
   setStaleDropped: (ids: string[]) => void;
   dismissStale: () => void;
+  openSharedPlan: (plan: { termKey: string; offeringIds: string[] }) => void;
+  setSharedPlanOpen: (v: boolean) => void;
+  clearSharedPlan: () => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
   query: "", selectedTerm: "115-1", filters: EMPTY_FILTER, activeSlot: null, detailOfferingId: null, hoveredOfferingId: null,
   viewMode: "week", selectedDay: 1, libraryOpen: false, libraryTab: "courses", staleDropped: [],
+  sharedPlan: null, sharedPlanOpen: false,
   setQuery: (query) => set({ query }),
   setSelectedTerm: (selectedTerm) => set({ selectedTerm }),
   setFilters: (filters) => set({ filters }),
@@ -57,4 +63,7 @@ export const useUiStore = create<UiState>((set) => ({
   setLibraryTab: (libraryTab) => set({ libraryTab }),
   setStaleDropped: (staleDropped) => set({ staleDropped }),
   dismissStale: () => set({ staleDropped: [] }),
+  openSharedPlan: (sharedPlan) => set({ sharedPlan, sharedPlanOpen: true }),
+  setSharedPlanOpen: (sharedPlanOpen) => set({ sharedPlanOpen }),
+  clearSharedPlan: () => set({ sharedPlan: null, sharedPlanOpen: false }),
 }));

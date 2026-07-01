@@ -9,6 +9,8 @@ import { WeeklyGrid } from "./WeeklyGrid";
 import { CourseLibrary } from "./CourseLibrary";
 import { SlotPopover } from "./SlotPopover";
 import { CourseDetailDrawer } from "./CourseDetailDrawer";
+import { SharedTimetableModal } from "./SharedTimetableModal";
+import { SharedPlanFab } from "./SharedPlanFab";
 import { CreditSummary } from "./CreditSummary";
 import { TermSwitcher } from "./TermSwitcher";
 import { MatricSwitcher } from "./MatricSwitcher";
@@ -84,7 +86,7 @@ export function PlannerLayout() {
         <Sheet open={libraryOpen} onOpenChange={(o) => setLibraryOpen(o)}>
           <SheetTrigger
             render={
-              <Button className="fixed bottom-20 right-4 z-30 h-12 rounded-full px-5 shadow-lg" />
+              <Button className="fixed bottom-28 right-4 z-30 h-12 rounded-full px-5 shadow-lg sm:bottom-20" />
             }
           >
             課程庫
@@ -97,6 +99,8 @@ export function PlannerLayout() {
 
       <SlotPopover />
       <CourseDetailDrawer />
+      <SharedTimetableModal />
+      <SharedPlanFab />
       <Toaster />
     </main>
   );
