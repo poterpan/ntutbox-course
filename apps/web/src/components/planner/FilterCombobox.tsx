@@ -97,11 +97,15 @@ export function FilterCombobox({
               >
                 <span
                   className={cn(
-                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-md border text-[10px]",
+                    "flex h-4 w-4 shrink-0 items-center justify-center rounded-md border",
                     on ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-black/25",
                   )}
                 >
-                  {on ? "✓" : ""}
+                  {on && (
+                    <svg className="size-2.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} aria-hidden>
+                      <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
                 </span>
                 <span className="min-w-0 flex-1 truncate">{o.label}</span>
                 {o.hint && <span className="shrink-0 text-[10px] text-[var(--ink-soft)]">{o.hint}</span>}
