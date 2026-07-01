@@ -8,6 +8,7 @@ export interface ActiveSlot { day: number; period: string; }
 
 interface UiState {
   query: string;
+  selectedTerm: string;      // 檢視中的學期（提升自 TermSwitcher，供分享連結程式化切換）
   filters: FilterState;
   activeSlot: ActiveSlot | null;
   detailOfferingId: string | null;
@@ -18,6 +19,7 @@ interface UiState {
   libraryTab: "courses" | "favorites"; // right-panel content toggle
   staleDropped: string[];    // offering_ids removed by reconcile (spec §4 — never silently discard)
   setQuery: (q: string) => void;
+  setSelectedTerm: (t: string) => void;
   setFilters: (f: FilterState) => void;
   toggleFilterValue: (key: "weekdays" | "periods" | "colleges" | "units" | "classes" | "categories", value: string | number) => void;
   setEmi: (v: EmiFilter) => void;
@@ -34,9 +36,10 @@ interface UiState {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  query: "", filters: EMPTY_FILTER, activeSlot: null, detailOfferingId: null, hoveredOfferingId: null,
+  query: "", selectedTerm: "115-1", filters: EMPTY_FILTER, activeSlot: null, detailOfferingId: null, hoveredOfferingId: null,
   viewMode: "week", selectedDay: 1, libraryOpen: false, libraryTab: "courses", staleDropped: [],
   setQuery: (query) => set({ query }),
+  setSelectedTerm: (selectedTerm) => set({ selectedTerm }),
   setFilters: (filters) => set({ filters }),
   toggleFilterValue: (key, value) => set((s) => {
     const arr = s.filters[key] as (string | number)[];

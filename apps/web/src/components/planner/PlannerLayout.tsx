@@ -14,6 +14,8 @@ import { TermSwitcher } from "./TermSwitcher";
 import { MatricSwitcher } from "./MatricSwitcher";
 import { FavoritesList } from "./FavoritesList";
 import { NoTimeTray } from "./NoTimeTray";
+import { Toaster } from "@/components/ui/toast";
+import { useShareLink } from "@/lib/planner/use-share-link";
 
 const fmtDate = (iso: string | null) => (iso ? iso.slice(0, 10) : "—");
 
@@ -26,6 +28,7 @@ export function PlannerLayout() {
   const setLibraryOpen = useUiStore((s) => s.setLibraryOpen);
   const staleDropped = useUiStore((s) => s.staleDropped);
   const dismissStale = useUiStore((s) => s.dismissStale);
+  useShareLink();
 
   return (
     <main className="flex h-dvh flex-col">
@@ -94,6 +97,7 @@ export function PlannerLayout() {
 
       <SlotPopover />
       <CourseDetailDrawer />
+      <Toaster />
     </main>
   );
 }
