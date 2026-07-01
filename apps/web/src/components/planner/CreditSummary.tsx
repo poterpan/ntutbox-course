@@ -26,6 +26,11 @@ export function CreditSummary() {
     else if (r === "failed") showToast("複製失敗，請手動複製網址");
   }
 
+  // F-C「匯出到 App」尚未完成 → 先預留按鈕佔位，按下提示即將上線。
+  function handleExportSoon() {
+    showToast("匯出到 App 功能即將上線");
+  }
+
   return (
     <GlassBar className="mx-3 mb-3 flex flex-col gap-1.5 rounded-2xl px-4 py-2.5 sm:mx-4 sm:flex-row sm:items-center sm:gap-4 sm:px-5">
       {/* 數據列（一行、含顯眼的第一志願學分大數字當錨點）— 固定不與動作同行，避免窄機翻行 */}
@@ -46,22 +51,35 @@ export function CreditSummary() {
         )}
       </div>
 
-      {/* 動作列：手機靠右小 pill、桌機同行靠右。未來「匯出到 App」進此區當 primary、分享退為 icon。 */}
-      <div className="flex items-center justify-end">
+      {/* 動作列：匯出到 App（primary、最終目的；目前預留、按下顯示即將上線）+ 分享（次要 icon）。
+          手機撐滿整列、桌機靠右。 */}
+      <div className="flex items-center gap-2">
+        <AccentButton
+          tone="solid"
+          size="lg"
+          onClick={handleExportSoon}
+          className="flex-1 gap-1.5 sm:flex-none"
+        >
+          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+            <path d="M14 4h6v6" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M20 4 11 13" strokeLinecap="round" />
+            <path d="M18 13v5a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          匯出到 App
+        </AccentButton>
         <AccentButton
           tone="soft"
-          size="sm"
+          size="lg"
           onClick={handleSharePlan}
           disabled={placed.length === 0}
           aria-label="分享課表"
-          className="shrink-0 gap-1 rounded-full"
+          className="size-10 shrink-0 justify-center p-0"
         >
-          <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+          <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
             <path d="M12 3v12" strokeLinecap="round" />
             <path d="M8 7l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" strokeLinecap="round" />
           </svg>
-          分享
         </AccentButton>
       </div>
     </GlassBar>
