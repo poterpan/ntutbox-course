@@ -1,9 +1,16 @@
-// 分享/複製：手機優先原生分享面板，否則複製到剪貼簿，再否則交由 UI 提示手動複製。
+// 分享/複製：觸控裝置（手機/平板）用原生分享面板，桌面一律複製連結，再否則交由 UI 提示手動複製。
 
 export type ShareResult = "shared" | "copied" | "failed";
 
+/** 只有以觸控為主的裝置才用原生分享面板；桌面（含有 navigator.share 的 Mac Chrome/Safari）一律複製，保持一致。 */
+function prefersNativeShare(): boolean {
+  if (typeof navigator === "undefined" || typeof navigator.share !== "function") return false;
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return true;
+  return window.matchMedia("(hover: none) and (pointer: coarse)").matches;
+}
+
 export async function shareOrCopy(url: string, title: string): Promise<ShareResult> {
-  if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+  if (prefersNativeShare()) {
     try {
       await navigator.share({ title, url });
       return "shared";

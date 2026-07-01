@@ -48,9 +48,11 @@ F-A 是最小、最快、可立即驗證的一片，先做。
 - 在 `CourseDetailDrawer` 標題列加一顆「分享」圖示鈕（放標題列，不佔用底部主要動作區）。
 - 點擊：
   1. 以目前檢視的 `term_key` + 該課 `offering_id` 組出連結。
-  2. `navigator.share` 可用（多為手機）→ 叫出原生分享面板（title = 課名、url = 連結）。
-  3. 否則 → `navigator.clipboard.writeText(url)` + toast「已複製連結」。
-  4. clipboard 也失敗 → toast 提示可手動複製（顯示連結）。
+  2. **觸控裝置**（`(hover: none) and (pointer: coarse)`）→ 叫出原生分享面板（title = 課名、url = 連結）。
+  3. **桌面一律複製**（含有 `navigator.share` 的 Mac Chrome/Safari 也走複製，保持一致）→ `navigator.clipboard.writeText(url)` + toast「已複製連結」。
+  4. clipboard 也失敗 → toast「複製失敗，請手動複製網址」。
+
+> toast 以 portal 掛到 `document.body`、`z-[100]`，確保浮在資訊窗（Dialog backdrop z-50）之上、不被模糊遮擋。
 
 ### 3. 收件端（開啟連結）
 新增 `useShareLink` hook，掛在 planner 根（`PlannerLayout`），進站執行**一次**：
