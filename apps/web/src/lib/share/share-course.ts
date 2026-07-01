@@ -9,10 +9,11 @@ function prefersNativeShare(): boolean {
   return window.matchMedia("(hover: none) and (pointer: coarse)").matches;
 }
 
-export async function shareOrCopy(url: string, title: string): Promise<ShareResult> {
+export async function shareOrCopy(url: string, title: string, text?: string): Promise<ShareResult> {
   if (prefersNativeShare()) {
     try {
-      await navigator.share({ title, url });
+      // text 帶課名 → 傳到聊天室時即使無連結預覽也看得到是哪門課。
+      await navigator.share({ title, url, ...(text ? { text } : {}) });
       return "shared";
     } catch (e) {
       // 使用者取消分享面板 → 不算失敗、不提示。

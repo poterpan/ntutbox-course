@@ -69,7 +69,8 @@ export function CourseDetailDrawer() {
   async function handleShare() {
     if (!c || !termKey) return;
     const url = buildCourseLink({ termKey, offeringId: c.offering_id, origin: window.location.origin });
-    const r = await shareOrCopy(url, c.name.zh ?? "課程");
+    const name = c.name.zh ?? "課程";
+    const r = await shareOrCopy(url, name, `${name}｜北科盒子 排課`);
     if (r === "copied") showToast("已複製連結");
     else if (r === "failed") showToast("複製失敗，請手動複製網址");
   }
