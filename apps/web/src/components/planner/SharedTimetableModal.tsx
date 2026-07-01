@@ -20,6 +20,7 @@ export function SharedTimetableModal() {
   const { byId } = useTermCourses();
   const status = useTermStore((s) => s.status);
   const showToast = useToast((s) => s.show);
+  const draftCount = useDraftStore((s) => s.placed.length);
   const [choosing, setChoosing] = useState(false);
 
   // Valid (still-existing) shared offerings, in shared order (= 志願序).
@@ -114,15 +115,45 @@ export function SharedTimetableModal() {
         {!loading && validIds.length > 0 && (
           <div className="border-t border-black/5 px-5 py-3">
             {choosing ? (
-              <div className="space-y-2">
-                <p className="text-xs leading-relaxed text-[var(--ink-soft)]">
-                  你該學期已有排課：<b className="text-[var(--ink)]">合併</b>＝保留現有再加入分享的課；
-                  <b className="text-[var(--ink)]">取代</b>＝<span className="text-orange-600">清空</span>目前排課後改用分享課表。
-                </p>
-                <div className="flex items-center gap-2">
-                  <AccentButton onClick={() => doImport("merge")}>合併</AccentButton>
-                  <AccentButton tone="soft" onClick={() => doImport("replace")}>取代</AccentButton>
-                  <button type="button" className="ml-auto rounded-lg px-2 py-1 text-xs text-[var(--ink-soft)] hover:bg-black/5" onClick={() => setChoosing(false)}>
+              <div className="space-y-2.5">
+                <div className="flex items-baseline justify-between gap-2">
+                  <p className="text-sm font-bold text-[var(--ink)]">要怎麼加入這份課表？</p>
+                  <span className="shrink-0 text-xs font-semibold text-[var(--ink-faint)] tabular-nums">你目前已有 {draftCount} 門</span>
+                </div>
+                {/* 兩張全寬選項卡：整塊可點、各帶說明；合併=建議、取代=橘色警示。手機直疊、桌機並排。 */}
+                <div className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                  <button
+                    type="button"
+                    onClick={() => doImport("merge")}
+                    className="flex items-start gap-3 rounded-xl border border-[var(--accent)]/40 bg-[var(--accent)]/10 p-3 text-left transition-colors hover:bg-[var(--accent)]/15"
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-[var(--accent)] text-lg font-bold leading-none text-white">＋</span>
+                    <span className="min-w-0">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-[var(--ink)]">合併到目前規劃</span>
+                        <span className="shrink-0 text-[11px] font-bold text-[var(--accent-ink)]">建議</span>
+                      </span>
+                      <span className="mt-0.5 block text-xs leading-relaxed text-[var(--ink-soft)]">保留你原本排好的課，只加入分享課表中尚未排入的課。</span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => doImport("replace")}
+                    className="flex items-start gap-3 rounded-xl border border-orange-600/25 bg-orange-600/[0.06] p-3 text-left transition-colors hover:bg-orange-600/10"
+                  >
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-orange-600/10 text-lg font-bold leading-none text-orange-600">↻</span>
+                    <span className="min-w-0">
+                      <span className="block font-bold text-[var(--ink)]">取代目前規劃</span>
+                      <span className="mt-0.5 block text-xs leading-relaxed text-[var(--ink-soft)]">
+                        <b className="font-bold text-orange-600">會清空目前排課</b>，再套用這份分享課表。
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setChoosing(false)}
+                    className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--ink-soft)] transition-colors hover:bg-black/5 sm:h-full"
+                  >
                     取消
                   </button>
                 </div>
