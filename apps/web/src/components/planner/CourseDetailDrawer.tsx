@@ -8,6 +8,9 @@ import { useTermStore } from "@/store/term-store";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
 import { getDataSource } from "@/lib/data";
+import { buildCourseLink } from "@/lib/share/course-link";
+import { shareOrCopy } from "@/lib/share/share-course";
+import { useToast } from "@/components/ui/toast";
 import type { CourseDetail } from "@/lib/data/types";
 import { resolveMatric } from "@/lib/planner/matric";
 import { cn } from "@/lib/utils";
@@ -61,6 +64,15 @@ export function CourseDetailDrawer() {
   const syllabi = detail?.syllabi ?? [];
   // Focus the scroll container (not the close button) on touch so the body scrolls on first drag.
   const { scrollRef, initialFocus } = useTouchScrollFocus();
+  const showToast = useToast((s) => s.show);
+
+  async function handleShare() {
+    if (!c || !termKey) return;
+    const url = buildCourseLink({ termKey, offeringId: c.offering_id, origin: window.location.origin });
+    const r = await shareOrCopy(url, c.name.zh ?? "課程");
+    if (r === "copied") showToast("已複製連結");
+    else if (r === "failed") showToast("複製失敗，請手動複製網址");
+  }
 
   return (
     <Dialog open={!!c} onOpenChange={(o) => { if (!o) openDetail(null); }}>
@@ -75,6 +87,19 @@ export function CourseDetailDrawer() {
                 {c.language && <Badge>{c.language}</Badge>}
                 <span>課號 {c.offering_id}</span>
                 {c.course_code && <span>· 編碼 {c.course_code}</span>}
+                <button
+                  type="button"
+                  aria-label="分享此課程"
+                  onClick={handleShare}
+                  className="ml-auto flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 font-medium text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/10"
+                >
+                  <svg className="size-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
+                    <path d="M12 3v12" strokeLinecap="round" />
+                    <path d="M8 7l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" strokeLinecap="round" />
+                  </svg>
+                  分享
+                </button>
               </div>
             </DialogHeader>
 
