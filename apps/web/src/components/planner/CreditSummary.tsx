@@ -51,8 +51,8 @@ export function CreditSummary() {
         )}
       </div>
 
-      {/* 動作列：匯出到 App（primary、最終目的；目前預留、按下顯示即將上線）+ 分享（次要 icon）。
-          手機撐滿整列、桌機靠右。 */}
+      {/* 動作列：匯出到 App（primary、預留、按下顯示即將上線）+ 分享課表（soft）兩顆平分整列，
+          主次靠顏色而非尺寸——不做成全頁最大的按鈕。手機各半、桌機靠右 auto。 */}
       <div className="flex items-center gap-2">
         <AccentButton
           tone="solid"
@@ -72,14 +72,14 @@ export function CreditSummary() {
           size="lg"
           onClick={handleSharePlan}
           disabled={placed.length === 0}
-          aria-label="分享課表"
-          className="size-10 shrink-0 justify-center p-0"
+          className="flex-1 gap-1.5 sm:flex-none"
         >
           <svg className="size-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden>
             <path d="M12 3v12" strokeLinecap="round" />
             <path d="M8 7l4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M5 13v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" strokeLinecap="round" />
           </svg>
+          分享課表
         </AccentButton>
       </div>
     </GlassBar>
