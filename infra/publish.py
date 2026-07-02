@@ -73,7 +73,7 @@ def _v1_files_for(out_dir: Path, terms: Optional[List[str]], include_details: bo
         else sorted(p for p in (v1 / "terms").iterdir() if p.is_dir()) if (v1 / "terms").exists() else []
     )
     for td in term_dirs:
-        for name in ["catalog.json", "classes.json", "periods.json", "enrollment.json", "mprograms.json"]:
+        for name in ["catalog.json", "classes.json", "periods.json", "enrollment.json", "mprograms.json", "names.json"]:
             p = td / name
             if p.exists():
                 files.append(str(p.relative_to(out_dir)))
