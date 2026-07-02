@@ -1,8 +1,10 @@
 "use client";
 import { useMemo, useState } from "react";
+import { ChevronLeftIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AccentButton } from "@/components/ui/accent-button";
 import { SharedTimetableGrid } from "./SharedTimetableGrid";
+import { CourseDetailContent } from "./CourseDetailContent";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
 import { useTermStore } from "@/store/term-store";
 import { creditSummary } from "@/lib/schedule/credits";
@@ -22,6 +24,8 @@ export function SharedTimetableModal() {
   const showToast = useToast((s) => s.show);
   const draftCount = useDraftStore((s) => s.placed.length);
   const [choosing, setChoosing] = useState(false);
+  // 就地詳情：非 null 時，彈窗內容原地切成該課詳情（不開新 dialog）。
+  const [detailId, setDetailId] = useState<string | null>(null);
 
   // Valid (still-existing) shared offerings, in shared order (= 志願序).
   const validIds = useMemo(
@@ -61,8 +65,29 @@ export function SharedTimetableModal() {
   }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) { setOpen(false); setChoosing(false); } }}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) { setOpen(false); setChoosing(false); setDetailId(null); } }}>
       <DialogContent className="flex h-[85vh] w-[94vw] max-w-[94vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl">
+        {detailId ? (
+          <>
+            <DialogTitle className="sr-only">課程詳情</DialogTitle>
+            <CourseDetailContent
+              offeringId={detailId}
+              onAfterPlace={() => setDetailId(null)}
+              headerLeading={
+                <button
+                  type="button"
+                  onClick={() => setDetailId(null)}
+                  aria-label="返回課表"
+                  className="-ml-2 flex items-center gap-0.5 rounded-lg py-1 pl-1 pr-2 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/10"
+                >
+                  <ChevronLeftIcon className="size-4" aria-hidden />
+                  課表
+                </button>
+              }
+            />
+          </>
+        ) : (
+          <>
         <DialogHeader className="border-b border-black/5 px-5 py-3">
           <DialogTitle className="text-lg font-bold">分享的課表</DialogTitle>
           <p className="mt-0.5 text-xs text-[var(--ink-soft)] tabular-nums">
@@ -79,7 +104,7 @@ export function SharedTimetableModal() {
             <p className="py-10 text-center text-sm text-[var(--ink-soft)]">此課表的課程多已更新或不存在。</p>
           ) : (
             <>
-              <SharedTimetableGrid placed={placed} />
+              <SharedTimetableGrid placed={placed} onCourseClick={setDetailId} />
               {noTimeShared.length > 0 && (
                 <div className="rounded-lg bg-black/[0.03] p-2.5">
                   <div className="mb-1.5 text-[10px] font-semibold uppercase tracking-wide text-[var(--ink-soft)]">
@@ -98,13 +123,19 @@ export function SharedTimetableModal() {
                 {validIds.map((id, i) => {
                   const c = byId(id);
                   return (
-                    <li key={id} className="flex items-center gap-2 rounded-lg bg-black/[0.02] px-2.5 py-1.5 text-xs">
+                    <li key={id}>
+                    <button
+                      type="button"
+                      onClick={() => setDetailId(id)}
+                      className="flex w-full items-center gap-2 rounded-lg bg-black/[0.02] px-2.5 py-1.5 text-left text-xs transition-colors hover:bg-black/[0.05]"
+                    >
                       <span className="flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/12 text-[10px] font-bold tabular-nums text-[var(--accent-ink)]">
                         {i + 1}
                       </span>
                       <span className="min-w-0 flex-1 truncate font-medium text-[var(--ink)]">{c?.name.zh}</span>
                       <span className="shrink-0 tabular-nums text-[var(--ink-soft)]">{c?.credits ?? "?"} 學分</span>
-                    </li>
+                    </button>
+                  </li>
                   );
                 })}
               </ul>
@@ -164,6 +195,8 @@ export function SharedTimetableModal() {
               </AccentButton>
             )}
           </div>
+        )}
+          </>
         )}
       </DialogContent>
     </Dialog>
