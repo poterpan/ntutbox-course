@@ -91,10 +91,9 @@ export function CourseDetailContent({
   return (
     <>
       <div className="border-b border-black/5 px-6 py-4">
-        <div className="flex items-start gap-2">
-          {headerLeading}
-          <h2 className="min-w-0 flex-1 text-xl font-bold text-[var(--ink)]">{c.name.zh}</h2>
-        </div>
+        {/* 返回鍵獨立成導覽列（僅就地詳情有 headerLeading）；與下方 badge 隔著標題、不同層級 */}
+        {headerLeading && <div className="mb-1.5">{headerLeading}</div>}
+        <h2 className="text-xl font-bold text-[var(--ink)]">{c.name.zh}</h2>
         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[var(--ink-soft)]">
           <Badge>{c.credits ?? "?"} 學分</Badge>
           {c.requirement?.symbol && <Badge>{c.requirement.symbol}</Badge>}

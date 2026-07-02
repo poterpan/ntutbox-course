@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import { ChevronLeftIcon } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AccentButton } from "@/components/ui/accent-button";
 import { SharedTimetableGrid } from "./SharedTimetableGrid";
@@ -77,9 +78,10 @@ export function SharedTimetableModal() {
                   type="button"
                   onClick={() => setDetailId(null)}
                   aria-label="返回課表"
-                  className="-ml-1 mr-1 mt-0.5 shrink-0 rounded-lg px-2 py-1 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/10"
+                  className="-ml-2 flex items-center gap-0.5 rounded-lg py-1 pl-1 pr-2 text-sm font-semibold text-[var(--accent)] transition-colors hover:bg-[var(--accent)]/10"
                 >
-                  ← 課表
+                  <ChevronLeftIcon className="size-4" aria-hidden />
+                  課表
                 </button>
               }
             />
