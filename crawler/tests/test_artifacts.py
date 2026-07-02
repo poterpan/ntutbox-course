@@ -102,6 +102,19 @@ def test_build_v1_from_canonical(tmp_path, sample_result):
     assert "115-1" in man.terms
 
 
+def test_build_v1_writes_names_index(tmp_path, sample_result):
+    write_canonical(sample_result, tmp_path)
+    build_v1(tmp_path, "2026-06-13T01:00:00+08:00")
+    t = tmp_path / "v1" / "terms" / "115-1"
+    names = json.loads((t / "names.json").read_text(encoding="utf-8"))
+    cat = TermCatalog.model_validate_json((t / "catalog.json").read_text(encoding="utf-8"))
+    assert isinstance(names, dict) and names
+    # 每個有中文課名的課：names[課號] == name.zh（鍵為課號字串）
+    for c in cat.courses:
+        if c.name and c.name.zh:
+            assert names[c.offering_id] == c.name.zh
+
+
 def test_build_v1_covers_all_terms(tmp_path, sample_result):
     write_canonical(sample_result, tmp_path)
     write_enrollment_snapshot(sample_result.catalog.term.key, sample_result.enrollment, tmp_path, "2026-06-13")

@@ -110,6 +110,11 @@ def build_v1(out_dir: Path, generated_at: str) -> Manifest:
         v1 = out_dir / "v1" / "terms" / term
         v1.mkdir(parents=True, exist_ok=True)
         (v1 / "catalog.json").write_text(catalog.model_dump_json(), encoding="utf-8")
+        # names 索引（邊緣 OG 用；課號→中文課名，小檔、隨 cron 自動發，新學期零介入）
+        names = {c.offering_id: c.name.zh for c in courses if c.name and c.name.zh}
+        (v1 / "names.json").write_text(
+            json.dumps(names, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+        )
         (v1 / "classes.json").write_text(
             (term_dir / "classes.json").read_text(encoding="utf-8"), encoding="utf-8"
         )
