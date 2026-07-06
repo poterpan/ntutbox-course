@@ -17,7 +17,9 @@
       linear-gradient(180deg, #eef2fb 0%, #e6ebf6 48%, #e9eaf3 100%);
   }
   .brand { flex: 1 1 0; }
-  .brand img { width: 132px; height: 132px; border-radius: 30px; box-shadow: 0 18px 40px rgba(20,40,90,.18); }
+  /* Icon Composer 匯出的白底圓角磚（squircle 滿版、角落為黑）：
+     border-radius ≈ iOS 22.37% 弧度即可把黑角裁乾淨（CSS 圓弧略內於 squircle，不會漏黑）。 */
+  .brand img { width: 132px; height: 132px; border-radius: 23%; box-shadow: 0 18px 40px rgba(20,40,90,.18); }
   .brand h1 { margin-top: 34px; font-size: 76px; font-weight: 800; letter-spacing: 1px; }
   .brand h1 .accent { color: #2563eb; }
   .brand p { margin-top: 18px; font-size: 30px; color: #4c5768; font-weight: 500; letter-spacing: 2px; }
@@ -43,7 +45,7 @@
 </head>
 <body>
   <div class="brand">
-    <img src="../src/app/icon.png" alt="">
+    <img src="icon-tile.jpg" alt="">
     <h1>北科盒子 <span class="accent">排課</span></h1>
     <p>查課・排週課表・衝堂學分即時檢查</p>
   </div>
