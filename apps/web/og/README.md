@@ -14,3 +14,11 @@
 JPEG 版角落會被填黑、邊緣烙一圈黑緣。換 icon 就換這個檔。）
 選 JPEG 是因為 PNG 版 330KB 超過 300KB 目標、q85 JPEG 104KB 且此類漸層+色塊圖視覺無差；
 若日後畫面加入透明或銳利細節需求再回 PNG（並同步改 `layout.tsx` 的 images 路徑）。
+
+`apple-icon.html`（180×180）是 `src/app/apple-icon.png`（apple-touch-icon）的源稿：
+把透明的 `src/app/icon.png` 壓到白底（iOS 對透明 icon 會補黑底）。重截：
+
+    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+      --headless=new --screenshot="$(pwd)/../src/app/apple-icon.png" \
+      --window-size=180,180 --hide-scrollbars \
+      "file://$(pwd)/apple-icon.html"

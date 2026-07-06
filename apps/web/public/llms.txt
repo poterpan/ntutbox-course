@@ -1,0 +1,10 @@
+# 北科盒子 排課（NTUT Box Course Planner）
+
+> 免登入的國立臺北科技大學（北科大，NTUT）排課工具：查詢歷年課程與課綱、模擬排課、
+> 即時檢查衝堂與學分，並可分享課表、匯入北科盒子 iOS App 完成選課。
+
+- 網站：https://course.ntutbox.com/
+- 課程分享連結格式：https://course.ntutbox.com/?term=<學期>&course=<課號>（例：term=115-1）
+- 課表分享連結格式：https://course.ntutbox.com/?term=<學期>&plan=<課號.課號.…>
+- 資料來源：臺北科技大學公開課程查詢系統（aps.ntut.edu.tw），自動更新
+- 本站僅供排課規劃；正式選課以學校選課系統送出為準
