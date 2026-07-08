@@ -15,6 +15,11 @@ import { cn } from "@/lib/utils";
 
 const DAY = ["日", "一", "二", "三", "四", "五", "六"];
 
+/** Dcard 北科版搜尋連結（選課常參考的評價來源）。query 走 encodeURIComponent。 */
+function dcardSearchUrl(query: string) {
+  return `https://www.dcard.tw/search?query=${encodeURIComponent(query)}&forum=ntut`;
+}
+
 const SYLLABUS_FIELDS: [keyof NonNullable<CourseDetail["syllabi"]>[number], string][] = [
   ["outline", "課程大綱"],
   ["schedule", "課程進度"],
@@ -78,6 +83,10 @@ export function CourseDetailContent({
 
   const desc = detail?.description;
   const syllabi = detail?.syllabi ?? [];
+  const nameZh = c.name.zh;
+  const dcardTeachers = (c.teachers ?? [])
+    .map((t) => t.name)
+    .filter((n): n is string => !!n?.trim());
 
   async function handleShare() {
     if (!c || !termKey) return;
@@ -113,6 +122,16 @@ export function CourseDetailContent({
       </div>
 
       <div ref={scrollRef} tabIndex={-1} className="thin-scroll flex-1 overflow-y-auto overscroll-contain px-6 py-5 outline-none [touch-action:pan-y]">
+        {(nameZh || dcardTeachers.length > 0) && (
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-soft)]">Dcard 評價</span>
+            {nameZh && <DcardChip query={nameZh} label={nameZh} />}
+            {dcardTeachers.map((name, i) => (
+              <DcardChip key={i} query={name} label={name} />
+            ))}
+          </div>
+        )}
+
         <dl className="grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
           <Row k="授課教師" v={(c.teachers ?? []).map((t) => t.name).join("、") || "—"} />
           <Row k="學制" v={division?.label ?? "—"} />
@@ -206,6 +225,22 @@ export function CourseDetailContent({
         )}
       </div>
     </>
+  );
+}
+
+function DcardChip({ query, label }: { query: string; label: string }) {
+  return (
+    <a
+      href={dcardSearchUrl(query)}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={`在 Dcard 搜尋「${label}」`}
+      className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)]/10 py-1 pl-1.5 pr-2.5 text-xs font-medium text-[var(--accent-ink)] transition-colors hover:bg-[var(--accent)]/15"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- static export, images.unoptimized; a tiny brand mark doesn't need next/image */}
+      <img src="/dcard.png" alt="" className="size-4 shrink-0 rounded-[4px]" />
+      {label}
+    </a>
   );
 }
 
