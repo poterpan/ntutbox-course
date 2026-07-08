@@ -17,12 +17,26 @@ beforeEach(() => {
 describe("CourseDetailDrawer", () => {
   it("shows catalog fields for the selected course", () => {
     render(<CourseDetailDrawer />);
-    expect(screen.getByText("資料結構")).toBeInTheDocument();
+    // Name appears both as heading and as a Dcard chip; assert the heading specifically.
+    expect(screen.getByRole("heading", { name: "資料結構" })).toBeInTheDocument();
     // English name intentionally NOT shown (zh-only until an English site exists)
     expect(screen.queryByText(/Data Structures/)).not.toBeInTheDocument();
     expect(screen.getByText(/2B05003/)).toBeInTheDocument();
-    expect(screen.getByText(/王老師/)).toBeInTheDocument();
+    // Teacher name appears in the 授課教師 row and as a Dcard chip; target the row cell.
+    expect(screen.getByText("王老師", { selector: "dd" })).toBeInTheDocument();
     expect(screen.getByText(/資工五/)).toBeInTheDocument();
     expect(screen.getByText(/限資工系/)).toBeInTheDocument();
+  });
+
+  it("links course name and each teacher to a Dcard ntut-forum search", () => {
+    render(<CourseDetailDrawer />);
+    expect(screen.getByRole("link", { name: "在 Dcard 搜尋「資料結構」" })).toHaveAttribute(
+      "href",
+      `https://www.dcard.tw/search?query=${encodeURIComponent("資料結構")}&forum=ntut`,
+    );
+    expect(screen.getByRole("link", { name: "在 Dcard 搜尋「王老師」" })).toHaveAttribute(
+      "href",
+      `https://www.dcard.tw/search?query=${encodeURIComponent("王老師")}&forum=ntut`,
+    );
   });
 });
