@@ -1,7 +1,10 @@
 from pathlib import Path
 
+import pytest
+
 from models import RequirementCategory
 from ntut_catalog.parse_program import (
+    normalize_mprogram_category,
     parse_cprog_divisions,
     parse_cprog_matrics,
     parse_cprog_standard,
@@ -45,3 +48,13 @@ def test_parse_cprog_standard():
     assert c.requirement.symbol == "△"
     assert c.requirement.category == RequirementCategory.required
     assert c.study_year == 1 and c.study_sem == 1
+
+
+@pytest.mark.parametrize("raw,cat,emi", [
+    ("基礎", "基礎", False), ("核心", "核心", False), ("總整", "總整", False),
+    ("進階", "進階", False), ("應用", "應用", False),
+    ("核e", "核心", True), ("e基", "基礎", True),
+    ("＊", None, False), ("", None, False), ("(e)", None, True),
+])
+def test_normalize_mprogram_category(raw, cat, emi):
+    assert normalize_mprogram_category(raw) == (cat, emi)

@@ -101,3 +101,18 @@ def _to_float(s: str) -> Optional[float]:
         return float(s)
     except (ValueError, TypeError):
         return None
+
+
+_MPROG_CATEGORY_BY_PREFIX = {"基": "基礎", "核": "核心", "總": "總整", "進": "進階", "應": "應用"}
+
+
+def normalize_mprogram_category(notes: str) -> tuple[Optional[str], bool]:
+    """微學程 notes 欄 → (category, emi)。無法辨識 → (None, emi)；勿猜。"""
+    raw = (notes or "").strip()
+    letters = re.sub(r"[^A-Za-z]", "", raw)
+    emi = "e" in letters.lower()
+    rest = re.sub(r"[A-Za-z()（）]", "", raw).strip()
+    if not rest:
+        return None, emi
+    cat = _MPROG_CATEGORY_BY_PREFIX.get(rest[0])
+    return cat, emi
