@@ -24,7 +24,7 @@ from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 # ============================================================== 基礎型別 / Enum
 
@@ -381,11 +381,26 @@ class EnrollmentLatest(BaseModel):
     counts: Dict[str, Enrollment] = Field(default_factory=dict)  # offering_id -> Enrollment
 
 
+MProgramCategory = Literal["基礎", "核心", "總整", "進階", "應用"]
+
+
+class MicroProgramCourse(BaseModel):
+    """微學程課程標準列（Cprog -4，matric=H）。"""
+    course_code: str
+    name_zh: str = ""
+    credits: Optional[float] = None
+    category: Optional[MProgramCategory] = None   # notes 正規化；映不出 → None
+    category_raw: Optional[str] = None            # notes 原文保底
+    emi: bool = False                             # notes 內 e 標記（Task 2 實證）
+
+
 class MicroProgram(BaseModel):
     """微學程：SearchMProgram。offering_ids = 該學程該學期開課的課號。"""
     code: str
     name: str
     offering_ids: List[str] = Field(default_factory=list)
+    courses: List[MicroProgramCourse] = Field(default_factory=list)
+    rules_text: Optional[str] = None              # 「相關規定」原文，保留換行，不解析
 
 
 class MicroProgramDirectory(BaseModel):
