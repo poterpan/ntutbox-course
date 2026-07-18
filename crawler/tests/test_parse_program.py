@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ from ntut_catalog.parse_program import (
     normalize_mprogram_category,
     parse_cprog_divisions,
     parse_cprog_matrics,
+    parse_cprog_rules,
     parse_cprog_standard,
     parse_mprogram_list,
 )
@@ -48,6 +50,22 @@ def test_parse_cprog_standard():
     assert c.requirement.symbol == "△"
     assert c.requirement.category == RequirementCategory.required
     assert c.study_year == 1 and c.study_sem == 1
+
+
+def test_parse_cprog_rules_av2():
+    html = (FIXTURES / "cprog_-4_mprogram_av2.html").read_text(encoding="utf-8")
+    text = parse_cprog_rules(html)
+    assert text is not None
+    assert "微學程設置定義" in text
+    assert "至少修畢8學分" in text.replace(" ", "")
+    assert "\n" in text                      # 保留換行
+    # 無殘留 HTML tag（來源正文含麵包屑箭頭 "=>"，屬合法原文，不可誤刪）
+    assert not re.search(r"<[A-Za-z/][^>]*>", text)
+
+
+def test_parse_cprog_rules_absent():
+    html = (FIXTURES / "cprog_-3_115_7.html").read_text(encoding="utf-8")   # 系所列表頁，無規則區塊
+    assert parse_cprog_rules(html) is None
 
 
 @pytest.mark.parametrize("raw,cat,emi", [
