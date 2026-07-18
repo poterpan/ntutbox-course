@@ -3,11 +3,18 @@ from __future__ import annotations
 
 import logging
 
-from models import MicroProgram, MicroProgramDirectory, StandardDirectory
+from models import (
+    MicroProgram,
+    MicroProgramCourse,
+    MicroProgramDirectory,
+    StandardDirectory,
+)
 from ntut_catalog.parse_course_table import parse_course_rows
 from ntut_catalog.parse_program import (
+    normalize_mprogram_category,
     parse_cprog_divisions,
     parse_cprog_matrics,
+    parse_cprog_rules,
     parse_cprog_standard,
     parse_mprogram_list,
 )
@@ -29,7 +36,27 @@ def crawl_mprograms(client, term_key: str) -> MicroProgramDirectory:
             oids = [r.offering_id for r in rows]
         except ValueError:
             oids = []  # 該學程本學期無開課
-        programs.append(MicroProgram(code=code, name=name, offering_ids=oids))
+        # 併入課程標準（Cprog -4/matric=H）+ 相關規定原文。
+        # 單一學程失敗只降級（courses=[]/rules_text=None），不中斷整個 crawl。
+        courses: list[MicroProgramCourse] = []
+        rules_text = None
+        try:
+            cprog_html = client.cprog("-4", year=year, matric="H", division=code)
+            std = parse_cprog_standard(cprog_html, entry_year=year, matric="H", division=code)
+            for sc in std.courses:
+                if not sc.course_code:
+                    continue
+                category, emi = normalize_mprogram_category(sc.notes)
+                courses.append(MicroProgramCourse(
+                    course_code=sc.course_code, name_zh=sc.name_zh, credits=sc.credits,
+                    category=category, category_raw=(sc.notes or None), emi=emi))
+            rules_text = parse_cprog_rules(cprog_html)
+        except Exception:  # noqa: BLE001
+            logger.warning("[%s] cprog -4 failed for %s", term_key, code, exc_info=True)
+        if rules_text is None:
+            logger.warning("[%s] no rules_text for %s", term_key, code)
+        programs.append(MicroProgram(code=code, name=name, offering_ids=oids,
+                                     courses=courses, rules_text=rules_text))
     logger.info("[%s] mprograms: %d programs", term_key, len(programs))
     return MicroProgramDirectory(term_key=term_key, programs=programs)
 
