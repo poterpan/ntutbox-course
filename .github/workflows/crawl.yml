@@ -103,6 +103,13 @@ jobs:
             python -m ntut_catalog crawl --terms "$TERMS" --force --out data
           fi
 
+      - name: Crawl micro-programs
+        env:
+          TERMS: ${{ steps.terms.outputs.terms }}
+        run: |
+          set -euo pipefail
+          python -m ntut_catalog crawl-mprograms --terms "$TERMS" --out data
+
       - name: Redline scan (block PII/secrets/error pages)
         run: python infra/redline_scan.py data/canonical
 
@@ -115,7 +122,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           DATE="$(TZ=Asia/Taipei date +%F)"
-          git add -- '*/catalog.ndjson' '*/classes.json' || true
+          git add -- '*/catalog.ndjson' '*/classes.json' '*/mprograms.json' || true
           git diff --cached --quiet || git commit -m "data(catalog): $TERMS $DATE"
           git add -- '*/enrollment/*.ndjson' || true
           git diff --cached --quiet || git commit -m "data(enrollment): $TERMS $DATE"
