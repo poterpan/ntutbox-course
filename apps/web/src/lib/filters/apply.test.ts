@@ -54,4 +54,19 @@ describe("applyFilters", () => {
   it("class filter matches by class code", () => {
     expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, classes: ["2652"] }).map((c) => c.offering_id)).toEqual(["a"]);
   });
+
+  const mprogramOids = new Set(["a"]); // a 屬微學程、b 不屬
+  it("mprogram='only' keeps only 微學程 courses (交集)", () => {
+    expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, mprogram: "only" }, mprogramOids).map((c) => c.offering_id)).toEqual(["a"]);
+  });
+  it("mprogram='exclude' drops 微學程 courses (差集)", () => {
+    expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, mprogram: "exclude" }, mprogramOids).map((c) => c.offering_id)).toEqual(["b"]);
+  });
+  it("mprogram='all' ignores membership set", () => {
+    expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, mprogram: "all" }, mprogramOids)).toHaveLength(2);
+  });
+  it("防呆：set 未提供時 only/exclude 視同 all（不做空篩選）", () => {
+    expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, mprogram: "only" })).toHaveLength(2);
+    expect(applyFilters([monP3, wedP5], { ...EMPTY_FILTER, mprogram: "exclude" })).toHaveLength(2);
+  });
 });
