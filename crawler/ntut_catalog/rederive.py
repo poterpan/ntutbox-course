@@ -5,6 +5,9 @@
 catalog/NDJSON 已內嵌 class code → 純 join 即可修補，毋須再打 aps.ntut.edu.tw。
 
 只動每課的 classes 欄位，其餘欄位 round-trip 不變（同一 model_dump_json）。
+
+PUA 正規化的權威路徑是 publish 前的 build_v1；此離線工具讀的 v1 catalog 已正規化，
+故 v1 寫回仍套 normalize_pua 只是防禦式一致（同 detail.py），輸入乾淨時為 no-op。
 """
 from __future__ import annotations
 
@@ -15,6 +18,7 @@ from typing import Dict
 from models import ClassDirectory, ClassRef, TermCatalog
 from ntut_catalog.artifacts import write_manifest
 from ntut_catalog.classes_builder import resolve_class_ref
+from ntut_catalog.pua import normalize_pua
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +49,9 @@ def rederive_term(term_dir: Path) -> dict:
         if changed:
             patched += 1
 
-    (term_dir / "catalog.json").write_text(catalog.model_dump_json(), encoding="utf-8")
+    (term_dir / "catalog.json").write_text(
+        normalize_pua(catalog.model_dump_json()), encoding="utf-8"
+    )
 
     canonical = term_dir.parents[2] / "canonical" / catalog.term.key / "catalog.ndjson"
     if canonical.exists():
