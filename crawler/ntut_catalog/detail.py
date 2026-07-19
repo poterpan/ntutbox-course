@@ -12,6 +12,7 @@ from typing import Dict, List, Optional
 
 from models import CourseDetail, CourseOffering, LocalizedText
 from ntut_catalog.parse_detail import parse_curr, parse_syllabus
+from ntut_catalog.pua import normalize_pua
 
 logger = logging.getLogger(__name__)
 
@@ -75,4 +76,7 @@ def write_details(details: List[CourseDetail], out_dir: Path) -> None:
     course_dir = out_dir / "v1" / "terms" / term / "course"
     course_dir.mkdir(parents=True, exist_ok=True)
     for d in details:
-        (course_dir / f"{d.offering_id}.json").write_text(d.model_dump_json(), encoding="utf-8")
+        # canonical 保留原文（上面 details.ndjson）；v1 消費層做 PUA 正規化，與 build_v1 一致
+        (course_dir / f"{d.offering_id}.json").write_text(
+            normalize_pua(d.model_dump_json()), encoding="utf-8"
+        )

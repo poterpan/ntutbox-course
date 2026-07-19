@@ -6,6 +6,8 @@ from models import (
     CourseDetail,
     CourseOffering,
     LocalizedText,
+    MicroProgram,
+    MicroProgramDirectory,
     Selection,
     Syllabus,
     TermCatalog,
@@ -98,6 +100,15 @@ def _write_canonical_with_pua(tmp_path, term="115-1"):
         syllabi=[Syllabus(teacher_name="老師", assessment=f"{F0D8}\t期中 30%\n{F0FC} 出席")],
     )
     (d / "details.ndjson").write_text(detail.model_dump_json() + "\n", encoding="utf-8")
+    mprograms = MicroProgramDirectory(
+        term_key=term,
+        programs=[MicroProgram(
+            code="H01",
+            name=f"創新學程 林{E1B3}",
+            rules_text=f"相關規定：{F0FC} 至少修 9 學分 {E0B2}",
+        )],
+    )
+    (d / "mprograms.json").write_text(mprograms.model_dump_json(), encoding="utf-8")
     return d
 
 
@@ -133,3 +144,19 @@ def test_build_v1_catalog_has_no_uXXXX_escape(tmp_path):
     build_v1(tmp_path, "2026-07-19T00:00:00+08:00")
     cat_text = (tmp_path / "v1" / "terms" / "115-1" / "catalog.json").read_text(encoding="utf-8")
     assert "\\u" not in cat_text
+
+
+def test_build_v1_normalizes_mprograms(tmp_path):
+    # mprograms.json 是 canonical→v1 純文字複製；名稱/rules_text 也須經 PUA 正規化
+    canonical = _write_canonical_with_pua(tmp_path)
+    build_v1(tmp_path, "2026-07-19T00:00:00+08:00")
+    mp_text = (tmp_path / "v1" / "terms" / "115-1" / "mprograms.json").read_text(encoding="utf-8")
+
+    assert E1B3 not in mp_text                                # 造字已轉
+    assert "創新學程 林廸" in mp_text                          # 學程名
+    assert "✓ 至少修 9 學分" in mp_text                       # rules_text 內的符號
+    assert E0B2 in mp_text                                    # 未考證造字保留
+    MicroProgramDirectory.model_validate_json(mp_text)        # 仍合法
+
+    # canonical mprograms 不得被改動
+    assert E1B3 in (canonical / "mprograms.json").read_text(encoding="utf-8")

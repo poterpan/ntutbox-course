@@ -53,7 +53,12 @@ def normalize_pua(text: str) -> str:
 
 
 def normalize_pua_obj(obj):
-    """遞迴正規化 dict/list/str（其餘型別原樣回傳）。回傳新物件，不 mutate 輸入。"""
+    """遞迴正規化 dict/list/str（其餘型別原樣回傳）。回傳新物件，不 mutate 輸入。
+
+    保留為物件走訪（obj-walk）替代方案；production 寫出路徑走序列化字串層
+    （artifacts._write_v1_json → normalize_pua），因本 repo 序列化不 \\u 轉義，
+    對字串做碼位替換與此遞迴等價、且省一次 re-dump 的格式漂移。
+    """
     if isinstance(obj, str):
         return normalize_pua(obj)
     if isinstance(obj, list):
