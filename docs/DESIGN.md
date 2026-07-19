@@ -191,8 +191,10 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 ② 學校造字（U+E0xx–E2xx，教師名/課名/備註，逐字考證困難）；③ Adobe/PDF 殘留（U+F3xx/F6xx/F7xx）。
 **canonical 一律保留來源原文**（忠實、可審查、可重建）；**只有 v1 消費層在 `build_v1` 時套 `ntut_catalog/pua.py` 的 `normalize_pua`**——
 對照表 `PUA_MAP` 只收「能在權威字碼表核實」的碼位（Wingdings→Unicode 採 Alan Wood's Unicode Resources；Symbol 為 Adobe 標準），
-**未收錄的碼位一律原樣保留（不猜、不刪）**。目前對照表：9 個 Word 符號（●■□◆•➢✓☑ 與算式內的 ±）＋ 造字 `U+E1B3→廸`
-（教師授課時間表反白考證）。分層好處：不需重爬，下次 publish 重建 v1 即修正全歷史學期；造字逐字考證可持續補 `PUA_MAP`。
+**未收錄的碼位一律原樣保留（不猜、不刪）**。目前對照表：9 個 Word 符號（●■□◆•➢✓☑ 與算式內的 ±）＋ 41 個學校造字
+（GServer 字形認定）。**造字字形可經學校 GServer 外字服務（`font.ntut.edu.tw` 的 `MingGaiji.TTE`）半自動考證**，
+協定、認字方法與已認定清單見 `docs/research/2026-07-20-pua-glyph-verification.md`（6 個既有系網考證與 GServer 字形完全吻合＝權威反證；
+`U+E0E1` 勳/勲 待人工、`U+EF0D` 無字形，皆不入表）。分層好處：不需重爬，下次 publish 重建 v1 即修正全歷史學期；造字考證可持續補 `PUA_MAP`。
 `manifest` 的 `dataset_version` = `catalog.json` sha256，會因正規化改變（屬預期：內容確實變乾淨了），非正規化學期不受影響。
 
 **建議檔案佈局（v1）**：
