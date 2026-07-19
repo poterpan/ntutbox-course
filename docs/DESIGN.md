@@ -192,11 +192,19 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 /v1/terms/114-2/catalog.json            # 主目錄（typed，web v1 主檔，前端建索引）
 /v1/terms/114-2/classes.json            # 系所/年級/班級 → 班級碼（Web 身分選擇器 + 本班判斷用）
 /v1/terms/114-2/periods.json            # 節次↔牆鐘時間↔排序↔顯示label（Asia/Taipei）
+/v1/terms/114-2/mprograms.json          # 微學程(v2)：開課 offering_ids + 分類課程 + 規則原文
 /v1/terms/114-2/course/{offeringId}.json # 重文字(描述/課綱)，隨點隨取
 /v1/terms/114-2/enrollment.json         # 人數,小,選課季常更新(volatile overlay)
 /v1/terms/114-2/enrollment/snapshots/2026-06-13.ndjson  # 歷史時序(git)
 # catalog.sqlite 延後：iOS/進階版由 canonical 產，web v1 不發佈
 ```
+
+**微學程 artifact（`mprograms.json` v2）**：
+- `mprograms.json` v2（SCHEMA_VERSION=2）：每學程除 `offering_ids` 外新增
+  `courses[]`（course_code/name_zh/credits/category(基礎|核心|總整|進階|應用|null)/category_raw/online，
+  來源 Cprog -4 matric=H，notes 欄正規化；`online`＝notes 含 e 注記＝**線上課程**（ewant 平台，不走選課系統，
+  catalog 11 學期查無開班；2026-07-19 經教務處 AVF 課程規劃書＋創新學院微學程清單確證，**非 EMI**）→
+  詳情頁顯示「線上課程」標記，取代誤導的未開課灰態）與 `rules_text`（「相關規定」原文，保留換行不解析）。
 
 **為「排課＋搶課」情境，schema 還需要學長沒有的欄位**：
 - **正規化 `meetings[]`**：`{day, periods[], classroomCodes[], weekPattern(all/odd/even), dateRange, group}`——比扁平 `time{day:[...]}` 多了單雙週/半學期/分組/教室關聯（排課衝堂要這些才準）。

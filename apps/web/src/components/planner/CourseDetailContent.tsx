@@ -1,9 +1,12 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ShareIcon } from "lucide-react";
 import { AccentButton } from "@/components/ui/accent-button";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
 import { useTermStore } from "@/store/term-store";
+import { useUiStore } from "@/store/ui-store";
+import { useMprograms } from "@/lib/planner/use-mprograms";
+import { buildProgramIndex } from "@/lib/planner/mprogram-index";
 import { useDraftStore } from "@/store/draft-store";
 import { getDataSource } from "@/lib/data";
 import { buildCourseLink } from "@/lib/share/course-link";
@@ -43,14 +46,26 @@ export function CourseDetailContent({
   onAfterPlace,
   headerLeading,
   scrollRef,
+  showProgramChips = true,
 }: {
   offeringId: string;
   onAfterPlace?: () => void;
   headerLeading?: React.ReactNode;
   scrollRef?: React.Ref<HTMLDivElement>;
+  // 分享課表就地詳情（SharedTimetableModal）關掉——chip 的 openProgram 改的是 modal
+  // 背後的 planner 狀態，在全螢幕 dialog 裡點了會像「無聲跳轉」。
+  showProgramChips?: boolean;
 }) {
   const { byId, enrollment } = useTermCourses();
   const termKey = useTermStore((s) => s.termKey);
+  // 微學程反查：termKey 比照 MicroProgramList（term-store 優先、fallback ui-store）。
+  const selectedTerm = useUiStore((s) => s.selectedTerm);
+  const openProgram = useUiStore((s) => s.openProgram);
+  const { data: mprogDir } = useMprograms(termKey ?? selectedTerm);
+  const programChips = useMemo(
+    () => buildProgramIndex(mprogDir).get(offeringId) ?? [],
+    [mprogDir, offeringId],
+  );
   const { favorites, placed, place, unplace, toggleFavorite } = useDraftStore();
   const showToast = useToast((s) => s.show);
   const c = byId(offeringId);
@@ -128,6 +143,23 @@ export function CourseDetailContent({
             {nameZh && <DcardChip query={nameZh} label={nameZh} />}
             {dcardTeachers.map((name, i) => (
               <DcardChip key={i} query={name} label={name} />
+            ))}
+          </div>
+        )}
+
+        {showProgramChips && programChips.length > 0 && (
+          <div className="mb-5 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-soft)]">所屬微學程</span>
+            {programChips.map((p) => (
+              <button
+                key={p.code}
+                type="button"
+                onClick={() => openProgram(p.code)}
+                aria-label={`查看微學程「${p.name}」`}
+                className="inline-flex items-center gap-1 rounded-full bg-[var(--accent)]/10 px-2.5 py-1 text-xs font-medium text-[var(--accent-ink)] transition-colors hover:bg-[var(--accent)]/15"
+              >
+                {p.name}
+              </button>
             ))}
           </div>
         )}

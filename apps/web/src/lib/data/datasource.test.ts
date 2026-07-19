@@ -11,11 +11,11 @@ describe("HttpDataSource", () => {
 
   it("getManifest fetches <base>/manifest.json", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      jsonResponse({ schema_version: 1, terms: {} }),
+      jsonResponse({ schema_version: 2, terms: {} }),
     );
     const ds = new HttpDataSource("/data/v1");
     const m = await ds.getManifest();
-    expect(m.schema_version).toBe(1);
+    expect(m.schema_version).toBe(2);
     expect(fetchMock).toHaveBeenCalledWith("/data/v1/manifest.json", { signal: undefined });
   });
 

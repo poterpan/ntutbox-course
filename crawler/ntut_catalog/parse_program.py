@@ -89,6 +89,28 @@ def parse_cprog_standard(html: str, entry_year: int, matric: str, division: str)
                            title=title, courses=courses)
 
 
+def parse_cprog_rules(html: str) -> Optional[str]:
+    """Cprog -4 葉頁「相關規定」→ 純文字（保留換行）。
+
+    結構特徵定位（禁位置索引）：恰含一個 <td> 且純文字最長的 table；
+    <br> → 換行；長度 <50 字視為不存在 → None。
+    """
+    soup = BeautifulSoup(html, "html5lib")
+    best: Optional[str] = None
+    for table in soup.find_all("table"):
+        tds = table.find_all("td")
+        if len(tds) != 1:
+            continue
+        td = tds[0]
+        for br in td.find_all("br"):
+            br.replace_with("\n")
+        lines = [ln.strip() for ln in td.get_text().splitlines()]
+        text = "\n".join(ln for ln in lines if ln)
+        if len(text) >= 50 and (best is None or len(text) > len(best)):
+            best = text
+    return best
+
+
 def _to_int(s: str) -> Optional[int]:
     try:
         return int(s)
@@ -101,3 +123,21 @@ def _to_float(s: str) -> Optional[float]:
         return float(s)
     except (ValueError, TypeError):
         return None
+
+
+_MPROG_CATEGORY_BY_PREFIX = {"基": "基礎", "核": "核心", "總": "總整", "進": "進階", "應": "應用"}
+
+
+def normalize_mprogram_category(notes: str) -> tuple[Optional[str], bool]:
+    """微學程 notes 欄 → (category, online)。無法辨識 → (None, online)；勿猜。
+
+    notes 含 e＝線上課程（ewant 平台；2026-07-19 經課程規劃書+創新學院清單確證，非 EMI）。
+    """
+    raw = (notes or "").strip()
+    letters = re.sub(r"[^A-Za-z]", "", raw)
+    online = "e" in letters.lower()
+    rest = re.sub(r"[A-Za-z()（）]", "", raw).strip()
+    if not rest:
+        return None, online
+    cat = _MPROG_CATEGORY_BY_PREFIX.get(rest[0])
+    return cat, online

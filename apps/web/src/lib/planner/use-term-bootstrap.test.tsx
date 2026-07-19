@@ -7,7 +7,7 @@ import { useUiStore } from "@/store/ui-store";
 
 vi.mock("@/lib/data", () => ({
   getDataSource: () => ({
-    getManifest: vi.fn().mockResolvedValue({ schema_version: 1, terms: { "115-1": {}, "114-2": {} } }),
+    getManifest: vi.fn().mockResolvedValue({ schema_version: 2, terms: { "115-1": {}, "114-2": {} } }),
     getTerm: vi.fn().mockResolvedValue({
       termKey: "115-1", catalog: { courses: [{ offering_id: "A", name: { zh: "x" }, meetings: [], classes: [], teachers: [] }], term: { key: "115-1" }, freshness: {} },
       periods: { periods: [] }, classes: { classes: [] }, enrollment: null,

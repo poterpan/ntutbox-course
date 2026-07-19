@@ -72,6 +72,7 @@ export function SharedTimetableModal() {
             <DialogTitle className="sr-only">課程詳情</DialogTitle>
             <CourseDetailContent
               offeringId={detailId}
+              showProgramChips={false}
               onAfterPlace={() => setDetailId(null)}
               headerLeading={
                 <button

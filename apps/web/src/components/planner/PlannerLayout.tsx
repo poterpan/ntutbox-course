@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import { useTermStore } from "@/store/term-store";
 import { useUiStore } from "@/store/ui-store";
 import { useDraftStore } from "@/store/draft-store";
@@ -15,6 +16,7 @@ import { CreditSummary } from "./CreditSummary";
 import { TermSwitcher } from "./TermSwitcher";
 import { MatricSwitcher } from "./MatricSwitcher";
 import { FavoritesList } from "./FavoritesList";
+import { MicroProgramPane } from "./MicroProgramPane";
 import { NoTimeTray } from "./NoTimeTray";
 import { Toaster } from "@/components/ui/toast";
 import { useShareLink } from "@/lib/planner/use-share-link";
@@ -30,6 +32,7 @@ export function PlannerLayout() {
   const setLibraryOpen = useUiStore((s) => s.setLibraryOpen);
   const staleDropped = useUiStore((s) => s.staleDropped);
   const dismissStale = useUiStore((s) => s.dismissStale);
+  const belowLg = useBelowLg();
   useShareLink();
 
   return (
@@ -81,9 +84,11 @@ export function PlannerLayout() {
 
       <CreditSummary />
 
-      {/* mobile bottom-sheet library */}
+      {/* mobile bottom-sheet library — gate open by viewport: SheetContent portals to
+          <body> and escapes this lg:hidden wrapper, so on desktop libraryOpen (set by
+          openProgram 的微學程 chip) would otherwise stack the sheet over the常駐右欄。 */}
       <div className="lg:hidden">
-        <Sheet open={libraryOpen} onOpenChange={(o) => setLibraryOpen(o)}>
+        <Sheet open={libraryOpen && belowLg} onOpenChange={(o) => setLibraryOpen(o)}>
           <SheetTrigger
             render={
               <Button className="fixed bottom-28 right-4 z-30 h-12 rounded-full px-5 shadow-lg sm:bottom-20" />
@@ -165,12 +170,35 @@ function RightPanel() {
         <PanelTab active={tab === "favorites"} onClick={() => setTab("favorites")}>
           收藏{favCount > 0 ? ` ${favCount}` : ""}
         </PanelTab>
+        <PanelTab active={tab === "programs"} onClick={() => setTab("programs")}>微學程</PanelTab>
       </div>
       <div className="min-h-0 flex-1">
-        {tab === "courses" ? <CourseLibrary /> : <div className="thin-scroll h-full overflow-y-auto p-2"><FavoritesList /></div>}
+        {tab === "courses" ? (
+          <CourseLibrary />
+        ) : tab === "favorites" ? (
+          <div className="thin-scroll h-full overflow-y-auto p-2">
+            <FavoritesList />
+          </div>
+        ) : (
+          <MicroProgramPane />
+        )}
       </div>
     </div>
   );
+}
+
+// true 當視窗 < lg(1024px)。SSR/首繪預設 false（桌機不閃 sheet）；掛載後才依 matchMedia 校正。
+function useBelowLg() {
+  const [below, setBelow] = useState(false);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setBelow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return below;
 }
 
 function PanelTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
