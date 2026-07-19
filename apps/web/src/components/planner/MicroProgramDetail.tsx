@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { ChevronLeftIcon } from "lucide-react";
 import { useUiStore } from "@/store/ui-store";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
+import { cn } from "@/lib/utils";
 import { filterChipVariants } from "@/components/ui/filter-chip";
 import { OAA_MPROGRAM_URL } from "@/lib/planner/mprogram-links";
 import type { CourseOffering, MicroProgram, MicroProgramCourse } from "@/lib/data/types";
@@ -19,7 +20,16 @@ function classLabel(o: CourseOffering): string {
 
 function ChipButton({ oid, label, onOpen }: { oid: string; label: string; onOpen: (id: string) => void }) {
   return (
-    <button type="button" onClick={() => onOpen(oid)} className={filterChipVariants({ active: false })}>
+    <button
+      type="button"
+      onClick={() => onOpen(oid)}
+      // 可點提示：比照微學程列表列的 accent hover（列表用 ring，chip 用 border）。
+      // 覆寫 filterChipVariants inactive 的 hover:bg-white（twMerge 收斂）。
+      className={cn(
+        filterChipVariants({ active: false }),
+        "hover:border-[var(--accent)]/30 hover:bg-[var(--accent)]/10",
+      )}
+    >
       {label}
     </button>
   );
