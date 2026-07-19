@@ -28,9 +28,9 @@ const program = {
   name: "面板顯示微學程",
   offering_ids: ["101", "102", "103"],
   courses: [
-    { course_code: "C_ADV", name_zh: "進階面板設計", credits: 3, category: "進階", category_raw: null, emi: false },
-    { course_code: "C_BASE", name_zh: "面板概論", credits: 3, category: "基礎", category_raw: null, emi: false },
-    { course_code: "C_NONE", name_zh: "未開課主題", credits: 2, category: "基礎", category_raw: null, emi: false },
+    { course_code: "C_ADV", name_zh: "進階面板設計", credits: 3, category: "進階", category_raw: null, online: false },
+    { course_code: "C_BASE", name_zh: "面板概論", credits: 3, category: "基礎", category_raw: null, online: false },
+    { course_code: "C_NONE", name_zh: "未開課主題", credits: 2, category: "基礎", category_raw: null, online: false },
   ],
   rules_text: "須修滿 9 學分。\n含基礎與進階各一門。",
 } as unknown as MicroProgram;
@@ -60,8 +60,8 @@ describe("MicroProgramDetail", () => {
     const dup = {
       ...program,
       courses: [
-        { course_code: "C_BASE", name_zh: "面板概論", credits: 3, category: "基礎", category_raw: null, emi: false },
-        { course_code: "C_BASE", name_zh: "面板概論", credits: 3, category: "基礎", category_raw: null, emi: false },
+        { course_code: "C_BASE", name_zh: "面板概論", credits: 3, category: "基礎", category_raw: null, online: false },
+        { course_code: "C_BASE", name_zh: "面板概論", credits: 3, category: "基礎", category_raw: null, online: false },
       ],
     } as unknown as MicroProgram;
     render(<MicroProgramDetail program={dup} />);

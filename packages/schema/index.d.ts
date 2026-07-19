@@ -163,7 +163,7 @@ export type NameZh = string;
 export type Credits1 = number | null;
 export type Category = ("基礎" | "核心" | "總整" | "進階" | "應用") | null;
 export type CategoryRaw = string | null;
-export type Emi = boolean;
+export type Online = boolean;
 export type Courses1 = MicroProgramCourse[];
 export type RulesText = string | null;
 export type Programs = MicroProgram[];
@@ -479,7 +479,7 @@ export interface MicroProgramCourse {
   credits?: Credits1;
   category?: Category;
   category_raw?: CategoryRaw;
-  emi?: Emi;
+  online?: Online;
   [k: string]: unknown;
 }
 /**

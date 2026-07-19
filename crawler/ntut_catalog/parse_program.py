@@ -129,12 +129,15 @@ _MPROG_CATEGORY_BY_PREFIX = {"基": "基礎", "核": "核心", "總": "總整", 
 
 
 def normalize_mprogram_category(notes: str) -> tuple[Optional[str], bool]:
-    """微學程 notes 欄 → (category, emi)。無法辨識 → (None, emi)；勿猜。"""
+    """微學程 notes 欄 → (category, online)。無法辨識 → (None, online)；勿猜。
+
+    notes 含 e＝線上課程（ewant 平台；2026-07-19 經課程規劃書+創新學院清單確證，非 EMI）。
+    """
     raw = (notes or "").strip()
     letters = re.sub(r"[^A-Za-z]", "", raw)
-    emi = "e" in letters.lower()
+    online = "e" in letters.lower()
     rest = re.sub(r"[A-Za-z()（）]", "", raw).strip()
     if not rest:
-        return None, emi
+        return None, online
     cat = _MPROG_CATEGORY_BY_PREFIX.get(rest[0])
-    return cat, emi
+    return cat, online

@@ -391,7 +391,7 @@ class MicroProgramCourse(BaseModel):
     credits: Optional[float] = None
     category: Optional[MProgramCategory] = None   # notes 正規化；映不出 → None
     category_raw: Optional[str] = None            # notes 原文保底
-    emi: bool = False                             # notes 內 e 標記（Task 2 實證）
+    online: bool = False                          # notes 含 e＝線上課程（ewant 平台；2026-07-19 經課程規劃書+創新學院清單確證，非 EMI）
 
 
 class MicroProgram(BaseModel):

@@ -201,9 +201,10 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 
 **微學程 artifact（`mprograms.json` v2）**：
 - `mprograms.json` v2（SCHEMA_VERSION=2）：每學程除 `offering_ids` 外新增
-  `courses[]`（course_code/name_zh/credits/category(基礎|核心|總整|進階|應用|null)/category_raw/emi，
-  來源 Cprog -4 matric=H，notes 欄正規化；`emi`＝notes 含 e 注記，疑似英語授課但**未確證**，
-  消費端勿當確定事實呈現）與 `rules_text`（「相關規定」原文，保留換行不解析）。
+  `courses[]`（course_code/name_zh/credits/category(基礎|核心|總整|進階|應用|null)/category_raw/online，
+  來源 Cprog -4 matric=H，notes 欄正規化；`online`＝notes 含 e 注記＝**線上課程**（ewant 平台，不走選課系統，
+  catalog 11 學期查無開班；2026-07-19 經教務處 AVF 課程規劃書＋創新學院微學程清單確證，**非 EMI**）→
+  詳情頁顯示「線上課程」標記，取代誤導的未開課灰態）與 `rules_text`（「相關規定」原文，保留換行不解析）。
 
 **為「排課＋搶課」情境，schema 還需要學長沒有的欄位**：
 - **正規化 `meetings[]`**：`{day, periods[], classroomCodes[], weekPattern(all/odd/even), dateRange, group}`——比扁平 `time{day:[...]}` 多了單雙週/半學期/分組/教室關聯（排課衝堂要這些才準）。

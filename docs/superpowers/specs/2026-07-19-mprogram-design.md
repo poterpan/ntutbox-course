@@ -24,7 +24,7 @@
   - `course_code: str`、`name_zh: str`、`credits: Decimal`
   - `category: Literal["基礎","核心","總整","進階","應用"] | None`（正規化後；無法辨識 → `None`）
   - `category_raw: str | None`（Cprog notes 欄原文保底，如 `＊`、`核e`）
-  - `emi: bool = False`（notes 中的 `e` 標記拆出）
+  - `online: bool = False`（notes 中的 `e` 標記拆出＝線上課程；2026-07-19 確證＝ewant 平台線上課程，非 EMI）
 - `MicroProgram` 加欄位：`courses: list[MicroProgramCourse] = []`、`rules_text: str | None = None`（「相關規定」純文字，保留換行，**不解析內容**）。`offering_ids` 保留不動。
 - `SCHEMA_VERSION` 為全域常數（所有 artifact 共用）→ 遞增前確認 web 端讀取為寬鬆容錯（實作時驗證；若 web 有嚴格等值檢查，改為向後相容處理）。
 
@@ -33,7 +33,7 @@
 - `crawl_mprograms(client, term_key)` 擴充：既有 SearchMProgram 流程外，對每學程抓 `Cprog.jsp?format=-4&year=<Y>&matric=H&division=<code>`，其中 `<Y>` = term 的學年（115-1、115-2 皆為 115）。每學程 +1 請求（2026-07 實爬為 49 學程），沿用 client 既有節流。
   - 課程清單：**重用既有 `parse_cprog_standard`**，再映射成 `MicroProgramCourse`。
   - 新增 `parse_cprog_rules(html) -> str | None`：抓課程表格**之後**的單格 `<td><font>` 區塊，`<br>`→換行、去 tag、unescape。定位用**結構特徵**（課程表格後、含長文字的單格 table），**禁用 nth-child 索引**（gnehs 教訓）。找不到 → `None`，不丟例外。
-- notes → category 正規化：已知 8 變體 `基礎/核心/總整/進階/應用/＊/核e/e基`。`e` 疑似 EMI 標記黏連——**實作時開 2+ 個 live 頁實證 `e` 的語意再寫映射**，不猜。規則：拆出 `e` → `emi=True`；餘字前綴映射（基→基礎、核→核心、總→總整）；映不出 → `category=None` + 保留 `category_raw`。
+- notes → category 正規化：已知 8 變體 `基礎/核心/總整/進階/應用/＊/核e/e基`。`e` 標記＝**線上課程**（2026-07-19 經課程規劃書＋創新學院清單確證＝ewant 線上課程，非 EMI）。規則：拆出 `e` → `online=True`；餘字前綴映射（基→基礎、核→核心、總→總整）；映不出 → `category=None` + 保留 `category_raw`。
 - 解析防呆沿用 repo 慣例：html5lib、表頭定位、缺欄 → null 不回退預設值。
 
 ### Pipeline
@@ -53,7 +53,7 @@
 - **`MicroProgramList`**（tab 首層）：全學程清單（2026-07 實爬 49），每列＝學程名＋本學期開課班數；頂部 `SearchInput`（variant=inset）前端過濾（不進 bigram 索引）。列表底部放教務處微學程專區連結（涵蓋未進系統的學程）。
 - **`MicroProgramDetail`**（同面板 drill-in，含返回）：
   - 頂部 context copy 一句：「112 學年度起入學之日間部大學部，畢業前須完成跨領域學習（微學程為五種路徑之一）；修讀須於教務處公告期間登記。」
-  - **分類課程清單**：依 基礎/核心/總整（/進階/應用）分組；每課顯示課名、學分；EMI 不渲染（e 注記語意未確證，僅存資料層；見計畫附錄 A）；本學期有開 → 班級 chips（FilterChip 樣式）可點 → 開 `CourseDetailDrawer` 排入；未開 → 灰態「本學期未開」。
+  - **分類課程清單**：依 基礎/核心/總整（/進階/應用）分組；每課顯示課名、學分；`online`（e 標記，確證＝ewant 線上課程）→ 詳情顯示「線上課程」標記，取代誤導的未開課灰態；本學期有開 → 班級 chips（FilterChip 樣式）可點 → 開 `CourseDetailDrawer` 排入；非線上且未開 → 灰態「本學期未開」。
   - **規則原文**：`rules_text` 以 `whitespace-pre-line` 摺疊區塊呈現；固定外連「完整規定與課程規劃書（教務處微學程專區）」——連專區入口頁，**不做逐學程 PDF 對映**（URL 不穩定）。
 - **`CourseDetailDrawer`** 加「屬於：XX 微學程」chips（反查索引）；點擊 → 切到 programs tab 並開該學程 detail。
 

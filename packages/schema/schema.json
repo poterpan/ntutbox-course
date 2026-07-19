@@ -1433,9 +1433,9 @@
           "default": null,
           "title": "Category Raw"
         },
-        "emi": {
+        "online": {
           "default": false,
-          "title": "Emi",
+          "title": "Online",
           "type": "boolean"
         }
       },

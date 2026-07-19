@@ -65,10 +65,10 @@ def crawl_mprograms(client, term_key: str) -> MicroProgramDirectory:
                 for sc in std.courses:
                     if not sc.course_code:
                         continue
-                    category, emi = normalize_mprogram_category(sc.notes)
+                    category, online = normalize_mprogram_category(sc.notes)
                     parsed.append(MicroProgramCourse(
                         course_code=sc.course_code, name_zh=sc.name_zh, credits=sc.credits,
-                        category=category, category_raw=(sc.notes or None), emi=emi))
+                        category=category, category_raw=(sc.notes or None), online=online))
                 courses = parsed
             except Exception:  # noqa: BLE001
                 logger.warning("[%s] cprog -4 courses parse failed for %s", term_key, code, exc_info=True)

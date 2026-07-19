@@ -68,11 +68,11 @@ def test_parse_cprog_rules_absent():
     assert parse_cprog_rules(html) is None
 
 
-@pytest.mark.parametrize("raw,cat,emi", [
+@pytest.mark.parametrize("raw,cat,online", [
     ("基礎", "基礎", False), ("核心", "核心", False), ("總整", "總整", False),
     ("進階", "進階", False), ("應用", "應用", False),
     ("核e", "核心", True), ("e基", "基礎", True),
     ("＊", None, False), ("", None, False), ("(e)", None, True),
 ])
-def test_normalize_mprogram_category(raw, cat, emi):
-    assert normalize_mprogram_category(raw) == (cat, emi)
+def test_normalize_mprogram_category(raw, cat, online):
+    assert normalize_mprogram_category(raw) == (cat, online)
