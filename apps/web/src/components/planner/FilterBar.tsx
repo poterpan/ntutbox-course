@@ -13,8 +13,17 @@ const PERIODS = ["1", "2", "3", "4", "N", "5", "6", "7", "8", "9", "A", "B", "C"
 export interface UnitOption { code: string; name: string }
 export interface ClassOption { code: string; name: string; kind?: string }
 
-export function FilterBar({ units, classes }: { units: UnitOption[]; classes: ClassOption[] }) {
-  const { filters, toggleFilterValue, cycleEmi, setFilters } = useUiStore();
+export function FilterBar({
+  units,
+  classes,
+  mprogramReady = false,
+}: {
+  units: UnitOption[];
+  classes: ClassOption[];
+  // 微學程目錄是否就緒；未就緒時三態 chip disabled（不做錯誤的空篩選）。
+  mprogramReady?: boolean;
+}) {
+  const { filters, toggleFilterValue, cycleEmi, cycleMprogram, setFilters } = useUiStore();
 
   const collegeOpts: ComboOption[] = allColleges().map((c) => ({ value: c, label: c }));
   const unitOpts: ComboOption[] = units.map((u) => ({ value: u.code, label: u.name || u.code }));
@@ -27,7 +36,8 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
   const timeActive = filters.weekdays.length + filters.periods.length;
   const anyActive =
     filters.weekdays.length || filters.periods.length || filters.colleges.length ||
-    filters.units.length || filters.classes.length || filters.categories.length || filters.emi !== "all";
+    filters.units.length || filters.classes.length || filters.categories.length ||
+    filters.emi !== "all" || filters.mprogram !== "all";
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -98,6 +108,19 @@ export function FilterBar({ units, classes }: { units: UnitOption[]; classes: Cl
         className={filterChipVariants({ active: filters.emi !== "all" })}
       >
         {filters.emi === "emi" ? "✓ 英文授課" : filters.emi === "non_emi" ? "✕ 非英文授課" : "英文授課"}
+      </button>
+
+      <button
+        type="button"
+        disabled={!mprogramReady}
+        aria-label={`微學程篩選：${filters.mprogram === "all" ? "關閉" : filters.mprogram === "only" ? "只看微學程" : "排除微學程"}（點擊循環）`}
+        onClick={cycleMprogram}
+        className={cn(
+          filterChipVariants({ active: filters.mprogram !== "all" }),
+          !mprogramReady && "cursor-not-allowed opacity-40",
+        )}
+      >
+        {filters.mprogram === "only" ? "✓ 微學程" : filters.mprogram === "exclude" ? "✕ 非微學程" : "微學程"}
       </button>
 
       {anyActive ? (

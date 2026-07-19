@@ -1,8 +1,10 @@
 import { create } from "zustand";
-import { EMPTY_FILTER, type FilterState, type EmiFilter } from "@/lib/filters/types";
+import { EMPTY_FILTER, type FilterState, type EmiFilter, type MprogramFilter } from "@/lib/filters/types";
 
 // 英文授課三態循環：關閉 → 只看英文授課 → 排除英文授課 → 關閉。
 const EMI_CYCLE: Record<EmiFilter, EmiFilter> = { all: "emi", emi: "non_emi", non_emi: "all" };
+// 微學程三態循環：關閉 → 只看微學程 → 排除微學程 → 關閉。
+const MPROGRAM_CYCLE: Record<MprogramFilter, MprogramFilter> = { all: "only", only: "exclude", exclude: "all" };
 
 export interface ActiveSlot { day: number; period: string; }
 
@@ -27,6 +29,8 @@ interface UiState {
   toggleFilterValue: (key: "weekdays" | "periods" | "colleges" | "units" | "classes" | "categories", value: string | number) => void;
   setEmi: (v: EmiFilter) => void;
   cycleEmi: () => void;
+  setMprogram: (v: MprogramFilter) => void;
+  cycleMprogram: () => void;
   openSlot: (s: ActiveSlot | null) => void;
   openDetail: (id: string | null) => void;
   setHoveredOffering: (id: string | null) => void;
@@ -57,6 +61,8 @@ export const useUiStore = create<UiState>((set) => ({
   }),
   setEmi: (emi) => set((s) => ({ filters: { ...s.filters, emi } })),
   cycleEmi: () => set((s) => ({ filters: { ...s.filters, emi: EMI_CYCLE[s.filters.emi] } })),
+  setMprogram: (mprogram) => set((s) => ({ filters: { ...s.filters, mprogram } })),
+  cycleMprogram: () => set((s) => ({ filters: { ...s.filters, mprogram: MPROGRAM_CYCLE[s.filters.mprogram] } })),
   openSlot: (activeSlot) => set({ activeSlot }),
   openDetail: (detailOfferingId) => set({ detailOfferingId }),
   setHoveredOffering: (hoveredOfferingId) => set({ hoveredOfferingId }),
