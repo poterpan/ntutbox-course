@@ -78,7 +78,7 @@ def test_maps_checkmark_and_school_glyph():
     (0xE1B7, "姉"),
     (0xE1DA, "啓"),
     (0xE1EB, "爲"),
-    (0xE26C, "晰"),
+    (0xE26C, "晣"),
 ])
 def test_pua_map_matches_gserver_glyphs(cp, want):
     # 全 42 個學校造字對照（GServer 採收＋使用者考證修正 E031/E10D/E0E1）；見 docs/research/2026-07-20-pua-glyph-verification.md

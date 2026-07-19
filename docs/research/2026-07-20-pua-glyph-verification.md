@@ -85,7 +85,7 @@
 | `U+E1B7` | 姉 (U+59C9) | high | 教師 [吳姉霙](https://aps.ntut.edu.tw/course/tw/Teach.jsp?format=-3&year=115&sem=1&code=24191)（115-1） | 本 PR 新增 PUA_MAP |
 | `U+E1DA` | 啓 (U+5553) | high | 課綱課號 [361268](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=361268&code=12531)：…美國都市街道生活的啓發. Transl…；課綱課號 [366806](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=366806&code=22487)：…哲學」對應指標「2.啓發思辨」有關。若採… | 本 PR 新增 PUA_MAP |
 | `U+E1EB` | 爲 (U+7232) | high | 課綱課號 [362202](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=362202&code=11388)：…2週進行，1-16週爲課堂實體上課，17… | 本 PR 新增 PUA_MAP |
-| `U+E26C` | 晰 (U+6670) | high | 教師 [羅睿晰](https://aps.ntut.edu.tw/course/tw/Teach.jsp?format=-3&year=115&sem=1&code=24626)（115-1） | 本 PR 新增 PUA_MAP |
+| `U+E26C` | 晣 (U+6663) | 使用者考證 | 教師 [羅睿晣](https://aps.ntut.edu.tw/course/tw/Teach.jsp?format=-3&year=115&sem=1&code=24626)（115-1）；政大師資頁 [羅睿晣](https://chinese.nccu.edu.tw/PageStaffing/Detail?fid=6122&id=4947)（同一國文兼任）；字形右旁折(扌+斤)非晰的木旁 | 本 PR 新增 PUA_MAP |
 | `U+EF0D` | （無字形） | — | 課程說明課號 [363795](https://aps.ntut.edu.tw/course/tw/Curr.jsp?format=-2&code=363795)：…象及其應用。內容包括◻輔G熱力學?高分子…；課程說明課號 [365315](https://aps.ntut.edu.tw/course/tw/Curr.jsp?format=-2&code=365315)：…象及其應用。內容包括◻輔G熱力學?高分子… | **不入表**（無輪廓，見 §4.2） |
 
 ## 4. 需人工確認／特例（不入 `PUA_MAP`）
@@ -98,7 +98,7 @@ GServer 字形上部與 `U+E0B2`（勳）同族但略異，字形上**最像 勲
 
 ### 4.2 `U+EF0D` — 無字形（不處理）
 
-`MingGaiji.TTE` cmap 雖有此碼位，但 `glyf` 無輪廓（回空字形），研判非學校實際造字。出現在課程說明，例：課號 [363795](https://aps.ntut.edu.tw/course/tw/Curr.jsp?format=-2&code=363795)「…象及其應用。內容包括◻輔G熱力學?高分子…」。**不入 `PUA_MAP`、原樣保留**。
+`MingGaiji.TTE` cmap 雖有此碼位，但 `glyf` 無輪廓（回空字形），研判非學校實際造字。出現在課程說明，例：課號 [363795](https://aps.ntut.edu.tw/course/tw/Curr.jsp?format=-2&code=363795)「…象及其應用。內容包括◻輔G熱力學?高分子…」。**留原樣、不入 `PUA_MAP`**；該課程簡介文字本身多重壞損（含裸 `?` 等），無可靠語境可考。（曾一度被當作 E26C「晣」的候選來源，已釐清該證據屬 `U+E26C`；`EF0D` 本身仍無字形。）
 
 ## 5. 可信度與方法
 
@@ -106,7 +106,7 @@ GServer 字形上部與 `U+E0B2`（勳）同族但略異，字形上**最像 勲
 
 - **異體字忠實**：認定字保留來源字形的異體（峯／羣／双／塲／姉／啓／爲／溫 等），`U+` 以 `ord()` 計算入庫，不正規化為通用體。
 
-- **教訓：近似字（凃／涂、苷／昔、勳／勲）僅靠字形目視會誤判**——GServer 字形是強線索但非終審。`E031`（凃 vs 涂：左旁冫/氵）、`E10D`（苷 vs 昔：艹+甘 vs 日+昔）、`E0E1`（勳 vs 勲：下部 力/灬）三筆採收初判有誤，經使用者以**上下文與外部佐證**（教材作者姓名、生化術語「核苷酸」、教師本人社群帳號）覆核修正。**上下文與外部佐證優先於字形辨識**。
+- **教訓：近似字（凃／涂、苷／昔、晣／晰）僅靠字形目視會誤判**——GServer 字形是強線索但非終審。`E031`（凃 vs 涂：左旁 冫/氵）、`E10D`（苷 vs 昔：艹+甘 vs 昔）、`E26C`（晣 vs 晰：右旁 折(扌+斤)/析(木+斤)）三筆採收初判皆有誤，經使用者以**上下文與外部佐證**（教材作者「凃俐雯」、生化術語「核苷酸」、政大師資頁「羅睿晣」）覆核修正。另 `E0E1` 字形最像日式異體 勲，亦經教師本人社群帳號確認實為 勳（見 §4.1）。**上下文與外部佐證優先於字形辨識**。
 
 - **分層不變**：造字只在 v1 消費層由 `PUA_MAP` 正規化，canonical 忠實保留來源原文；合併後每日 cron 重建 v1 時自動生效於全歷史學期，不需重爬。
 

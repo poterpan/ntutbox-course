@@ -194,7 +194,7 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 **未收錄的碼位一律原樣保留（不猜、不刪）**。目前對照表：9 個 Word 符號（●■□◆•➢✓☑ 與算式內的 ±）＋ 42 個學校造字
 （GServer 字形認定，部分經使用者考證覆核）。**造字字形可經學校 GServer 外字服務（`font.ntut.edu.tw` 的 `MingGaiji.TTE`）半自動考證**，
 協定、認字方法與已認定清單見 `docs/research/2026-07-20-pua-glyph-verification.md`（6 個既有系網考證與 GServer 字形完全吻合＝權威反證；
-近似字如 凃/涂、苷/昔、勳/勲 需上下文與外部佐證覆核；`U+EF0D` 無字形、證據未定，不入表）。分層好處：不需重爬，下次 publish 重建 v1 即修正全歷史學期；造字考證可持續補 `PUA_MAP`。
+近似字如 凃/涂、苷/昔、晣/晰 需上下文與外部佐證覆核；`U+EF0D` 無字形、證據未定，不入表）。分層好處：不需重爬，下次 publish 重建 v1 即修正全歷史學期；造字考證可持續補 `PUA_MAP`。
 `manifest` 的 `dataset_version` = `catalog.json` sha256，會因正規化改變（屬預期：內容確實變乾淨了），非正規化學期不受影響。
 
 **建議檔案佈局（v1）**：
