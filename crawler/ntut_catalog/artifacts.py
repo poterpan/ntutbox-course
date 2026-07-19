@@ -27,9 +27,20 @@ from models import (
 )
 from ntut_catalog.orchestrator import TermResult
 from ntut_catalog.periods import build_period_table
+from ntut_catalog.pua import normalize_pua
 
 # normalize.py 寫入 raw_fields 的 volatile 鍵（人數/撤選），結構檔需剔除以免每日 churn
 _VOLATILE_RAW_KEYS = ("enrolled", "withdrawn")
+
+
+def _write_v1_json(path: Path, text: str) -> None:
+    """寫出 v1 JSON：先做 PUA 正規化（canonical 不動，只有消費層 v1 修）。
+
+    PUA 碼位只出現在字串值、不會落在 JSON 結構字元，且本 repo 序列化一律不 \\u 轉義
+    （model_dump_json / json.dumps(ensure_ascii=False) 皆直出 raw UTF-8）→ 對序列化文字
+    做碼位替換與對物件遞迴替換等價，且保留原位元組格式（僅 PUA→真字處位元組改變）。
+    """
+    path.write_text(normalize_pua(text), encoding="utf-8")
 
 
 def structural_course(c: CourseOffering) -> CourseOffering:
@@ -109,16 +120,15 @@ def build_v1(out_dir: Path, generated_at: str) -> Manifest:
         )
         v1 = out_dir / "v1" / "terms" / term
         v1.mkdir(parents=True, exist_ok=True)
-        (v1 / "catalog.json").write_text(catalog.model_dump_json(), encoding="utf-8")
+        _write_v1_json(v1 / "catalog.json", catalog.model_dump_json())
         # names 索引（邊緣 OG 用；課號→中文課名，小檔、隨 cron 自動發，新學期零介入）
         names = {c.offering_id: c.name.zh for c in courses if c.name and c.name.zh}
-        (v1 / "names.json").write_text(
-            json.dumps(names, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
+        _write_v1_json(
+            v1 / "names.json",
+            json.dumps(names, ensure_ascii=False, separators=(",", ":")),
         )
-        (v1 / "classes.json").write_text(
-            (term_dir / "classes.json").read_text(encoding="utf-8"), encoding="utf-8"
-        )
-        (v1 / "periods.json").write_text(periods_json, encoding="utf-8")
+        _write_v1_json(v1 / "classes.json", (term_dir / "classes.json").read_text(encoding="utf-8"))
+        _write_v1_json(v1 / "periods.json", periods_json)
         # 最新 snapshot → enrollment.json overlay
         snaps = sorted((term_dir / "enrollment").glob("*.ndjson")) if (term_dir / "enrollment").exists() else []
         counts: dict = {}
@@ -134,14 +144,14 @@ def build_v1(out_dir: Path, generated_at: str) -> Manifest:
                     observed_at=r["observed_at"],
                 )
                 observed = r["observed_at"]
-        (v1 / "enrollment.json").write_text(
+        _write_v1_json(
+            v1 / "enrollment.json",
             EnrollmentLatest(term_key=term, observed_at=observed, counts=counts).model_dump_json(),
-            encoding="utf-8",
         )
         # 選用：微學程（canonical/{term}/mprograms.json 存在才複製）
         mp = term_dir / "mprograms.json"
         if mp.exists():
-            (v1 / "mprograms.json").write_text(mp.read_text(encoding="utf-8"), encoding="utf-8")
+            _write_v1_json(v1 / "mprograms.json", mp.read_text(encoding="utf-8"))
         # 選用：詳情（canonical/{term}/details.ndjson 存在 → 炸成 course/{id}.json）
         det = term_dir / "details.ndjson"
         if det.exists():
@@ -151,14 +161,14 @@ def build_v1(out_dir: Path, generated_at: str) -> Manifest:
                 if not line.strip():
                     continue
                 oid = json.loads(line)["offering_id"]
-                (cdir / f"{oid}.json").write_text(line, encoding="utf-8")
+                _write_v1_json(cdir / f"{oid}.json", line)
     # 課程標準（跨入學年，canonical/standards/*.json → v1/standards/）
     std_src = out_dir / "canonical" / "standards"
     if std_src.exists():
         std_dst = out_dir / "v1" / "standards"
         std_dst.mkdir(parents=True, exist_ok=True)
         for f in std_src.glob("*.json"):
-            (std_dst / f.name).write_text(f.read_text(encoding="utf-8"), encoding="utf-8")
+            _write_v1_json(std_dst / f.name, f.read_text(encoding="utf-8"))
     return write_manifest(out_dir, generated_at)
 
 
