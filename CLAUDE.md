@@ -9,12 +9,13 @@
 - **送件在 App**：iOS App（Swift，獨立專案）負責登入與送件；Web ↔ App 只透過「選課計畫 payload」串接。
 - 母品牌北科盒子為 **iOS 專屬**、遵循 Apple 美學（Liquid Glass）；本 Web 視覺向其靠攏（可再豐富，但別偏離太多）。
 
-## 現況（2026-06-13）
-**P0 爬蟲完成**：`crawler/ntut_catalog/` 已實作（33 tests），110-1～115-1 共 11 學期 32,338 課爬畢，
+## 現況（2026-07-19）
+**P0 爬蟲完成**：`crawler/ntut_catalog/` 已實作，110-1～115-1 共 11 學期 32,338 課爬畢，
 全過 `models.py` 驗證，產物在 `data/`（canonical NDJSON + v1 JSON artifacts + manifest）。
 實作與 live 探測結論（stime 必帶、「全校查詢被擋」其實只是前端 JS 等）見 `docs/superpowers/plans/2026-06-13-crawler-p0.md` 與 `crawler/README.md`。
-- **下一步**：P1 Web 排課器（`apps/web/`）或 infra（GitHub Actions cron + R2 發佈）。
-- 未爬（P1 需要再做）：課程描述/課綱詳情檔、微學程、課程標準（requirement.category 對映）。
+- **進行中**：P1 Web 排課器（`apps/web/`）已上線並持續擴充（最新：微學程瀏覽，見 feat/mprogram PR）；infra（GitHub Actions cron + R2 發佈）持續。
+- 課程描述/課綱詳情（details.ndjson）、微學程（mprograms.json v2：開課+分類課程+規則原文）、
+  課程標準（standards/<entry_year>.json）皆已爬；微學程 Web UI 見 feat/mprogram PR。
 
 ## 路線（技術文件 Phase 0–4）
 - **P0：資料 + 爬蟲 PoC**（穩定產出 catalog JSON）← **現在**

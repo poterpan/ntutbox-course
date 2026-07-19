@@ -43,7 +43,7 @@
 
 ## §2 Web 資料層（`apps/web`）
 
-- 新 hook `use-mprograms`：切到微學程 tab 才 **lazy fetch** `v1/terms/<term>/mprograms.json`（不增首屏 payload），沿用既有 SW 快取策略與 CORS 前提（資料在 cdn.ntutbox.com）。
+- 新 hook `use-mprograms`：切到微學程 tab 才 **lazy fetch** `v1/terms/<term>/mprograms.json`（不增首屏 payload），快取＝hook 內記憶體 cache（web 目前尚無 Service Worker；PWA 為既有 roadmap 項）與 CORS 前提（資料在 cdn.ntutbox.com）。
 - TS 型別：`packages/schema` 重新生成（Pydantic → schema.json → index.d.ts）。
 - 反查索引：由 mprograms 建 `Map<offering_id, MicroProgram[]>` 供課程詳情 badge 用。catalog 的 `interdisciplinary`（models.py:314，inline 學程名原文）**僅交叉核對、不當資料源**（對不出學程代碼）。
 
@@ -53,7 +53,7 @@
 - **`MicroProgramList`**（tab 首層）：46 學程清單，每列＝學程名＋本學期開課班數；頂部 `SearchInput`（variant=inset）前端過濾（不進 bigram 索引）。列表底部放教務處微學程專區連結（涵蓋未進系統的學程）。
 - **`MicroProgramDetail`**（同面板 drill-in，含返回）：
   - 頂部 context copy 一句：「112 學年度起入學之日間部大學部，畢業前須完成跨領域學習（微學程為五種路徑之一）；修讀須於教務處公告期間登記。」
-  - **分類課程清單**：依 基礎/核心/總整（/進階/應用）分組；每課顯示課名、學分、EMI 標記；本學期有開 → 班級 chips（FilterChip 樣式）可點 → 開 `CourseDetailDrawer` 排入；未開 → 灰態「本學期未開」。
+  - **分類課程清單**：依 基礎/核心/總整（/進階/應用）分組；每課顯示課名、學分；EMI 不渲染（e 注記語意未確證，僅存資料層；見計畫附錄 A）；本學期有開 → 班級 chips（FilterChip 樣式）可點 → 開 `CourseDetailDrawer` 排入；未開 → 灰態「本學期未開」。
   - **規則原文**：`rules_text` 以 `whitespace-pre-line` 摺疊區塊呈現；固定外連「完整規定與課程規劃書（教務處微學程專區）」——連專區入口頁，**不做逐學程 PDF 對映**（URL 不穩定）。
 - **`CourseDetailDrawer`** 加「屬於：XX 微學程」chips（反查索引）；點擊 → 切到 programs tab 並開該學程 detail。
 
@@ -77,5 +77,5 @@
 ## §6 PR 打包
 
 - 分支：`feat/mprogram`（worktree `../ntutbox-course-mprogram`），PR 進 main，不直推。
-- 內容：crawler 擴充＋web UI＋`crawl.yml` 補 cron 步驟＋重爬的 `data/` 產物＋docs（本 spec、`docs/research/2026-07-19-mprogram.md`、DESIGN.md 補 mprograms v2 schema、CLAUDE.md「現況」段修正——微學程/課程標準/課程詳情已爬）。
+- 內容：crawler 擴充＋web UI＋`crawl.yml` 補 cron 步驟＋docs（本 spec、`docs/research/2026-07-19-mprogram.md`、DESIGN.md 補 mprograms v2 schema、CLAUDE.md「現況」段修正——微學程/課程標準/課程詳情已爬）。data 產物走 data branch/CI（main PR 不含資料）；merge 後以 workflow_dispatch 觸發 crawl.yml 重爬並發佈 R2。
 - 公開 repo 守則：不得含學生個資（學號/cunum/帳密/session）。學程聯絡教師姓名/email 屬學校公開發布的機構聯絡資訊，**非**守則所指個資——`rules_text` 照原文保存並隨 artifact 公開發佈；docs 引例時省略 email 僅為避免餵 spam 爬蟲，非硬性要求。
