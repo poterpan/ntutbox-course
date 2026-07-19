@@ -49,7 +49,8 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 - `ntut_catalog/periods.py` — 節次↔牆鐘（官方頁尾表，靜態+爬取時驗證）
 
 ### 自動化 / 發佈
-- `../.github/workflows/crawl.yml` — 每日 cron（自動偵測當前學期）→ commit `data` branch → 發佈 R2。
+- `../.github/workflows/crawl.yml` — 每日 cron（自動偵測當前學期）→ catalog/enrollment + 微學程 + pua-scan 新造字監測 → commit `data` branch → 發佈 R2。
+- `../.github/workflows/crawl-details.yml` — 每週日 cron 爬當前學期課綱詳情（+ pua-scan）→ commit `data` branch → 發佈 R2（含 `--include-details`）。
 - `../.github/workflows/crawl-enrollment.yml` — 選課季每小時人數刷新（`ENROLLMENT_FAST_UNTIL` 窗口閘）。
 - `../.github/workflows/publish-v1.yml` — 手動：從 data branch 重建 v1 + 發佈 R2（可 `--include-details` 補發大綱）。
 - `../infra/publish.py`（build-v1 + quality gate + 原子發佈 + `--include-details`）、`redline_scan.py`（free-text 跳過 student-id 啟發）、`SETUP.md`。
@@ -57,7 +58,8 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 ## 後續（非本輪）
 - 校曆（Google Calendar ical）→ `.ics` 匯出 / 學期起訖（P1）。
 - 退選率分析（衍生自 enrollment 時序 snapshots）。
-- detail/mprograms/standards 的「新學期自動爬取」掛入排程（目前為手動/dispatch）。
+- standards 的「新學期自動爬取」掛入排程（目前手動；無 web 消費者，暫緩）。
+  （mprograms 已入每日排程 #41、detail 已入週更 #47。）
 - 較早入學年的 standards backfill（目前僅 115）。
 
 ## 注意

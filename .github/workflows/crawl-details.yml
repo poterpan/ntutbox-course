@@ -52,15 +52,16 @@ jobs:
         run: npm install -g wrangler@4
 
       # 不可信輸入只經由 env 注入，不直接插入 shell（防 command injection）
+      # 排程（無 INPUT_TERMS）＝永遠只跟「當前學期」：詳情週更每學期 ~5k 請求，
+      # 刻意不吃 vars.ACTIVE_TERMS（它一旦被設成範圍，週更就會突然爬全歷史）。
+      # 補爬走手動 dispatch 的 INPUT_TERMS（保留 110-1:115-1 範圍語法）。
       - name: Resolve terms
         id: terms
         env:
           INPUT_TERMS: ${{ github.event.inputs.terms }}
-          ACTIVE_TERMS: ${{ vars.ACTIVE_TERMS }}
         run: |
           set -euo pipefail
           T="$INPUT_TERMS"
-          if [ -z "$T" ]; then T="$ACTIVE_TERMS"; fi
           if [ -z "$T" ]; then
             T="$(python -m ntut_catalog current-term)"
             echo "auto-detected current term: $T"
