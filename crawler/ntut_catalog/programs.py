@@ -30,7 +30,15 @@ def _term(term_key: str):
 def crawl_mprograms(client, term_key: str) -> MicroProgramDirectory:
     year, sem = _term(term_key)
     programs = []
-    for code, name in parse_mprogram_list(client.mprogram_list(year, sem)):
+    entries = list(parse_mprogram_list(client.mprogram_list(year, sem)))
+    # 上游若改版但仍回 HTTP 200，解析會得到 0 個學程。此時拋錯（fail loud），
+    # 避免 programs=[] 被當成合法結果覆寫並清空既有 canonical 微學程資料。
+    if not entries:
+        raise ValueError(
+            f"[{term_key}] SearchMProgram 解析出 0 個微學程——疑似上游改版，"
+            f"中止以保留既有資料"
+        )
+    for code, name in entries:
         try:
             rows = parse_course_rows(client.mprogram(year, sem, code))
             oids = [r.offering_id for r in rows]

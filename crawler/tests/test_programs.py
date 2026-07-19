@@ -6,8 +6,10 @@ FIXTURES = Path(__file__).parent / "fixtures"
 
 
 class FakeProgClient:
-    def __init__(self, broken=None, raising=None):
-        self.mlist = (FIXTURES / "mprogram_list_115-1.html").read_text(encoding="utf-8")
+    def __init__(self, broken=None, raising=None, mlist_html=None):
+        # mlist_html：覆寫學程清單頁原始 HTML（模擬上游改版仍回 HTTP 200 但無學程連結）
+        self.mlist = mlist_html if mlist_html is not None else (
+            FIXTURES / "mprogram_list_115-1.html").read_text(encoding="utf-8")
         self.mdetail = (FIXTURES / "mprogram_AV9.html").read_text(encoding="utf-8")
         self.cmatric = (FIXTURES / "cprog_-2_115.html").read_text(encoding="utf-8")
         self.cdiv = (FIXTURES / "cprog_-3_115_7.html").read_text(encoding="utf-8")
@@ -82,6 +84,17 @@ def test_crawl_mprograms_cprog_raise_isolated():
     healthy = next(p for p in d.programs if p.code != "AV9")
     assert len(healthy.courses) == 27
     assert healthy.rules_text is not None
+
+
+def test_crawl_mprograms_empty_list_raises():
+    """上游改版仍回 HTTP 200 但無任何學程連結 → 拋 ValueError（含 term_key），
+    避免 programs=[] 靜默覆寫並清空既有 canonical 資料。"""
+    import pytest
+
+    client = FakeProgClient(mlist_html="<html><body>改版了</body></html>")
+    with pytest.raises(ValueError) as exc:
+        crawl_mprograms(client, "115-1")
+    assert "115-1" in str(exc.value)
 
 
 def test_crawl_standards():
