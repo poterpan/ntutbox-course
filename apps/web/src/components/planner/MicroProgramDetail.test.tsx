@@ -55,6 +55,19 @@ describe("MicroProgramDetail", () => {
     expect(screen.getByText("2 學分")).toBeInTheDocument();
   });
 
+  it("course_code 重複（課程標準同編碼多列）→ 去重只呈現一列", () => {
+    // 面板/感測等學程實資料出現同 course_code 重複列，會撞 React key 並顯示重複；驗證去重。
+    const dup = {
+      ...program,
+      courses: [
+        { course_code: "C_BASE", name_zh: "面板概論", credits: 3, category: "基礎", category_raw: null, emi: false },
+        { course_code: "C_BASE", name_zh: "面板概論", credits: 3, category: "基礎", category_raw: null, emi: false },
+      ],
+    } as unknown as MicroProgram;
+    render(<MicroProgramDetail program={dup} />);
+    expect(screen.getAllByText("面板概論")).toHaveLength(1);
+  });
+
   it("context copy 逐字呈現", () => {
     render(<MicroProgramDetail program={program} />);
     expect(

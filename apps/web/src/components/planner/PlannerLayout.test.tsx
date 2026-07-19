@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent, act } from "@testing-library/react";
 
 vi.mock("@/lib/data", () => ({
   getDataSource: () => ({
@@ -27,9 +27,19 @@ const mprogramDir = {
   programs: [{ code: "AV2", name: "面板微學程", offering_ids: ["1", "2"], courses: [], rules_text: null }],
 } as never;
 
+// jsdom 無 matchMedia；模擬視窗寬度（matches=true 代表 < lg）。
+function mockMatchMedia(matches: boolean) {
+  window.matchMedia = vi.fn().mockImplementation((query: string) => ({
+    matches, media: query, onchange: null,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(),
+    addListener: vi.fn(), removeListener: vi.fn(), dispatchEvent: vi.fn(),
+  })) as never;
+}
+
 beforeEach(() => {
   vi.restoreAllMocks();
-  useUiStore.setState({ libraryTab: "courses", selectedProgramCode: null });
+  delete (window as { matchMedia?: unknown }).matchMedia;
+  useUiStore.setState({ libraryTab: "courses", selectedProgramCode: null, libraryOpen: false });
   mockedMprograms.mockReturnValue({ data: mprogramDir, loading: false, error: false, retry: vi.fn() });
 });
 
@@ -48,5 +58,28 @@ describe("PlannerLayout (integration)", () => {
     fireEvent.click(screen.getByRole("button", { name: "微學程" }));
     expect(screen.getByPlaceholderText("搜尋微學程…")).toBeInTheDocument();
     expect(screen.getByText("面板微學程")).toBeInTheDocument();
+  });
+
+  // 迴歸：openProgram 設 libraryOpen=true 供手機開 bottom-sheet；SheetContent portal 逃出 lg:hidden，
+  // 桌機須以視窗寬度 gating，避免把 sheet 疊在常駐右欄上（重複呈現面板詳情）。
+  it("桌機(≥lg)：libraryOpen=true 不開手機 sheet（無 dialog 疊層，面板留在常駐右欄）", async () => {
+    mockMatchMedia(false);
+    render(<PlannerLayout />);
+    await waitFor(() => expect(screen.getByText("微積分")).toBeInTheDocument());
+    await act(async () => {
+      useUiStore.setState({ libraryTab: "programs", selectedProgramCode: "AV2", libraryOpen: true });
+    });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.getByRole("heading", { name: "面板微學程", level: 2 })).toBeInTheDocument();
+  });
+
+  it("手機(<lg)：libraryOpen=true 開 bottom-sheet dialog", async () => {
+    mockMatchMedia(true);
+    render(<PlannerLayout />);
+    await waitFor(() => expect(screen.getByText("微積分")).toBeInTheDocument());
+    await act(async () => {
+      useUiStore.setState({ libraryTab: "programs", selectedProgramCode: "AV2", libraryOpen: true });
+    });
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
   });
 });

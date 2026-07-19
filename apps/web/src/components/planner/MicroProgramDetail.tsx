@@ -62,7 +62,11 @@ export function MicroProgramDetail({ program }: { program: MicroProgram }) {
 
   const groups = useMemo(() => {
     const buckets = new Map<string, MicroProgramCourse[]>();
+    // course_code（課程編碼）在課程標準清單可重複出現（同編碼多列）→ 去重，避免重複列與 React key 衝突。
+    const seen = new Set<string>();
     for (const c of program.courses ?? []) {
+      if (seen.has(c.course_code)) continue;
+      seen.add(c.course_code);
       const key = c.category ?? OTHER;
       const list = buckets.get(key);
       if (list) list.push(c);
@@ -116,7 +120,7 @@ export function MicroProgramDetail({ program }: { program: MicroProgram }) {
                               <ChipButton key={o.offering_id} oid={o.offering_id} label={classLabel(o)} onOpen={openDetail} />
                             ))
                           ) : (
-                            <span className="text-[11px] text-[var(--ink-faint)]">本學期未開</span>
+                            <span className="text-[11px] text-[var(--ink-soft)]">本學期未開</span>
                           )}
                         </div>
                       </li>

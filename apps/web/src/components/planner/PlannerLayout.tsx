@@ -1,4 +1,5 @@
 "use client";
+import { useEffect, useState } from "react";
 import { useTermStore } from "@/store/term-store";
 import { useUiStore } from "@/store/ui-store";
 import { useDraftStore } from "@/store/draft-store";
@@ -31,6 +32,7 @@ export function PlannerLayout() {
   const setLibraryOpen = useUiStore((s) => s.setLibraryOpen);
   const staleDropped = useUiStore((s) => s.staleDropped);
   const dismissStale = useUiStore((s) => s.dismissStale);
+  const belowLg = useBelowLg();
   useShareLink();
 
   return (
@@ -82,9 +84,11 @@ export function PlannerLayout() {
 
       <CreditSummary />
 
-      {/* mobile bottom-sheet library */}
+      {/* mobile bottom-sheet library — gate open by viewport: SheetContent portals to
+          <body> and escapes this lg:hidden wrapper, so on desktop libraryOpen (set by
+          openProgram 的微學程 chip) would otherwise stack the sheet over the常駐右欄。 */}
       <div className="lg:hidden">
-        <Sheet open={libraryOpen} onOpenChange={(o) => setLibraryOpen(o)}>
+        <Sheet open={libraryOpen && belowLg} onOpenChange={(o) => setLibraryOpen(o)}>
           <SheetTrigger
             render={
               <Button className="fixed bottom-28 right-4 z-30 h-12 rounded-full px-5 shadow-lg sm:bottom-20" />
@@ -181,6 +185,20 @@ function RightPanel() {
       </div>
     </div>
   );
+}
+
+// true 當視窗 < lg(1024px)。SSR/首繪預設 false（桌機不閃 sheet）；掛載後才依 matchMedia 校正。
+function useBelowLg() {
+  const [below, setBelow] = useState(false);
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(max-width: 1023px)");
+    const sync = () => setBelow(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
+  }, []);
+  return below;
 }
 
 function PanelTab({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
