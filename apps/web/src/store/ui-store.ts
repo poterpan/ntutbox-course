@@ -16,7 +16,8 @@ interface UiState {
   viewMode: "week" | "day";
   selectedDay: number;       // for mobile day view
   libraryOpen: boolean;      // mobile bottom sheet
-  libraryTab: "courses" | "favorites"; // right-panel content toggle
+  libraryTab: "courses" | "favorites" | "programs"; // right-panel content toggle
+  selectedProgramCode: string | null; // 微學程明細：檢視中的學程碼（null = 顯示清單）
   staleDropped: string[];    // offering_ids removed by reconcile (spec §4 — never silently discard)
   sharedPlan: { termKey: string; offeringIds: string[] } | null; // 收到的分享課表（唯讀對比，非草稿）— F-B
   sharedPlanOpen: boolean;
@@ -32,7 +33,9 @@ interface UiState {
   setViewMode: (m: "week" | "day") => void;
   setSelectedDay: (d: number) => void;
   setLibraryOpen: (v: boolean) => void;
-  setLibraryTab: (t: "courses" | "favorites") => void;
+  setLibraryTab: (t: "courses" | "favorites" | "programs") => void;
+  setSelectedProgramCode: (code: string | null) => void;
+  openProgram: (code: string) => void; // 切到微學程 tab、選定學程、開面板、清 detail（Task 15 chips 用）
   setStaleDropped: (ids: string[]) => void;
   dismissStale: () => void;
   openSharedPlan: (plan: { termKey: string; offeringIds: string[] }) => void;
@@ -42,7 +45,7 @@ interface UiState {
 
 export const useUiStore = create<UiState>((set) => ({
   query: "", selectedTerm: "115-1", filters: EMPTY_FILTER, activeSlot: null, detailOfferingId: null, hoveredOfferingId: null,
-  viewMode: "week", selectedDay: 1, libraryOpen: false, libraryTab: "courses", staleDropped: [],
+  viewMode: "week", selectedDay: 1, libraryOpen: false, libraryTab: "courses", selectedProgramCode: null, staleDropped: [],
   sharedPlan: null, sharedPlanOpen: false,
   setQuery: (query) => set({ query }),
   setSelectedTerm: (selectedTerm) => set({ selectedTerm }),
@@ -61,6 +64,8 @@ export const useUiStore = create<UiState>((set) => ({
   setSelectedDay: (selectedDay) => set({ selectedDay }),
   setLibraryOpen: (libraryOpen) => set({ libraryOpen }),
   setLibraryTab: (libraryTab) => set({ libraryTab }),
+  setSelectedProgramCode: (selectedProgramCode) => set({ selectedProgramCode }),
+  openProgram: (code) => set({ libraryTab: "programs", selectedProgramCode: code, libraryOpen: true, detailOfferingId: null }),
   setStaleDropped: (staleDropped) => set({ staleDropped }),
   dismissStale: () => set({ staleDropped: [] }),
   openSharedPlan: (sharedPlan) => set({ sharedPlan, sharedPlanOpen: true }),
