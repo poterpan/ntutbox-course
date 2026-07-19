@@ -150,6 +150,7 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 ```
 
 - **爬蟲跑在 GitHub Actions**：公開 repo **無限分鐘**、單 job 最長 6hr、cron 方便、Node/Python 環境齊全。**不要**用 Cloudflare Workers 跑爬蟲（單次 50 子請求 + CPU 上限，爬不動）。
+- **管線排程（三 workflow 共用 `data-pipeline` concurrency 序列化，不撞 data branch / R2）**：`crawl.yml` **每日** 04:00（台北）爬當前學期 catalog/enrollment/微學程；**`crawl-details.yml` 每週日** 05:30（台北）爬課綱詳情（~5k 請求/學期、學期內變動慢 → 週更即足夠，`--include-details` 一併發佈 R2）；`crawl-enrollment.yml` 選課季人數輕量刷新。每日與週更管線都在 commit 前跑 `pua-scan`（`continue-on-error`）**監測新造字**：canonical 出現 `PUA_MAP` 未收錄的 PUA（unicode category `Co`）碼位即 fail-loud 提醒考證（處置照 `docs/research/2026-07-20-pua-glyph-verification.md` 的 GServer 流程補 `PUA_MAP`），但不阻斷 commit/publish。
 - **資料 commit 進 git**：免費紅利＝**選課人數時間序列**（commit 歷史就是 enrollment 快照，學長的退選率分析即源於此）。
 - **對外出口走 Cloudflare**（R2 物件儲存或 Pages 靜態）：**egress 永遠 $0**、邊緣快取、自訂網域、可自控 cache header；同一個 Action 結束時用 `wrangler` 推上去。避開 GitHub Pages 100GB/月軟上限與「拿 Pages 當 API」的 ToS 灰色地帶。
 - **免費額度速記**：GH Actions 公開 repo 無限；Cloudflare Pages 頻寬無限／500 builds 月；R2 10GB 儲存、讀 1000 萬次/月、egress $0。

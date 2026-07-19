@@ -109,6 +109,10 @@ def main(argv: List[str] | None = None) -> int:
     rc.add_argument("--out", default="../data")
     rm = sub.add_parser("rematric", help="離線依 raw_fields.matric_codes 回算 matric_codes/matric_division（不重爬）")
     rm.add_argument("--out", default="../data")
+    ps = sub.add_parser("pua-scan",
+                        help="監測新造字(PUA)碼位：canonical 出現 PUA_MAP 未收錄碼位 → 列出並 exit 1")
+    ps.add_argument("--terms", required=True, help="學期，如 115-1（可逗號/範圍）")
+    ps.add_argument("--out", default="../data", help="輸出根目錄（預設 ../data）")
     args = parser.parse_args(argv)
 
     if args.command == "current-term":
@@ -176,6 +180,15 @@ def main(argv: List[str] | None = None) -> int:
         build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
         logger.info("rematric done: %d terms, %d courses rematriced",
                     len(stats), sum(s["rematriced"] for s in stats))
+        return 0
+
+    if args.command == "pua-scan":
+        from ntut_catalog.pua_scan import format_report, scan_canonical
+        hits = scan_canonical(out_dir, expand_terms(args.terms))
+        if hits:
+            print(format_report(hits), file=sys.stderr)
+            return 1
+        print("pua-scan clean")
         return 0
 
     if args.command == "crawl-mprograms":
