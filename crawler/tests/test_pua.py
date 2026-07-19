@@ -22,12 +22,7 @@ F0D8 = ""   # Wingdings 0xD8 → ➢
 F0FC = ""   # Wingdings 0xFC → ✓
 F0B1 = ""   # Symbol 0xB1 → ±
 E1B3 = ""   # 學校造字 → 廸
-E00F = "\ue00f"  # 學校造字 → 琮
-E046 = "\ue046"  # 學校造字 → 煒
-E0B2 = "\ue0b2"  # 學校造字 → 勳
-E136 = "\ue136"  # 學校造字 → 禎
-E195 = "\ue195"  # 學校造字 → 熺
-EUNK = "\ue0af"  # E 區未考證造字（真實碼位，罕姓造字、零網路露出；見 issue #43）→ 原樣保留
+EUNK = "\uef0d"  # PUA 無字形碼位（GServer 造字庫無輪廓、故不入表）→ 原樣保留；見 docs/research/2026-07-20-pua-glyph-verification.md §4.2
 
 
 # ── normalize_pua 單元 ──
@@ -42,14 +37,50 @@ def test_maps_checkmark_and_school_glyph():
 
 
 @pytest.mark.parametrize("cp, want", [
+    (0xE001, "峯"),
     (0xE00F, "琮"),
+    (0xE011, "豐"),
+    (0xE026, "炯"),
+    (0xE02E, "暐"),
+    (0xE031, "涂"),
+    (0xE034, "烟"),
+    (0xE03F, "羣"),
+    (0xE041, "稜"),
+    (0xE043, "霙"),
     (0xE046, "煒"),
+    (0xE049, "湉"),
+    (0xE04D, "晧"),
+    (0xE04F, "婕"),
+    (0xE054, "栢"),
+    (0xE055, "葳"),
+    (0xE065, "鋒"),
+    (0xE06E, "玎"),
+    (0xE077, "姵"),
+    (0xE07C, "銹"),
+    (0xE082, "芃"),
+    (0xE08F, "双"),
+    (0xE098, "瑢"),
+    (0xE0AF, "溫"),
     (0xE0B2, "勳"),
+    (0xE0BF, "參"),
+    (0xE0E9, "酶"),
+    (0xE101, "蔻"),
+    (0xE102, "免"),
+    (0xE10A, "肽"),
+    (0xE10C, "胜"),
+    (0xE10D, "昔"),
+    (0xE12F, "祐"),
     (0xE136, "禎"),
+    (0xE188, "塲"),
     (0xE195, "熺"),
+    (0xE1B3, "廸"),
+    (0xE1B7, "姉"),
+    (0xE1DA, "啓"),
+    (0xE1EB, "爲"),
+    (0xE26C, "晰"),
 ])
-def test_maps_verified_teacher_glyphs(cp, want):
-    # 2026-07-19 交叉比對學校各系官方師資頁考證的教師名造字（見 pua.PUA_MAP (2) 段）
+def test_pua_map_matches_gserver_glyphs(cp, want):
+    # 全 41 個學校造字對照＝GServer 外字採收認定；見 docs/research/2026-07-20-pua-glyph-verification.md
     assert PUA_MAP[cp] == want
     assert normalize_pua(f"林{chr(cp)}") == f"林{want}"
 
