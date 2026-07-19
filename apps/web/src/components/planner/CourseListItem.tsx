@@ -8,7 +8,14 @@ import { useIdentityStore } from "@/store/identity-store";
 import { resolveMatric, libraryBadge } from "@/lib/planner/matric";
 import { cn } from "@/lib/utils";
 
-export function CourseListItem({ course }: { course: CourseOffering }) {
+export function CourseListItem({
+  course,
+  mprogramOids,
+}: {
+  course: CourseOffering;
+  // 全微學程 offering_id 聯集（見 getProgramOidSet）；未提供＝資料未達 → badge 不顯示。
+  mprogramOids?: ReadonlySet<string>;
+}) {
   const { favorites, placed, place, toggleFavorite } = useDraftStore();
   const openDetail = useUiStore((s) => s.openDetail);
   const setHoveredOffering = useUiStore((s) => s.setHoveredOffering);
@@ -20,6 +27,7 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
   // 學制徽章（學制感知）：未選學制→全標；已選→只標非本學制。
   const division = resolveMatric(course);
   const matricBadge = division ? libraryBadge(division.group, userGroup) : null;
+  const inProgram = !!mprogramOids?.has(course.offering_id);
 
   // Desktop-only ghost preview: gate on mouse pointers so touch (tap-scroll) never
   // fires a phantom hover. (`@media (hover:hover) and (pointer:fine)` is also applied
@@ -44,6 +52,13 @@ export function CourseListItem({ course }: { course: CourseOffering }) {
           {matricBadge && (
             <span className={cn("shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-medium", matricBadge.className)}>
               {matricBadge.label}
+            </span>
+          )}
+          {inProgram && (
+            // 屬任一微學程（判準＝mprograms.json offering_ids 聯集）。比照學制徽章的 pastel badge 慣例，
+            // 取未被學制徽章佔用的 indigo，與 accent-blue 的「學分」徽章區隔。
+            <span className="shrink-0 rounded-md bg-indigo-100 px-1.5 py-0.5 text-[10px] font-medium text-indigo-700">
+              微學程
             </span>
           )}
           {noTime && (

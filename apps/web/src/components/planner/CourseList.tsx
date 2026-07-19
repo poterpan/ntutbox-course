@@ -4,7 +4,13 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { CourseOffering } from "@/lib/data/types";
 import { CourseListItem } from "./CourseListItem";
 
-export function CourseList({ courses }: { courses: CourseOffering[] }) {
+export function CourseList({
+  courses,
+  mprogramOids,
+}: {
+  courses: CourseOffering[];
+  mprogramOids?: ReadonlySet<string>;
+}) {
   const parentRef = useRef<HTMLDivElement>(null);
   // TanStack Virtual returns non-memoizable functions; React Compiler skips memoizing this
   // component (acceptable — the virtualizer state is consumed locally, not passed to memoized children).
@@ -31,14 +37,14 @@ export function CourseList({ courses }: { courses: CourseOffering[] }) {
             >
               {/* pb gives the inter-card gap; measureElement includes it so rows never overlap */}
               <div className="pb-1.5">
-                <CourseListItem course={courses[vi.index]} />
+                <CourseListItem course={courses[vi.index]} mprogramOids={mprogramOids} />
               </div>
             </div>
           ))}
         </div>
       ) : (
         <div className="space-y-1.5">
-          {courses.map((c) => <CourseListItem key={c.offering_id} course={c} />)}
+          {courses.map((c) => <CourseListItem key={c.offering_id} course={c} mprogramOids={mprogramOids} />)}
         </div>
       )}
     </div>

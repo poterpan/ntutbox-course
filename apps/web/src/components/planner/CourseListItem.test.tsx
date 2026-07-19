@@ -46,6 +46,21 @@ describe("CourseListItem hover preview (desktop)", () => {
   });
 });
 
+describe("CourseListItem 微學程 badge", () => {
+  it("屬任一微學程（offering 在集合內）→ 顯示「微學程」", () => {
+    render(<CourseListItem course={course} mprogramOids={new Set(["A"])} />);
+    expect(screen.getByText("微學程")).toBeInTheDocument();
+  });
+  it("不屬微學程 → 不顯示", () => {
+    render(<CourseListItem course={course} mprogramOids={new Set(["Z"])} />);
+    expect(screen.queryByText("微學程")).not.toBeInTheDocument();
+  });
+  it("未提供集合（資料未達）→ 不顯示", () => {
+    render(<CourseListItem course={course} />);
+    expect(screen.queryByText("微學程")).not.toBeInTheDocument();
+  });
+});
+
 describe("CourseListItem 學制徽章（學制感知）", () => {
   const withMatric = (code: string) => ({ ...course, raw_fields: { matric_codes: code } } as unknown as CourseOffering);
 
