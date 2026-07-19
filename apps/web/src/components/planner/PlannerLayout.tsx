@@ -15,6 +15,7 @@ import { CreditSummary } from "./CreditSummary";
 import { TermSwitcher } from "./TermSwitcher";
 import { MatricSwitcher } from "./MatricSwitcher";
 import { FavoritesList } from "./FavoritesList";
+import { MicroProgramPane } from "./MicroProgramPane";
 import { NoTimeTray } from "./NoTimeTray";
 import { Toaster } from "@/components/ui/toast";
 import { useShareLink } from "@/lib/planner/use-share-link";
@@ -165,9 +166,18 @@ function RightPanel() {
         <PanelTab active={tab === "favorites"} onClick={() => setTab("favorites")}>
           收藏{favCount > 0 ? ` ${favCount}` : ""}
         </PanelTab>
+        <PanelTab active={tab === "programs"} onClick={() => setTab("programs")}>微學程</PanelTab>
       </div>
       <div className="min-h-0 flex-1">
-        {tab === "courses" ? <CourseLibrary /> : <div className="thin-scroll h-full overflow-y-auto p-2"><FavoritesList /></div>}
+        {tab === "courses" ? (
+          <CourseLibrary />
+        ) : tab === "favorites" ? (
+          <div className="thin-scroll h-full overflow-y-auto p-2">
+            <FavoritesList />
+          </div>
+        ) : (
+          <MicroProgramPane />
+        )}
       </div>
     </div>
   );
