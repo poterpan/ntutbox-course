@@ -46,11 +46,15 @@ export function CourseDetailContent({
   onAfterPlace,
   headerLeading,
   scrollRef,
+  showProgramChips = true,
 }: {
   offeringId: string;
   onAfterPlace?: () => void;
   headerLeading?: React.ReactNode;
   scrollRef?: React.Ref<HTMLDivElement>;
+  // 分享課表就地詳情（SharedTimetableModal）關掉——chip 的 openProgram 改的是 modal
+  // 背後的 planner 狀態，在全螢幕 dialog 裡點了會像「無聲跳轉」。
+  showProgramChips?: boolean;
 }) {
   const { byId, enrollment } = useTermCourses();
   const termKey = useTermStore((s) => s.termKey);
@@ -143,7 +147,7 @@ export function CourseDetailContent({
           </div>
         )}
 
-        {programChips.length > 0 && (
+        {showProgramChips && programChips.length > 0 && (
           <div className="mb-5 flex flex-wrap items-center gap-2">
             <span className="text-xs font-semibold uppercase tracking-wide text-[var(--ink-soft)]">所屬微學程</span>
             {programChips.map((p) => (

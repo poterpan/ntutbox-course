@@ -53,6 +53,13 @@ describe("CourseDetailContent — 所屬微學程 chips", () => {
     expect(screen.queryByText("所屬微學程")).not.toBeInTheDocument();
   });
 
+  it("hides the block when showProgramChips=false, even with owning programs (shared-modal 就地詳情)", () => {
+    mockUseMprograms.mockReturnValue({ data: dirWith, error: false, loading: false, retry: vi.fn() });
+    render(<CourseDetailContent offeringId="A" showProgramChips={false} />);
+    expect(screen.queryByRole("button", { name: /面板微學程/ })).not.toBeInTheDocument();
+    expect(screen.queryByText("所屬微學程")).not.toBeInTheDocument();
+  });
+
   it("stays silent when the directory failed / is not yet loaded", () => {
     mockUseMprograms.mockReturnValue({ data: null, error: true, loading: false, retry: vi.fn() });
     render(<CourseDetailContent offeringId="A" />);
