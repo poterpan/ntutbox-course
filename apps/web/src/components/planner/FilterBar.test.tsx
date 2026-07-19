@@ -35,4 +35,28 @@ describe("FilterBar", () => {
     expect(useUiStore.getState().filters.emi).toBe("all");
     expect(screen.queryByRole("button", { name: "清除全部" })).not.toBeInTheDocument();
   });
+
+  it("微學程 chip 資料未就緒 → disabled", () => {
+    render(<FilterBar units={[]} classes={[]} />); // mprogramReady 預設 false
+    expect(screen.getByRole("button", { name: /微學程篩選/ })).toBeDisabled();
+  });
+
+  it("微學程 chip 就緒 → 三態循環（關閉→只看→排除→關閉）", async () => {
+    render(<FilterBar units={[]} classes={[]} mprogramReady />);
+    const btn = () => screen.getByRole("button", { name: /微學程篩選/ });
+    expect(btn()).toBeEnabled();
+
+    await userEvent.click(btn()); // 關閉 → 只看微學程
+    expect(useUiStore.getState().filters.mprogram).toBe("only");
+    expect(screen.getByText("✓ 微學程")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "清除全部" })).toBeInTheDocument();
+
+    await userEvent.click(btn()); // 只看 → 排除微學程
+    expect(useUiStore.getState().filters.mprogram).toBe("exclude");
+    expect(screen.getByText("✕ 非微學程")).toBeInTheDocument();
+
+    await userEvent.click(btn()); // 排除 → 關閉
+    expect(useUiStore.getState().filters.mprogram).toBe("all");
+    expect(screen.queryByRole("button", { name: "清除全部" })).not.toBeInTheDocument();
+  });
 });
