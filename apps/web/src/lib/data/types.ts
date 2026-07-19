@@ -15,6 +15,9 @@ export type {
   CourseDetail,
   MatricDivision,
   MatricSystem,
+  MicroProgram,
+  MicroProgramCourse,
+  MicroProgramDirectory,
 } from "../../../../../packages/schema/index";
 
 // App-side bundle of one term's files.

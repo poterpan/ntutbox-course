@@ -6,11 +6,11 @@ import type { TermBundle } from "@/lib/data/types";
 function fakeBundle(termKey: string): TermBundle {
   return {
     termKey,
-    catalog: { schema_version: 1, term: { key: termKey, year: 115, semester: 1, label: "" },
+    catalog: { schema_version: 2, term: { key: termKey, year: 115, semester: 1, label: "" },
       generated_at: null, source: {} as never, freshness: { catalog_crawled_at: "2026-06-13T05:00:00+08:00", enrollment_observed_at: null }, courses: [] },
-    periods: { schema_version: 1, timezone: "Asia/Taipei", periods: [] },
-    classes: { schema_version: 1, term_key: termKey, classes: [] },
-    enrollment: { schema_version: 1, term_key: termKey, observed_at: "2026-06-13T05:46:00+08:00", counts: {} },
+    periods: { schema_version: 2, timezone: "Asia/Taipei", periods: [] },
+    classes: { schema_version: 2, term_key: termKey, classes: [] },
+    enrollment: { schema_version: 2, term_key: termKey, observed_at: "2026-06-13T05:46:00+08:00", counts: {} },
   };
 }
 

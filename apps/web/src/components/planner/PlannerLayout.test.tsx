@@ -3,7 +3,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 
 vi.mock("@/lib/data", () => ({
   getDataSource: () => ({
-    getManifest: vi.fn().mockResolvedValue({ schema_version: 1, terms: { "115-1": {} } }),
+    getManifest: vi.fn().mockResolvedValue({ schema_version: 2, terms: { "115-1": {} } }),
     getTerm: vi.fn().mockResolvedValue({
       termKey: "115-1",
       catalog: { courses: [{ offering_id: "A", name: { zh: "微積分" }, credits: 3, teachers: [{ name: "王" }], meetings: [{ day: 1, periods: ["1"] }], classes: [], unit_code: "59", unit_name: "資工" }],

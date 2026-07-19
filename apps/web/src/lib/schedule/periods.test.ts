@@ -3,7 +3,7 @@ import { periodOrder, sortPeriods, periodLabel } from "./periods";
 import type { PeriodTable } from "@/lib/data/types";
 
 const table: PeriodTable = {
-  schema_version: 1, timezone: "Asia/Taipei",
+  schema_version: 2, timezone: "Asia/Taipei",
   periods: [
     { token: "1", order: 0, start_hm: "08:10", end_hm: "09:00", label: "1" },
     { token: "N", order: 4, start_hm: "12:10", end_hm: "13:00", label: "N" },

@@ -158,6 +158,14 @@ export type TermKey4 = string;
 export type Code3 = string;
 export type Name2 = string;
 export type OfferingIds = string[];
+export type CourseCode2 = string;
+export type NameZh = string;
+export type Credits1 = number | null;
+export type Category = ("基礎" | "核心" | "總整" | "進階" | "應用") | null;
+export type CategoryRaw = string | null;
+export type Emi = boolean;
+export type Courses1 = MicroProgramCourse[];
+export type RulesText = string | null;
 export type Programs = MicroProgram[];
 export type SchemaVersion7 = number;
 export type EntryYear = number;
@@ -167,14 +175,14 @@ export type Division = string;
 export type Title = string;
 export type StudyYear = number | null;
 export type StudySem = number | null;
-export type CourseCode2 = string | null;
-export type NameZh = string;
-export type Credits1 = number | null;
+export type CourseCode3 = string | null;
+export type NameZh1 = string;
+export type Credits2 = number | null;
 export type Hours1 = number | null;
 export type Stage1 = string | null;
 export type GroupId = string | null;
 export type Notes1 = string;
-export type Courses1 = StandardCourse[];
+export type Courses2 = StandardCourse[];
 export type Programs1 = ProgramStandard[];
 
 export interface NtutboxCourseV1 {
@@ -458,6 +466,20 @@ export interface MicroProgram {
   code: Code3;
   name: Name2;
   offering_ids?: OfferingIds;
+  courses?: Courses1;
+  rules_text?: RulesText;
+  [k: string]: unknown;
+}
+/**
+ * 微學程課程標準列（Cprog -4，matric=H）。
+ */
+export interface MicroProgramCourse {
+  course_code: CourseCode2;
+  name_zh?: NameZh;
+  credits?: Credits1;
+  category?: Category;
+  category_raw?: CategoryRaw;
+  emi?: Emi;
   [k: string]: unknown;
 }
 /**
@@ -477,7 +499,7 @@ export interface ProgramStandard {
   matric: Matric;
   division: Division;
   title?: Title;
-  courses?: Courses1;
+  courses?: Courses2;
   [k: string]: unknown;
 }
 /**
@@ -487,9 +509,9 @@ export interface StandardCourse {
   study_year?: StudyYear;
   study_sem?: StudySem;
   requirement?: Requirement;
-  course_code?: CourseCode2;
-  name_zh?: NameZh;
-  credits?: Credits1;
+  course_code?: CourseCode3;
+  name_zh?: NameZh1;
+  credits?: Credits2;
   hours?: Hours1;
   stage?: Stage1;
   group_id?: GroupId;

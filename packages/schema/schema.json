@@ -774,7 +774,7 @@
       "description": "catalog.json：Web v1 主檔（前端建索引）。重文字(描述/課綱)拆 course/{id}.json 隨點隨取。",
       "properties": {
         "schema_version": {
-          "default": 1,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -866,7 +866,7 @@
     "PeriodTable": {
       "properties": {
         "schema_version": {
-          "default": 1,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -890,7 +890,7 @@
       "description": "classes.json：逐學期；Web 身分選擇器（系所/年級/班）+ 本班判斷；班級碼可預填 cwish cunum。",
       "properties": {
         "schema_version": {
-          "default": 1,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -916,7 +916,7 @@
       "description": "enrollment.json：volatile overlay；選課季可高頻更新，疊在已快取 catalog 上。",
       "properties": {
         "schema_version": {
-          "default": 1,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -977,7 +977,7 @@
           "title": "Content Encoding"
         },
         "schema_version": {
-          "default": 1,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         }
@@ -1062,7 +1062,7 @@
       "description": "manifest.json：client 先抓（極小），比對 sha256 決定要不要重抓。",
       "properties": {
         "schema_version": {
-          "default": 1,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -1350,6 +1350,25 @@
           },
           "title": "Offering Ids",
           "type": "array"
+        },
+        "courses": {
+          "items": {
+            "$ref": "#/$defs/MicroProgramCourse"
+          },
+          "title": "Courses",
+          "type": "array"
+        },
+        "rules_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rules Text"
         }
       },
       "required": [
@@ -1359,11 +1378,78 @@
       "title": "MicroProgram",
       "type": "object"
     },
+    "MicroProgramCourse": {
+      "description": "微學程課程標準列（Cprog -4，matric=H）。",
+      "properties": {
+        "course_code": {
+          "title": "Course Code",
+          "type": "string"
+        },
+        "name_zh": {
+          "default": "",
+          "title": "Name Zh",
+          "type": "string"
+        },
+        "credits": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Credits"
+        },
+        "category": {
+          "anyOf": [
+            {
+              "enum": [
+                "基礎",
+                "核心",
+                "總整",
+                "進階",
+                "應用"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category"
+        },
+        "category_raw": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Category Raw"
+        },
+        "emi": {
+          "default": false,
+          "title": "Emi",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "course_code"
+      ],
+      "title": "MicroProgramCourse",
+      "type": "object"
+    },
     "MicroProgramDirectory": {
       "description": "mprograms.json：逐學期微學程清單 + 各學程開課課號。",
       "properties": {
         "schema_version": {
-          "default": 1,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -1529,7 +1615,7 @@
       "description": "standards/{entry_year}.json：某入學年所有 program 的課程標準。",
       "properties": {
         "schema_version": {
-          "default": 1,
+          "default": 2,
           "title": "Schema Version",
           "type": "integer"
         },
