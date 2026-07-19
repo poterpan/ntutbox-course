@@ -115,12 +115,18 @@ export function MicroProgramDetail({ program }: { program: MicroProgram }) {
                           )}
                         </div>
                         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                          {offerings.length > 0 ? (
-                            offerings.map((o) => (
-                              <ChipButton key={o.offering_id} oid={o.offering_id} label={classLabel(o)} onOpen={openDetail} />
-                            ))
+                          {offerings.map((o) => (
+                            <ChipButton key={o.offering_id} oid={o.offering_id} label={classLabel(o)} onOpen={openDetail} />
+                          ))}
+                          {c.online ? (
+                            // notes 含 e＝ewant 線上課程（不走選課系統，catalog 查無開班）；如實標示，取代誤導的「本學期未開」。
+                            <span className="rounded-md px-1.5 py-0.5 text-[11px] text-[var(--ink-soft)] ring-1 ring-black/[0.07]">
+                              線上課程
+                            </span>
                           ) : (
-                            <span className="text-[11px] text-[var(--ink-soft)]">本學期未開</span>
+                            offerings.length === 0 && (
+                              <span className="text-[11px] text-[var(--ink-soft)]">本學期未開</span>
+                            )
                           )}
                         </div>
                       </li>

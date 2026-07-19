@@ -83,6 +83,20 @@ describe("MicroProgramDetail", () => {
     expect(screen.getByText("本學期未開")).toBeInTheDocument();
   });
 
+  it("線上課程（online）無班 → 顯示「線上課程」標記，取代「本學期未開」", () => {
+    // notes 含 e＝ewant 線上課程，catalog 查無開班；不可誤標「本學期未開」。
+    const onlineProgram = {
+      ...program,
+      offering_ids: [],
+      courses: [
+        { course_code: "C_ONLINE", name_zh: "線上創新創業", credits: 2, category: "基礎", category_raw: "e基", online: true },
+      ],
+    } as unknown as MicroProgram;
+    render(<MicroProgramDetail program={onlineProgram} />);
+    expect(screen.getByText("線上課程")).toBeInTheDocument();
+    expect(screen.queryByText("本學期未開")).toBeNull();
+  });
+
   it("點班級 chip → openDetail 設 detailOfferingId", () => {
     render(<MicroProgramDetail program={program} />);
     fireEvent.click(screen.getByRole("button", { name: "電子四甲" }));
