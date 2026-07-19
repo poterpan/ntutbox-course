@@ -3,7 +3,8 @@
 背景（2026-07-19 診斷）：學校資料含瀏覽器無字型可畫的 PUA 字元，三類：
   1. Word 符號字型殘留（U+F0xx）：老師從 Word 貼課綱，Symbol/Wingdings 字元被存成
      PUA（Word 把 symbol-font 字碼存為 0xF000 + charcode）。全出現在 details 的 syllabi。
-  2. 學校造字（U+E0xx–E2xx，~30 碼位）：教師名/notes/課名。目前僅考證出 U+E1B3=廸。
+  2. 學校造字（U+E0xx–E2xx，~30 碼位）：教師名/notes/課名。已考證 6 碼位（見 PUA_MAP (2) 段：
+     E00F琮 E046煒 E0B2勳 E136禎 E195熺 E1B3廸），其餘未考證者一律保留原樣。
   3. Adobe/PDF 殘留（U+F3xx/F6xx/F7xx）：不處理、保留原樣。
 
 原則：**只映射能在權威字碼表核實的碼位；表中沒有的原樣保留（不猜、不刪）**。
@@ -22,6 +23,7 @@ canonical 端不套用本模組；下次 publish 重建 v1 時歷史資料一併
 from __future__ import annotations
 
 # 碼位 → 取代字。逐筆註明來源字型 + 原字形，方便日後審查/補充。
+# 未考證的 E 區造字碼位一律保留原樣（不猜、不刪）；待考證清單見 issue #43。
 PUA_MAP: dict[int, str] = {
     # ── (1) Word 符號字型殘留（皆課綱條列符號；Symbol 解讀為希臘字母、語意不通 → 取 Wingdings） ──
     0xF06C: "●",  # Wingdings 0x6C = ● BLACK CIRCLE（實心圓項目符號）
@@ -38,7 +40,14 @@ PUA_MAP: dict[int, str] = {
     # Wingdings 0xB1=⌖(位置標記) 語意不通；Symbol 0xB1=± 在成績算式中合理 → 取 Symbol 解讀。
     0xF0B1: "±",  # Symbol 0xB1 = ± PLUS-MINUS SIGN
     # ── (2) 學校造字（僅收錄已逐字考證者；其餘 E 區碼位一律保留原樣） ──
+    # 以下 5 筆皆教師名造字，2026-07-19 交叉比對學校各系官方師資頁考證（證據 URL 附各行）。
+    0xE00F: "琮",  # 黃琮昇（電機 ee.ntut.edu.tw/p/412-1013-16612）+ 胡琮淨（建築）兩官方頁一致
+    0xE046: "煒",  # 徐昕煒（工管 iem.ntut.edu.tw/p/412-1081-3754，英文名 Hsin-Wei 佐證）
+    0xE0B2: "勳",  # 吳建勳（車輛）+ 陳佳勳（光電 eo.ntut.edu.tw/p/412-1069-12881）兩官方頁一致
+    0xE136: "禎",  # 胡貝禎（學術資源網）+ 張禎庭（通識 gec.ntut.edu.tw/p/412-1021-16409）+ 林永禎（TRIZ）三方一致
+    0xE195: "熺",  # 蘇春熺（機械 me1.ntut.edu.tw/p/405-1062-84645，email such@ 佐證）
     0xE1B3: "廸",  # 廸（2026-07-19 使用者於學校「教師授課時間表」系統反白考證，該系統用真字 U+5EF8）
+    # 注意：系網不同頁面有將 U+E1B3 正規化為「迪」(U+8FEA) 的情形，取字形較接近造字的「廸」；兩者為同名異體。
 }
 
 

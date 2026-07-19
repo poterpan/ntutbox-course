@@ -1,6 +1,8 @@
 """PUA 正規化：normalize_pua / normalize_pua_obj 單元 + build_v1 整合。"""
 import json
 
+import pytest
+
 from models import (
     ClassDirectory,
     CourseDetail,
@@ -20,7 +22,12 @@ F0D8 = ""   # Wingdings 0xD8 → ➢
 F0FC = ""   # Wingdings 0xFC → ✓
 F0B1 = ""   # Symbol 0xB1 → ±
 E1B3 = ""   # 學校造字 → 廸
-E0B2 = ""   # 學校造字，未考證 → 原樣保留
+E00F = "\ue00f"  # 學校造字 → 琮
+E046 = "\ue046"  # 學校造字 → 煒
+E0B2 = "\ue0b2"  # 學校造字 → 勳
+E136 = "\ue136"  # 學校造字 → 禎
+E195 = "\ue195"  # 學校造字 → 熺
+EUNK = "\ue0af"  # E 區未考證造字（真實碼位，罕姓造字、零網路露出；見 issue #43）→ 原樣保留
 
 
 # ── normalize_pua 單元 ──
@@ -34,6 +41,19 @@ def test_maps_checkmark_and_school_glyph():
     assert normalize_pua(f"林{E1B3}") == "林廸"
 
 
+@pytest.mark.parametrize("cp, want", [
+    (0xE00F, "琮"),
+    (0xE046, "煒"),
+    (0xE0B2, "勳"),
+    (0xE136, "禎"),
+    (0xE195, "熺"),
+])
+def test_maps_verified_teacher_glyphs(cp, want):
+    # 2026-07-19 交叉比對學校各系官方師資頁考證的教師名造字（見 pua.PUA_MAP (2) 段）
+    assert PUA_MAP[cp] == want
+    assert normalize_pua(f"林{chr(cp)}") == f"林{want}"
+
+
 def test_symbol_exception_plus_minus():
     # 0xB1 唯一出現在算式括號內、非條列 → 取 Symbol ± 而非 Wingdings 位置標記
     assert normalize_pua(f"平時成績({F0B1}10%)") == "平時成績(±10%)"
@@ -41,13 +61,13 @@ def test_symbol_exception_plus_minus():
 
 def test_unknown_codepoint_preserved():
     # 未考證的造字：不猜、不刪，原樣保留
-    assert normalize_pua(f"某{E0B2}師") == f"某{E0B2}師"
-    assert E0B2 not in PUA_MAP and ord(E0B2) not in PUA_MAP
+    assert normalize_pua(f"某{EUNK}師") == f"某{EUNK}師"
+    assert EUNK not in PUA_MAP and ord(EUNK) not in PUA_MAP
 
 
 def test_mixed_string_maps_known_keeps_unknown():
-    src = f"{F0D8}\t作業 林{E1B3}（{E0B2}）{F0FC}"
-    assert normalize_pua(src) == f"➢\t作業 林廸（{E0B2}）✓"
+    src = f"{F0D8}\t作業 林{E1B3}（{EUNK}）{F0FC}"
+    assert normalize_pua(src) == f"➢\t作業 林廸（{EUNK}）✓"
 
 
 def test_no_pua_returns_identical_object():
@@ -86,7 +106,7 @@ def _write_canonical_with_pua(tmp_path, term="115-1"):
         term_key=term,
         offering_id="300777",
         name=LocalizedText(zh=f"測試課程 林{E1B3}"),
-        notes_raw=f"備註 {E0B2} 未考證造字",
+        notes_raw=f"備註 {EUNK} 未考證造字",
         selection=Selection(cwish_subj="300777"),
     )
     (d / "catalog.ndjson").write_text(course.model_dump_json() + "\n", encoding="utf-8")
@@ -105,7 +125,7 @@ def _write_canonical_with_pua(tmp_path, term="115-1"):
         programs=[MicroProgram(
             code="H01",
             name=f"創新學程 林{E1B3}",
-            rules_text=f"相關規定：{F0FC} 至少修 9 學分 {E0B2}",
+            rules_text=f"相關規定：{F0FC} 至少修 9 學分 {EUNK}",
         )],
     )
     (d / "mprograms.json").write_text(mprograms.model_dump_json(), encoding="utf-8")
@@ -119,7 +139,7 @@ def test_build_v1_normalizes_catalog_and_detail(tmp_path):
 
     cat_text = (t / "catalog.json").read_text(encoding="utf-8")
     assert E1B3 not in cat_text and "林廸" in cat_text       # 造字已轉
-    assert E0B2 in cat_text                                   # 未考證造字原樣保留
+    assert EUNK in cat_text                                   # 未考證造字原樣保留
     # v1 仍是合法 JSON、可回模型
     TermCatalog.model_validate_json(cat_text)
 
@@ -155,7 +175,7 @@ def test_build_v1_normalizes_mprograms(tmp_path):
     assert E1B3 not in mp_text                                # 造字已轉
     assert "創新學程 林廸" in mp_text                          # 學程名
     assert "✓ 至少修 9 學分" in mp_text                       # rules_text 內的符號
-    assert E0B2 in mp_text                                    # 未考證造字保留
+    assert EUNK in mp_text                                    # 未考證造字保留
     MicroProgramDirectory.model_validate_json(mp_text)        # 仍合法
 
     # canonical mprograms 不得被改動
