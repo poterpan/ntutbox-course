@@ -51,7 +51,8 @@ export function MicroProgramList() {
         aria-label="搜尋微學程"
       />
 
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      {/* px/py 給列的 ring 留呼吸空間,避免被 overflow 容器裁掉(同 CourseList) */}
+      <div className="thin-scroll min-h-0 flex-1 overflow-y-auto px-1 py-1">
         {error ? (
           <div className="flex flex-col items-center gap-3 pt-8 text-center">
             <p className="text-sm text-[var(--ink-soft)]">載入微學程失敗</p>
