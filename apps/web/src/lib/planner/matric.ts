@@ -39,13 +39,14 @@ export const GROUP_LABEL: Record<MatricGroup, string> = {
   day_ug: "日間部", ext_ug: "進修部", grad_day: "研究所", grad_onjob: "在職·週末", other: "學程",
 };
 
-/** 列表徽章：短名 + 每組柔色（可一眼掃讀；避開課表用的藍/橘）。 */
-export const GROUP_BADGE: Record<MatricGroup, { label: string; className: string }> = {
-  day_ug: { label: "日間部", className: "bg-slate-100 text-slate-600" },
-  ext_ug: { label: "進修部", className: "bg-amber-100 text-amber-700" },
-  grad_day: { label: "研究所", className: "bg-emerald-100 text-emerald-700" },
-  grad_onjob: { label: "在職", className: "bg-violet-100 text-violet-700" },
-  other: { label: "學程", className: "bg-zinc-100 text-zinc-600" },
+// 列表徽章：`short`＝單字徽章文字（四顆 badge 疊滿時省寬、免擠壓課名）；
+// `label`＝完整名（給 title / aria-label，hover 與輔助技術可得全稱）。每組柔色（避開課表用的藍/橘）。
+export const GROUP_BADGE: Record<MatricGroup, { label: string; short: string; className: string }> = {
+  day_ug: { label: "日間部", short: "日", className: "bg-slate-100 text-slate-600" },
+  ext_ug: { label: "進修部", short: "進", className: "bg-amber-100 text-amber-700" },
+  grad_day: { label: "研究所", short: "研", className: "bg-emerald-100 text-emerald-700" },
+  grad_onjob: { label: "在職", short: "職", className: "bg-violet-100 text-violet-700" },
+  other: { label: "學程", short: "程", className: "bg-zinc-100 text-zinc-600" },
 };
 
 /** 學制選擇器可選的身分（學程/其他不列為身分；該類學生選「全部」）。 */
@@ -104,7 +105,7 @@ export function resolveMatric(course: CourseOffering): MatricInfo | null {
  * - 未選學制（userGroup=null）→ 每門課都標自己的學制組（完整透明度）。
  * - 已選學制 → 只標「非本學制」的課（本學制不標，凸顯非自己體系的課）。
  */
-export function libraryBadge(group: MatricGroup, userGroup: MatricGroup | null): { label: string; className: string } | null {
+export function libraryBadge(group: MatricGroup, userGroup: MatricGroup | null): { label: string; short: string; className: string } | null {
   if (userGroup != null && group === userGroup) return null;
   return GROUP_BADGE[group];
 }

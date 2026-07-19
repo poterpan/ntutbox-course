@@ -59,8 +59,10 @@ describe("libraryBadge (學制感知)", () => {
     expect(libraryBadge("day_ug", "grad_day")).toEqual(GROUP_BADGE.day_ug);   // 碩士生看大學部 → 標
     expect(libraryBadge("grad_onjob", "grad_day")).toEqual(GROUP_BADGE.grad_onjob);
   });
-  it("徽章短名正確", () => {
+  it("徽章短名正確（單字 short + 全稱 label）", () => {
+    expect(GROUP_BADGE.day_ug.short).toBe("日");
     expect(GROUP_BADGE.day_ug.label).toBe("日間部");
+    expect(GROUP_BADGE.grad_onjob.short).toBe("職");
     expect(GROUP_BADGE.grad_onjob.label).toBe("在職");
   });
 });
