@@ -5,7 +5,7 @@
 //   2. 使用者同意（第一方 cookie，跨 subdomain 共用）→ consent.ts
 //   3. window.gtag 存在（載入失敗/被擋 → 事件留在 dataLayer，產品照跑）
 
-import { SITE_SURFACE, analyticsAvailable, gaDebug, measurementId } from "./config";
+import { PAGE_TITLE, SITE_SURFACE, analyticsAvailable, gaDebug, measurementId } from "./config";
 import { readConsent } from "./consent";
 import { PARAM_ALLOWLIST, type EventName, type EventParams } from "./events";
 import { sanitizePage, type SanitizedPage } from "./sanitize";
@@ -117,6 +117,9 @@ function globalPageFields(page: SanitizedPage): Record<string, string> {
   const fields: Record<string, string> = {
     page_location: page.page_location,
     page_path: page.page_path,
+    // 用固定值覆寫 GA4 自動收集的 page_title（collect 的 dt）：分享連結的 <title> 被 edge
+    // worker 換成課名／精確課數，放它自動收就等於把那些送進 GA（見 config.ts PAGE_TITLE）。
+    page_title: PAGE_TITLE,
   };
   if (page.page_referrer) fields.page_referrer = page.page_referrer;
   return fields;

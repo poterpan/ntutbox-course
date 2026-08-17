@@ -169,6 +169,29 @@ describe("trackPageView", () => {
     expect(gtag).not.toHaveBeenCalled();
   });
 
+  // 回歸：GA4 會自動收集 page_title（collect 的 dt），而 edge worker 把分享連結的 <title>
+  // 改寫成「⟨課名⟩｜北科盒子 排課」／「分享的課表 · N 門課｜…」。不覆寫就會把課名與精確課數送出去。
+  it("always sends a fixed page_title, never document.title", () => {
+    enableGa();
+    setConsent(CONSENT_GRANTED);
+    document.title = "微積分｜北科盒子 排課"; // worker 改寫後的樣子
+    window.history.replaceState({}, "", "/?term=115-1&course=360744");
+    trackPageView();
+
+    const fields = gtag.mock.calls.find((c) => c[0] === "set")![1] as Record<string, unknown>;
+    expect(fields.page_title).toBe("北科盒子 排課");
+    expect(JSON.stringify(gtag.mock.calls)).not.toContain("微積分");
+
+    // config 也要帶：page_view 之前送出的事件同樣不能吃到 document.title。
+    resetAnalyticsState();
+    gtag.mockClear();
+    document.title = "分享的課表 · 7 門課｜北科盒子 排課";
+    configureGa();
+    const config = gtag.mock.calls.find((c) => c[0] === "config")![2] as Record<string, unknown>;
+    expect(config.page_title).toBe("北科盒子 排課");
+    expect(JSON.stringify(gtag.mock.calls)).not.toContain("7 門課");
+  });
+
   it("does not repeat the same page twice (StrictMode / remount), but does send a real route change", () => {
     enableGa();
     setConsent(CONSENT_GRANTED);

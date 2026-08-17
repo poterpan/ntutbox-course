@@ -8,6 +8,16 @@ const ALLOWED_HOSTS = new Set(["course.ntutbox.com", "ntutbox.com", "www.ntutbox
 
 export const SITE_SURFACE = "course" as const;
 
+/**
+ * 送給 GA 的固定 page_title（＝collect payload 的 `dt`）。
+ *
+ * ⚠️ 絕不可改成讀 `document.title`：edge worker 會把分享連結的 `<title>` 改寫成
+ * 「⟨課名⟩｜北科盒子 排課」或「分享的課表 · N 門課｜北科盒子 排課」（worker/index.ts
+ * + lib/share/og.ts）。GA4 **預設會自動收集 page_title**，不覆寫就等於把課名與精確
+ * 課數送進 GA——違反個資鐵則與 §7「數量只能送 bucket」。所以一律送這個常數。
+ */
+export const PAGE_TITLE = "北科盒子 排課";
+
 export function measurementId(): string | null {
   const v = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
   return v && v.length > 0 ? v : null;
