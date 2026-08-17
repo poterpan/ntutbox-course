@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { dataBaseUrl, isLocalData } from "@/lib/env";
+import { AnalyticsConsent } from "@/components/analytics/AnalyticsConsent";
+import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
 import "./globals.css";
 
 const SITE_URL = "https://course.ntutbox.com";
@@ -91,6 +93,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(JSON_LD) }}
         />
         {children}
+        {/* 成效分析：同意前不載入任何 Google 資源；env 未設時兩者都渲染 null。 */}
+        <AnalyticsConsent />
+        <GoogleAnalytics />
       </body>
     </html>
   );

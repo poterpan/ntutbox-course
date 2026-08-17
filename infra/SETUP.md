@@ -72,6 +72,22 @@ curl -s -H "Origin: https://course.ntutbox.com" -I https://cdn.ntutbox.com/cours
   - GitHub → Actions → "crawl catalog" → Run workflow（`terms` 留空＝自動當前學期）。
   - 確認：`data` branch 出現 `data(enrollment): ...` commit；R2 manifest 更新；無 catalog 結構 commit（結構未變時）。
 
+## 8. GA4 成效分析（排課站；opt-in）
+`apps/web` 的 GA4 埋點靠 **build-time** env 開關，全部缺席 → 完全 no-op（不載入任何 Google 資源）。
+`wrangler.jsonc` 的 `vars` **進不了 client bundle**，必須設在 Cloudflare dashboard →
+Workers（`ntutbox-course-web`）→ Settings → **Build** → Build variables（Production／Preview 各設一份）：
+
+| 變數 | 值 | 說明 |
+|---|---|---|
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | `G-XXXXXXXXXX` | 與官網共用同一組（兩站同屬 ntutbox.com，共用 GA client/session） |
+| `NEXT_PUBLIC_GA_ENABLED` | `true` | 缺席或非 `true` → 全站 no-op |
+| `NEXT_PUBLIC_GA_DEBUG` | （不設） | 只在要用**另一組 debug stream** 於 localhost/preview 驗 DebugView 時設 `true`（會放寬 host 閘門，**別配 production ID**） |
+
+- production GA 只在 `course.ntutbox.com` / `ntutbox.com` / `www.ntutbox.com` 送出（host allowlist）。
+- 同意狀態走第一方 cookie `ntutbox_analytics_consent`（`Domain=.ntutbox.com`），與官網共用；
+  同意前不載入 gtag.js、不建 GA cookie；撤回入口在官網隱私頁。
+- 事件契約與參數 enum 的唯一真相來源：`apps/web/src/lib/analytics/events.ts`。
+
 ## 維運備忘
 - **學期滾動**：`ACTIVE_TERMS` 留空即自動跟進（學校上架新學期下拉會翻）；要釘住特定學期才設值。
 - **歷史重爬**：Actions → Run workflow，`terms` 填 `110-1:115-1`。

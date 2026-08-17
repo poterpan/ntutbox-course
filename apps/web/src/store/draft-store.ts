@@ -3,13 +3,17 @@ import { persist } from "zustand/middleware";
 
 export interface PlacedCourse { offering_id: string; priority: number; }
 
+/** place() 的結果。呼叫端（如 lib/analytics/track-plan）靠這個判斷是否真的新增、
+ * 以及是不是本學期第一門課——store 自己**不得**有 analytics 副作用。 */
+export interface PlaceOutcome { added: boolean; previousCount: number; placedCount: number; }
+
 interface DraftState {
   schema_version: number;
   termKey: string;
   favorites: string[];
   placed: PlacedCourse[];
   setTerm: (termKey: string) => void;
-  place: (offeringId: string) => void;
+  place: (offeringId: string) => PlaceOutcome;
   unplace: (offeringId: string) => void;
   setPriority: (offeringId: string, priority: number) => void;
   toggleFavorite: (offeringId: string) => void;
@@ -29,11 +33,15 @@ export const useDraftStore = create<DraftState>()(
 
       setTerm: (termKey) => set({ termKey }),
 
-      place: (offeringId) => set((s) => {
-        if (s.placed.some((p) => p.offering_id === offeringId)) return s; // dedup
-        const maxPrio = s.placed.reduce((m, p) => Math.max(m, p.priority), 0);
-        return { placed: [...s.placed, { offering_id: offeringId, priority: maxPrio + 1 }] };
-      }),
+      place: (offeringId) => {
+        const before = get().placed;
+        if (before.some((p) => p.offering_id === offeringId)) {
+          return { added: false, previousCount: before.length, placedCount: before.length }; // dedup
+        }
+        const maxPrio = before.reduce((m, p) => Math.max(m, p.priority), 0);
+        set({ placed: [...before, { offering_id: offeringId, priority: maxPrio + 1 }] });
+        return { added: true, previousCount: before.length, placedCount: before.length + 1 };
+      },
 
       unplace: (offeringId) => set((s) => ({
         placed: s.placed.filter((p) => p.offering_id !== offeringId), // gaps allowed (spec §4)

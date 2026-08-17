@@ -1,5 +1,5 @@
 "use client";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
 import { useSearchIndex } from "@/lib/planner/use-search-index";
 import { useMprograms } from "@/lib/planner/use-mprograms";
@@ -10,6 +10,8 @@ import { applyFilters } from "@/lib/filters/apply";
 import { collegeOf } from "@/lib/filters/college-map";
 import { search } from "@/lib/search/search";
 import { SearchInput } from "@/components/ui/search-input";
+import { activeFilterCount } from "@/lib/analytics/events";
+import { reportSearchState } from "@/lib/analytics/search-tracker";
 import { FilterBar } from "./FilterBar";
 import { CourseList } from "./CourseList";
 
@@ -49,6 +51,16 @@ export function CourseLibrary() {
     const searchIds = new Set(search(index, query).map((d) => d.offeringId));
     return filtered.filter((c) => searchIds.has(c.offering_id));
   }, [courses, index, filters, query, mprogramOids]);
+
+  // course_search：500ms debounce + 對匿名 bucket 去重都在 search-tracker 裡。
+  // 這裡只交出「有沒有 query / 幾個篩選維度 / 結果數」——搜尋原文不會離開瀏覽器。
+  // 顯示 CAP 只影響畫面，事件用真實 results.length。
+  const filterCount = activeFilterCount(filters);
+  const hasQuery = query.trim().length > 0;
+  const resultCount = results.length;
+  useEffect(() => {
+    reportSearchState({ termKey: storeTermKey ?? null, hasQuery, filterCount, resultCount });
+  }, [storeTermKey, hasQuery, filterCount, resultCount]);
 
   return (
     <div className="flex h-full flex-col gap-3 p-4 pt-3">
