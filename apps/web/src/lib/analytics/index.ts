@@ -36,6 +36,7 @@ const GRANTED: ConsentSignals = {
 
 let defaultsSet = false;
 let configured = false;
+let lastPageViewPath: string | null = null;
 
 /** 本地 bootstrap：建 dataLayer + 把 Consent Mode v2 四項預設成 denied。
  * 純本地佇列，**不發任何請求、不載入任何 Google 資源**（§4）。 */
@@ -53,10 +54,12 @@ export function updateConsentMode(granted: boolean): void {
   window.gtag?.("consent", "update", granted ? GRANTED : DENIED_ALL);
 }
 
-/** gtag('js') + config。呼叫端必須先確認同意；page_view 自己送（§6 要洗 URL）。 */
+/** gtag('js') + config。page_view 自己送（§6 要洗 URL）。
+ * 自帶同意閘門，呼叫端漏檢也不會在未同意時把 config 排進 dataLayer。 */
 export function configureGa(): void {
   const id = measurementId();
   if (!id || configured || typeof window === "undefined") return;
+  if (readConsent() !== "granted") return;
   ensureGtag();
   configured = true;
   window.gtag?.("js", new Date());
@@ -74,6 +77,10 @@ export function trackPageView(): void {
   if (!canSend()) return;
   const page = sanitizePage(window.location.href, document.referrer);
   if (!page) return;
+  // 連續兩次同一頁不重送：dev 的 StrictMode 會把 effect 跑兩次、元件 remount 也會再觸發，
+  // DebugView 就會看到重複的 page_view。真的換頁（A→B→A）因為路徑變過，仍會照送。
+  if (page.page_path === lastPageViewPath) return;
+  lastPageViewPath = page.page_path;
   // set 成全域參數：之後每個事件都帶洗過的 page 欄位，gtag 就不會自己去抓原始 URL。
   window.gtag?.("set", globalPageFields(page));
   trackEvent("page_view", page.term_key ? { term_key: page.term_key } : {});
@@ -92,6 +99,7 @@ export function trackEvent<N extends EventName>(name: N, params: EventParams[N])
 export function resetAnalyticsState(): void {
   defaultsSet = false;
   configured = false;
+  lastPageViewPath = null;
 }
 
 function canSend(): boolean {

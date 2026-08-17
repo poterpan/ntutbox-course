@@ -168,4 +168,17 @@ describe("trackPageView", () => {
     trackPageView();
     expect(gtag).not.toHaveBeenCalled();
   });
+
+  it("does not repeat the same page twice (StrictMode / remount), but does send a real route change", () => {
+    enableGa();
+    setConsent(CONSENT_GRANTED);
+    window.history.replaceState({}, "", "/");
+    trackPageView();
+    trackPageView();
+    expect(gtag.mock.calls.filter((c) => c[1] === "page_view")).toHaveLength(1);
+
+    window.history.replaceState({}, "", "/?utm_source=google");
+    trackPageView();
+    expect(gtag.mock.calls.filter((c) => c[1] === "page_view")).toHaveLength(2);
+  });
 });
