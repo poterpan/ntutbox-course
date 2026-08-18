@@ -6,6 +6,7 @@ import { AccentButton } from "@/components/ui/accent-button";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
 import { useIdentityStore } from "@/store/identity-store";
+import { placeTracked } from "@/lib/analytics/track-plan";
 import { resolveMatric, libraryBadge } from "@/lib/planner/matric";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +18,7 @@ export function CourseListItem({
   // 全微學程 offering_id 聯集（見 getProgramOidSet）；未提供＝資料未達 → badge 不顯示。
   mprogramOids?: ReadonlySet<string>;
 }) {
-  const { favorites, placed, place, toggleFavorite } = useDraftStore();
+  const { favorites, placed, toggleFavorite } = useDraftStore();
   const openDetail = useUiStore((s) => s.openDetail);
   const setHoveredOffering = useUiStore((s) => s.setHoveredOffering);
   const mprogramFilter = useUiStore((s) => s.filters.mprogram);
@@ -37,7 +38,7 @@ export function CourseListItem({
   // on the grid side, but the JS gate is the authoritative no-touch guard.)
   const previewOn = (e: PointerEvent) => { if (e.pointerType === "mouse") setHoveredOffering(course.offering_id); };
   const previewOff = (e: PointerEvent) => { if (e.pointerType === "mouse") setHoveredOffering(null); };
-  const handlePlace = () => { setHoveredOffering(null); place(course.offering_id); };
+  const handlePlace = () => { setHoveredOffering(null); placeTracked(course.offering_id, "course_list"); };
 
   return (
     <div

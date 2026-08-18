@@ -11,6 +11,7 @@ import { creditSummary } from "@/lib/schedule/credits";
 import { useDraftStore, type PlacedCourse } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
 import { useToast } from "@/components/ui/toast";
+import { trackPlanCreatedTransition } from "@/lib/analytics/track-plan";
 
 /** F-B: read-only overlay of a shared timetable. Renders from ui-store.sharedPlan
  * (NOT the draft) so it never pollutes the recipient's plan until they import. */
@@ -53,12 +54,16 @@ export function SharedTimetableModal() {
     else doImport("merge");
   }
   function doImport(mode: "merge" | "replace") {
+    // 匯入分享課表是「一次動作 N 門課」→ 不送 course_added（會灌水），但若這是本學期第一份
+    // 課表仍算 plan_created。replace 走 setState 繞過 place()，所以自己判前後數量。
+    const before = useDraftStore.getState().placed.length;
     if (mode === "replace") {
       useDraftStore.setState({ placed: validIds.map((offering_id, i) => ({ offering_id, priority: i + 1 })) });
     } else {
       const place = useDraftStore.getState().place;
       validIds.forEach((id) => place(id)); // dedups + appends priority
     }
+    trackPlanCreatedTransition(before, useDraftStore.getState().placed.length, "shared_import");
     setChoosing(false);
     clearSharedPlan();
     showToast(dropped > 0 ? `已匯入 ${validIds.length} 門（${dropped} 門已失效略過）` : "已複製到你的規劃");

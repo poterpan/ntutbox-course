@@ -8,6 +8,7 @@ import { useUiStore } from "@/store/ui-store";
 import { useMprograms } from "@/lib/planner/use-mprograms";
 import { buildProgramIndex } from "@/lib/planner/mprogram-index";
 import { useDraftStore } from "@/store/draft-store";
+import { placeTracked } from "@/lib/analytics/track-plan";
 import { getDataSource } from "@/lib/data";
 import { buildCourseLink } from "@/lib/share/course-link";
 import { shareOrCopy } from "@/lib/share/share-course";
@@ -66,7 +67,7 @@ export function CourseDetailContent({
     () => buildProgramIndex(mprogDir).get(offeringId) ?? [],
     [mprogDir, offeringId],
   );
-  const { favorites, placed, place, unplace, toggleFavorite } = useDraftStore();
+  const { favorites, placed, unplace, toggleFavorite } = useDraftStore();
   const showToast = useToast((s) => s.show);
   const c = byId(offeringId);
   const isFav = c ? favorites.includes(c.offering_id) : false;
@@ -250,7 +251,7 @@ export function CourseDetailContent({
           <AccentButton
             size="lg"
             className="ml-auto"
-            onClick={() => { place(c.offering_id); onAfterPlace?.(); }}
+            onClick={() => { placeTracked(c.offering_id, "detail"); onAfterPlace?.(); }}
           >
             ＋ 排入課表
           </AccentButton>

@@ -9,6 +9,7 @@ import { useSearchIndex } from "@/lib/planner/use-search-index";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
 import { useIdentityStore } from "@/store/identity-store";
+import { placeTracked } from "@/lib/analytics/track-plan";
 import { applyFilters } from "@/lib/filters/apply";
 import { EMPTY_FILTER } from "@/lib/filters/types";
 import { search } from "@/lib/search/search";
@@ -20,7 +21,7 @@ const DAY = ["日", "一", "二", "三", "四", "五", "六"];
 export function SlotPopover() {
   const { courses, byId } = useTermCourses();
   const index = useSearchIndex();
-  const { placed, place, unplace, setPriority } = useDraftStore();
+  const { placed, unplace, setPriority } = useDraftStore();
   const { activeSlot, openSlot, openDetail } = useUiStore();
   const userGroup = useIdentityStore((s) => s.matricGroup);
   const [q, setQ] = useState("");
@@ -173,7 +174,7 @@ export function SlotPopover() {
                     <span className="font-medium">{c.name.zh}</span>
                     <span className="ml-1.5 text-[10px] text-[var(--ink-soft)]">{c.credits ?? "?"}學分 · {(c.teachers ?? []).map((t) => t.name).join("、") || "—"}</span>
                   </button>
-                  <AccentButton aria-label={`排入 ${c.name.zh}`} onClick={() => place(c.offering_id)}>＋ 排入</AccentButton>
+                  <AccentButton aria-label={`排入 ${c.name.zh}`} onClick={() => placeTracked(c.offering_id, "slot")}>＋ 排入</AccentButton>
                 </div>
               ))}
             </div>

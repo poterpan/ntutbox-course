@@ -10,6 +10,9 @@ import { buildPlanLink } from "@/lib/share/plan-link";
 import { shareOrCopy } from "@/lib/share/share-course";
 import { useToast } from "@/components/ui/toast";
 import { AccentButton } from "@/components/ui/accent-button";
+import { trackEvent } from "@/lib/analytics";
+import { countBucket } from "@/lib/analytics/events";
+import { currentCampaignKey } from "@/lib/analytics/campaign";
 
 export function CreditSummary() {
   const placed = useDraftStore((s) => s.placed);
@@ -25,10 +28,31 @@ export function CreditSummary() {
     const r = await shareOrCopy(url, "我的課表", "我的課表｜北科盒子 排課");
     if (r === "copied") showToast("已複製課表連結");
     else if (r === "failed") showToast("複製失敗，請手動複製網址");
+    // 成功分享/複製才算一次擴散；使用者取消（shareOrCopy 回 "shared"）也算，failed 不送。
+    const bucket = countBucket(placed.length);
+    if (r !== "failed" && bucket) {
+      trackEvent("plan_shared", {
+        term_key: termKey,
+        share_method: r === "shared" ? "web_share" : "copy",
+        course_count_bucket: bucket,
+      });
+    }
   }
 
   // F-C「匯出到 App」尚未完成 → 先預留按鈕佔位，按下提示即將上線。
+  // 佔位期間仍量測「想匯出」的意圖（handoff_method=placeholder），真 handoff 上線後
+  // 換成 universal_link/qr 就能在報表上區隔兩個時期。空課表的點擊不送。
   function handleExportSoon() {
+    const bucket = countBucket(placed.length);
+    const campaignKey = currentCampaignKey();
+    if (bucket) {
+      trackEvent("export_to_app_click", {
+        ...(termKey ? { term_key: termKey } : {}),
+        handoff_method: "placeholder",
+        course_count_bucket: bucket,
+        ...(campaignKey ? { campaign_key: campaignKey } : {}),
+      });
+    }
     showToast("匯出到 App 功能即將上線");
   }
 
