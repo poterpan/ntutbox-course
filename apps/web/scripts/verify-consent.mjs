@@ -145,9 +145,21 @@ const configArgOf = (page) =>
   page.evaluate(() =>
     (window.dataLayer ?? []).map((e) => Array.from(e)).filter((e) => e[0] === "config").map((e) => e[2]),
   );
+const collectOf = (urls) => urls.filter((u) => u.includes("/collect"));
 /** collect 請求的某個 query 參數（GA4 payload：dt=page_title、dl=page_location）。 */
-const paramsOf = (urls, key) =>
-  urls.filter((u) => u.includes("/collect")).map((u) => new URL(u).searchParams.get(key));
+const paramsOf = (urls, key) => collectOf(urls).map((u) => new URL(u).searchParams.get(key));
+/**
+ * 對真實 collect 請求下斷言。**零 collect 時一律標 SKIP**——`[].every()` 恆真，
+ * 會把「沒量到」偽裝成「驗過了」，那比沒有這條檢查更糟。
+ */
+const checkCollect = (name, urls, predicate, whyIfNone) => {
+  const collect = collectOf(urls);
+  if (collect.length === 0) {
+    skip(name, whyIfNone);
+    return;
+  }
+  check(name, predicate(collect), collect.slice(0, 2).join(" "));
+};
 
 // 用系統 Chrome：本機常見的是 playwright 版本與已下載 chromium 不匹配
 const browser = await chromium.launch({ channel: "chrome" });
@@ -325,19 +337,13 @@ try {
   const dts = paramsOf(hits4, "dt");
   info(`分享連結的 ${dts.length} 個 collect 請求，dt 觀測值`, [...new Set(dts)]);
   info("同一批 collect 的 dl（page_location）觀測值", [...new Set(paramsOf(hits4, "dl"))]);
-  if (dts.length === 0) {
-    skip(
-      "collect 的 dt 為固定值",
-      "測試用 Measurement ID 不會觸發 /g/collect（GA 對不存在的 property 不發 hit）；" +
-        "dataLayer 層已驗，dt 直接取自 page_title",
-    );
-  } else {
-    check("collect 的 dt 為固定值、不含課名", dts.every((dt) => dt === FIXED_TITLE), JSON.stringify(dts));
-  }
-  check(
+  const NO_COLLECT = "這次沒有攔到任何 /g/collect 請求——不能當作通過，請確認測試建置真的送得出 hit";
+  checkCollect("collect 的 dt 為固定值、不含課名", hits4, () => dts.every((dt) => dt === FIXED_TITLE), NO_COLLECT);
+  checkCollect(
     "collect 請求全文不含課名／課號",
-    hits4.every((u) => !decodeURIComponent(u).includes(SHARE_NAME) && !u.includes(SHARE_OID)),
-    hits4.filter((u) => u.includes("/collect")).slice(0, 2).join(" ") || "(尚無 collect 請求)",
+    hits4,
+    (us) => us.every((u) => !decodeURIComponent(u).includes(SHARE_NAME) && !u.includes(SHARE_OID)),
+    NO_COLLECT,
   );
   await page4.close();
 
@@ -384,11 +390,12 @@ try {
     set5?.page_title === FIXED_TITLE,
     `${set5?.page_title} / document.title=${await page5.title()}`,
   );
-  const collect5 = hits5.filter((u) => u.includes("/collect"));
-  check(
+  info("敏感 query 落地頁的 collect dl 觀測值", [...new Set(paramsOf(hits5, "dl"))]);
+  checkCollect(
     "實際 collect 請求不含敏感值",
-    collect5.every((u) => !u.includes("360744") && !u.includes("secret") && !/[?&]tok/.test(u)),
-    collect5.slice(0, 2).join(" ") || "(尚無 collect 請求)",
+    hits5,
+    (us) => us.every((u) => !u.includes("360744") && !u.includes("secret") && !/[?&]tok/.test(u)),
+    NO_COLLECT,
   );
   await page5.close();
 
