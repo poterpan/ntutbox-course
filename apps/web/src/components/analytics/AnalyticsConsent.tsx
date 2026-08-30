@@ -29,9 +29,11 @@ export function AnalyticsConsent() {
       role="region"
       aria-label="成效分析同意"
       // z 序：Dialog(z-50)/Toast(z-100) 之下，其餘之上。
-      // sm 以上 CreditSummary 收成單列（約 64px）→ bottom-20 剛好疊在它上方，不遮匯出/分享；
-      // 窄機那排是雙列＋滿寬，讓不出空間，就落在最底（答完一次即消失，功能不會被永久遮住）。
-      className="fixed inset-x-3 bottom-3 z-40 sm:inset-x-auto sm:right-4 sm:bottom-20 sm:w-[26rem]"
+      // sm 以上 CreditSummary 收成單列（約 64px）→ bottom-20 剛好疊在它上方，不遮匯出/分享。
+      // 窄機必須讓開「課程庫」FAB（fixed bottom-28 h-12 z-30）——那是行動版唯一的搜尋入口，
+      // 被蓋住時首訪者在回答同意前無法查任何課，與本卡文案「拒絕也能正常使用全部功能」相悖。
+      // bottom-44（176px）= FAB 底 112px + FAB 高 48px + 16px 間距。
+      className="fixed inset-x-3 bottom-44 z-40 sm:inset-x-auto sm:right-4 sm:bottom-20 sm:w-[26rem]"
     >
       {/* 底色改用 glass token 的 strong 階：這張卡會壓在課程列（滿滿的「排入」按鈕）上方，
           用預設 0.78 透明度時文字會被背後內容干擾。 */}
