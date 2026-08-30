@@ -48,11 +48,47 @@ describe("useShareLink", () => {
     expect(useToast.getState().message).toBeTruthy();
   });
 
-  it("strips the share params from the URL so refresh doesn't re-trigger", () => {
+  it("keeps the share params in the URL so the address stays shareable", () => {
+    // 過去這裡會 replaceState 清掉參數，導致：① 使用者複製到的網址是首頁；
+    // ② Googlebot 渲染後 location 變成 "/"，2,461 個課程 URL 在索引端無法區分。
     window.history.replaceState({}, "", "/?term=115-1&course=360744");
     renderHook(() => useShareLink());
-    expect(window.location.search).not.toContain("course=");
-    expect(window.location.search).not.toContain("term=");
+    expect(window.location.search).toContain("course=360744");
+    expect(window.location.search).toContain("term=115-1");
+  });
+
+  it("does not re-open the detail within the same mount after the user closes it", () => {
+    window.history.replaceState({}, "", "/?term=115-1&course=360744");
+    renderHook(() => useShareLink());
+    act(() => {
+      useTermStore.setState({ status: "ready", termKey: "115-1", bundle: bundleWith(["360744"]) });
+    });
+    expect(useUiStore.getState().detailOfferingId).toBe("360744");
+    // 同一次 mount 內關窗後，store 再次更新不應重新開窗（handledRef 擋住）
+    act(() => useUiStore.setState({ detailOfferingId: null }));
+    act(() => {
+      useTermStore.setState({ status: "ready", termKey: "115-1", bundle: bundleWith(["360744"]) });
+    });
+    expect(useUiStore.getState().detailOfferingId).toBeNull();
+  });
+
+  it("re-opens the detail on a fresh mount (reload = deep link re-entry)", () => {
+    // handledRef 只在單次 mount 內有效。重整＝新的 hook instance，URL 仍帶 ?course
+    // → 應重新開窗，這是 deep link 的正確語意（Codex review 指出原註解描述不實）。
+    window.history.replaceState({}, "", "/?term=115-1&course=360744");
+    const first = renderHook(() => useShareLink());
+    act(() => {
+      useTermStore.setState({ status: "ready", termKey: "115-1", bundle: bundleWith(["360744"]) });
+    });
+    expect(useUiStore.getState().detailOfferingId).toBe("360744");
+    act(() => useUiStore.setState({ detailOfferingId: null }));
+    first.unmount();
+
+    renderHook(() => useShareLink()); // 模擬重整
+    act(() => {
+      useTermStore.setState({ status: "ready", termKey: "115-1", bundle: bundleWith(["360744"]) });
+    });
+    expect(useUiStore.getState().detailOfferingId).toBe("360744");
   });
 
   it("opens the shared-plan overlay for a ?plan link, without touching detail/draft", () => {
@@ -63,6 +99,8 @@ describe("useShareLink", () => {
     expect(ui.sharedPlan).toEqual({ termKey: "114-2", offeringIds: ["360744", "360745", "360763"] });
     expect(ui.sharedPlanOpen).toBe(true);
     expect(ui.detailOfferingId).toBeNull();
-    expect(window.location.search).not.toContain("plan=");
+    // plan 參數同樣保留：分享課表的網址要能被複製轉傳。
+    // （SEO 上 plan 是無限排列組合，由 worker 一律 canonical 回首頁，見 lib/share/og.ts）
+    expect(window.location.search).toContain("plan=");
   });
 });

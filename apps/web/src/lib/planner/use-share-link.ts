@@ -11,7 +11,8 @@ const NOT_FOUND = "此課程連結的課程可能已更新或不存在";
 
 /**
  * F-A 收件端：進站若帶 ?term & ?course，切到該學期、待資料就緒後開該課資訊窗。
- * 不修改草稿（favorites/placed 不動）。開窗後清掉 URL 上的 share 參數，避免重整重觸發。
+ * 不修改草稿（favorites/placed 不動）。URL 參數保留（可分享、可被搜尋引擎區分）；
+ * 重整＝重新開窗（deep link 語意）。document.title 由 useCourseTitle 負責。
  * 掛在 planner 根一次即可。
  */
 export function useShareLink() {
@@ -42,11 +43,14 @@ export function useShareLink() {
       setSelectedTerm(course.termKey);
     }
 
-    const url = new URL(window.location.href);
-    url.searchParams.delete("term");
-    url.searchParams.delete("course");
-    url.searchParams.delete("plan");
-    window.history.replaceState({}, "", url.pathname + url.search + url.hash);
+    // 刻意「不」清掉 URL 上的 share 參數：
+    // ① 使用者複製網址時要拿到真正指向該課的連結（清掉會複製成首頁）；
+    // ② Googlebot 用渲染後的 DOM，清掉會讓 2,461 個課程 URL 的 location 全變成 "/"，
+    //    在索引端無法區分（SEO 稽核實測：rendered location.href 全部塌成首頁）。
+    //
+    // 語意：URL 是 source of truth。handledRef 只擋「同一次 mount 內」重複開窗；
+    // 重新整理會重新開該課的詳情窗——這是 deep link 應有的行為（等同重開分享連結），
+    // 不是 bug。使用者要離開該課就關窗後自行導航，或直接編輯網址。
   }, [setSelectedTerm, openSharedPlan]);
 
   // 目標學期就緒後開窗；找不到 → 提示。
@@ -57,6 +61,8 @@ export function useShareLink() {
     if (status === "ready" && loadedTermKey === pending.termKey) {
       handledRef.current = true;
       pendingRef.current = null;
+      // document.title 不在這裡管——由 useCourseTitle 跟著 detailOfferingId 走，
+      // 才能在關窗/切課/切學期時正確還原（見 use-course-title.ts）。
       if (byId(pending.offeringId)) openDetail(pending.offeringId);
       else showToast(NOT_FOUND);
     } else if (status === "error") {

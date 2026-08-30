@@ -20,6 +20,7 @@ import { MicroProgramPane } from "./MicroProgramPane";
 import { NoTimeTray } from "./NoTimeTray";
 import { Toaster } from "@/components/ui/toast";
 import { useShareLink } from "@/lib/planner/use-share-link";
+import { useCourseTitle } from "@/lib/planner/use-course-title";
 
 const fmtDate = (iso: string | null) => (iso ? iso.slice(0, 10) : "—");
 
@@ -34,6 +35,7 @@ export function PlannerLayout() {
   const dismissStale = useUiStore((s) => s.dismissStale);
   const belowLg = useBelowLg();
   useShareLink();
+  useCourseTitle();
 
   return (
     <main className="flex h-dvh flex-col">
