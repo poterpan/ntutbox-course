@@ -63,11 +63,17 @@ export function buildCourseJsonLd({ course, termKey }: CourseJsonLdInput): Recor
     ...(course.course_code ? { courseCode: course.course_code } : {}),
     inLanguage: "zh-Hant",
     isAccessibleForFree: false,
-    provider: NTUT,
-    ...(course.unit_name
-      ? { department: { "@type": "Organization", name: course.unit_name } }
-      : {}),
-    ...(credits != null && Number.isFinite(credits) && credits > 0
+    // provider 一律是學校（開課單位＝校方，本站只是第三方整理者）。
+    // 系所改用 CollegeOrUniversity 的 `department` 屬性表達——schema.org 的 department
+    // 是 Organization 專屬，掛在 provider 這個 Organization 上才符合型別；先前掛在
+    // Course 上是錯的（Codex review 指出）。
+    provider: course.unit_name
+      ? { ...NTUT, department: { "@type": "Organization", name: course.unit_name } }
+      : NTUT,
+    // schema.org 的 numberOfCredits 型別是 Integer | StructuredValue。實際資料有
+    // 0.5 學分課（115-1 的 365648／366444 專題討論），非整數就整個省略——寧可少標，
+    // 也不要輸出不符型別的值。
+    ...(credits != null && Number.isInteger(credits) && credits > 0
       ? { numberOfCredits: credits }
       : {}),
     hasCourseInstance: instance,

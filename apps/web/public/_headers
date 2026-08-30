@@ -9,11 +9,21 @@
 #
 # 現有來源：
 #   自站 / cdn.ntutbox.com（課程資料 fetch）/ static.cloudflareinsights.com（RUM）
-#   GA（僅同意後）：googletagmanager / analytics.google.com / *.google-analytics.com
-#                   / stats.g.doubleclick.net / www.google.com.tw
+#   GA（僅同意後）：依 Google 官方 GA CSP 指南的基本集合
+#   （developers.google.com/tag-platform/security/guides/csp）——用 wildcard 涵蓋
+#   *.google-analytics.com / *.analytics.google.com，不要只列一次實測看到的固定主機
+#   （gtag 會依 transport、地區、廣告設定改用不同端點）。
+#
+# ⚠️ Advertising endpoints（stats.g.doubleclick.net、www.google.com/.com.tw）:
+#   這些只在 property 啟用廣告功能時才會被打。目前 lib/analytics/index.ts 同意後
+#   把 ad_storage / ad_user_data 設為 granted（ad_personalization 維持 denied），
+#   所以先列入。若確認不需要 Google Ads 轉換歸因，把那兩個 signal 改回 denied 後
+#   就能把這幾行從 CSP 拿掉，攻擊面更小。
+#   注意 Google 的地區化 endpoint 無法用 wildcard 涵蓋所有 TLD（官方明示），
+#   只列了 .com 與 .com.tw；若未來有其他地區流量需逐一增列。
 /*
   X-Frame-Options: DENY
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
   Cross-Origin-Opener-Policy: same-origin
-  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://www.google.com.tw https://www.google.com https://stats.g.doubleclick.net; font-src 'self'; connect-src 'self' https://cdn.ntutbox.com https://static.cloudflareinsights.com https://analytics.google.com https://www.google-analytics.com https://region1.google-analytics.com https://stats.g.doubleclick.net https://www.googletagmanager.com; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.google-analytics.com https://www.googletagmanager.com https://stats.g.doubleclick.net https://www.google.com https://www.google.com.tw; font-src 'self'; connect-src 'self' https://cdn.ntutbox.com https://static.cloudflareinsights.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://stats.g.doubleclick.net; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'

@@ -48,6 +48,27 @@ describe("buildCourseJsonLd", () => {
     expect((ld.hasCourseInstance as Record<string, unknown>).courseMode).toBeUndefined();
   });
 
+  it("does not put department on Course (schema.org: Organization-only property)", () => {
+    const ld = buildCourseJsonLd({ course: base, termKey: "115-1" })!;
+    expect(ld.department).toBeUndefined();
+    // 系所沒有消失，是改掛到 provider（Organization）底下才符合 schema.org 型別
+    const provider = ld.provider as Record<string, unknown>;
+    expect(provider["@type"]).toBe("CollegeOrUniversity");
+    expect((provider.department as Record<string, unknown>).name).toBe("智動科");
+  });
+
+  it("omits numberOfCredits for fractional credits (schema.org wants Integer)", () => {
+    // 實際資料有 0.5 學分課（115-1 的 365648／366444 專題討論）
+    const halfCredit = { ...base, credits: "0.5" } as unknown as CourseOffering;
+    const ld = buildCourseJsonLd({ course: halfCredit, termKey: "115-1" })!;
+    expect(ld.numberOfCredits).toBeUndefined();
+  });
+
+  it("keeps integer credits as a plain number", () => {
+    const ld = buildCourseJsonLd({ course: base, termKey: "115-1" })!;
+    expect(ld.numberOfCredits).toBe(2);
+  });
+
   it("returns null without a course name", () => {
     expect(buildCourseJsonLd({ course: { offering_id: "1" } as unknown as CourseOffering, termKey: "115-1" })).toBeNull();
   });

@@ -38,18 +38,9 @@ describe("buildCourseSitemapXml", () => {
 });
 
 describe("buildCourseSitemapXml lastmod", () => {
-  it("emits <lastmod> when a generated_at timestamp is given", () => {
-    const xml = buildCourseSitemapXml("https://course.ntutbox.com", "115-1", { "360744": "國文" }, "2026-08-29T02:51:49Z");
-    expect(xml).toContain("<lastmod>2026-08-29T02:51:49Z</lastmod>");
-  });
-
-  it("omits <lastmod> entirely when no timestamp is available", () => {
+  it("does not emit <lastmod>: no per-course timestamp is available", () => {
+    // manifest 只有全域 generated_at，套到全部 URL 會讓訊號失真（見實作註解）。
     const xml = buildCourseSitemapXml("https://course.ntutbox.com", "115-1", { "360744": "國文" });
-    expect(xml).not.toContain("<lastmod>");
-  });
-
-  it("does not emit an invalid lastmod for a malformed timestamp", () => {
-    const xml = buildCourseSitemapXml("https://course.ntutbox.com", "115-1", { "360744": "國文" }, "not-a-date");
     expect(xml).not.toContain("<lastmod>");
   });
 });
