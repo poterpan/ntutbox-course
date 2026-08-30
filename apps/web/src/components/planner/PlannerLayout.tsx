@@ -13,6 +13,7 @@ import { CourseDetailDrawer } from "./CourseDetailDrawer";
 import { SharedTimetableModal } from "./SharedTimetableModal";
 import { SharedPlanFab } from "./SharedPlanFab";
 import { CreditSummary } from "./CreditSummary";
+import { AboutDialog } from "./AboutDialog";
 import { TermSwitcher } from "./TermSwitcher";
 import { MatricSwitcher } from "./MatricSwitcher";
 import { FavoritesList } from "./FavoritesList";
@@ -43,9 +44,12 @@ export function PlannerLayout() {
         </h1>
         <TermSwitcher />
         <MatricSwitcher />
-        <div className="ml-auto hidden items-center gap-1.5 text-[11px] text-[var(--ink-faint)] sm:flex">
-          <span>資料更新</span>
-          <span className="font-medium text-[var(--ink-soft)]">{fmtDate(enrollAt ?? catalogAt)}</span>
+        <div className="ml-auto flex items-center gap-2">
+          <div className="hidden items-center gap-1.5 text-[11px] text-[var(--ink-faint)] sm:flex">
+            <span>資料更新</span>
+            <span className="font-medium text-[var(--ink-soft)]">{fmtDate(enrollAt ?? catalogAt)}</span>
+          </div>
+          <AboutDialog />
         </div>
       </header>
 

@@ -76,7 +76,32 @@ const JSON_LD = {
       inLanguage: "zh-Hant",
       isAccessibleForFree: true,
       offers: { "@type": "Offer", price: "0", priceCurrency: "TWD" },
-      publisher: { "@type": "Organization", name: "北科盒子" },
+      publisher: { "@id": `${SITE_URL}/#publisher` },
+      // 課程資料的原始出處。標明非官方、資料整理自校方公開系統——E-E-A-T 稽核指出
+      // 全站原本沒有任何資料來源/非官方揭露，對呈現正式課務資料的工具是信任缺口。
+      isBasedOn: {
+        "@type": "WebSite",
+        name: "國立臺北科技大學 課程查詢系統",
+        url: "https://aps.ntut.edu.tw/course/tw/",
+      },
+      // provider 是課程的開課單位（校方），不是本站——本站只是第三方整理者。
+      // 誤標成自己會是事實錯誤，見 SEO schema 稽核。
+      about: {
+        "@type": "CollegeOrUniversity",
+        name: "國立臺北科技大學",
+        alternateName: "National Taipei University of Technology",
+        url: "https://www.ntut.edu.tw/",
+      },
+      disambiguatingDescription:
+        "本站為學生獨立開發的非官方工具，與國立臺北科技大學無隸屬或合作關係。課程資料整理自校方公開的課程查詢系統，每日自動更新；正式選課以學校系統為準。",
+    },
+    {
+      "@type": "Organization",
+      "@id": `${SITE_URL}/#publisher`,
+      name: "北科盒子",
+      url: "https://ntutbox.com",
+      description: "北科盒子（NTUT Box）：北科大學生的非官方校務工具，含 iOS App 與網頁版排課系統。",
+      sameAs: ["https://ntutbox.com", "https://github.com/poterpan/ntutbox-course"],
     },
   ],
 };
