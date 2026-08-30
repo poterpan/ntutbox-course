@@ -57,19 +57,38 @@ describe("useShareLink", () => {
     expect(window.location.search).toContain("term=115-1");
   });
 
-  it("does not re-open the detail after the user closes it (no re-trigger loop)", () => {
+  it("does not re-open the detail within the same mount after the user closes it", () => {
     window.history.replaceState({}, "", "/?term=115-1&course=360744");
     renderHook(() => useShareLink());
     act(() => {
       useTermStore.setState({ status: "ready", termKey: "115-1", bundle: bundleWith(["360744"]) });
     });
     expect(useUiStore.getState().detailOfferingId).toBe("360744");
-    // 使用者關窗後，參數仍在 URL 上，但不應再度自動開窗
+    // 同一次 mount 內關窗後，store 再次更新不應重新開窗（handledRef 擋住）
     act(() => useUiStore.setState({ detailOfferingId: null }));
     act(() => {
       useTermStore.setState({ status: "ready", termKey: "115-1", bundle: bundleWith(["360744"]) });
     });
     expect(useUiStore.getState().detailOfferingId).toBeNull();
+  });
+
+  it("re-opens the detail on a fresh mount (reload = deep link re-entry)", () => {
+    // handledRef 只在單次 mount 內有效。重整＝新的 hook instance，URL 仍帶 ?course
+    // → 應重新開窗，這是 deep link 的正確語意（Codex review 指出原註解描述不實）。
+    window.history.replaceState({}, "", "/?term=115-1&course=360744");
+    const first = renderHook(() => useShareLink());
+    act(() => {
+      useTermStore.setState({ status: "ready", termKey: "115-1", bundle: bundleWith(["360744"]) });
+    });
+    expect(useUiStore.getState().detailOfferingId).toBe("360744");
+    act(() => useUiStore.setState({ detailOfferingId: null }));
+    first.unmount();
+
+    renderHook(() => useShareLink()); // 模擬重整
+    act(() => {
+      useTermStore.setState({ status: "ready", termKey: "115-1", bundle: bundleWith(["360744"]) });
+    });
+    expect(useUiStore.getState().detailOfferingId).toBe("360744");
   });
 
   it("opens the shared-plan overlay for a ?plan link, without touching detail/draft", () => {
