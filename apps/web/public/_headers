@@ -1,0 +1,13 @@
+# Cloudflare Static Assets 的回應標頭。HSTS 與 X-Content-Type-Options 已由
+# Cloudflare 端設定（實測線上已有），這裡補其餘缺漏項。
+#
+# CSP 的來源清單依實測（Playwright 記錄整站發出的請求）：
+#   自站 / cdn.ntutbox.com（課程資料 fetch）/ static.cloudflareinsights.com（RUM）
+#   + Google Analytics（僅在使用者同意後才載入，見 components/analytics/）
+# 改動前請重跑一次來源盤點，別憑印象加減。
+/*
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' https://cdn.ntutbox.com https://static.cloudflareinsights.com https://www.google-analytics.com https://region1.google-analytics.com; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'

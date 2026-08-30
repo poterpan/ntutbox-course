@@ -75,11 +75,15 @@ async function courseSitemap(env: Env): Promise<Response> {
     cf: { cacheTtl: 3600, cacheEverything: true },
   } as RequestInit);
   if (!res.ok) throw new Error(`manifest ${res.status}`);
-  const manifest = (await res.json()) as { terms: Record<string, unknown> };
+  const manifest = (await res.json()) as {
+    terms: Record<string, unknown>;
+    generated_at?: string;
+  };
   const term = latestTermKey(Object.keys(manifest.terms));
   if (!term) throw new Error("no terms");
   const names = await getNames(term, env.DATA_BASE_URL);
-  return new Response(buildCourseSitemapXml(SITE_ORIGIN, term, names), {
+  // generated_at = 資料實際重新產出的時間，直接當 sitemap 的 lastmod（缺就不出這個 tag）。
+  return new Response(buildCourseSitemapXml(SITE_ORIGIN, term, names, manifest.generated_at), {
     headers: {
       "content-type": "application/xml; charset=utf-8",
       "cache-control": "public, max-age=3600",
