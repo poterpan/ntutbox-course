@@ -14,6 +14,7 @@ import { SharedTimetableModal } from "./SharedTimetableModal";
 import { SharedPlanFab } from "./SharedPlanFab";
 import { CreditSummary } from "./CreditSummary";
 import { AboutDialog } from "./AboutDialog";
+import { CourseJsonLd } from "./CourseJsonLd";
 import { TermSwitcher } from "./TermSwitcher";
 import { MatricSwitcher } from "./MatricSwitcher";
 import { FavoritesList } from "./FavoritesList";
@@ -89,6 +90,7 @@ export function PlannerLayout() {
       </div>
 
       <CreditSummary />
+      <CourseJsonLd />
 
       {/* mobile bottom-sheet library — gate open by viewport: SheetContent portals to
           <body> and escapes this lg:hidden wrapper, so on desktop libraryOpen (set by

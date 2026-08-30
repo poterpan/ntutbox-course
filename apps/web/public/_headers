@@ -1,0 +1,29 @@
+# Cloudflare Static Assets 的回應標頭。HSTS 與 X-Content-Type-Options 已由
+# Cloudflare 端設定（實測線上已有），這裡只補其餘缺漏項，避免兩處管同一件事。
+#
+# ⚠️ CSP 的來源清單是**實測**出來的，不是憑印象：用 Playwright 記錄整站發出的請求，
+#    且必須**點下「同意」讓 GA 真的載入**後再盤點一次——GA 同意後會另外打
+#    analytics.google.com / stats.g.doubleclick.net / www.google.com.tw（地區化 pixel），
+#    只在未同意狀態盤點會漏掉這三個，上線後才會被 CSP 擋掉。
+#    改動前請重跑一次雙態盤點（同意前 + 同意後）。
+#
+# 現有來源：
+#   自站 / cdn.ntutbox.com（課程資料 fetch）/ static.cloudflareinsights.com（RUM）
+#   GA（僅同意後）：依 Google 官方 GA CSP 指南的基本集合
+#   （developers.google.com/tag-platform/security/guides/csp）——用 wildcard 涵蓋
+#   *.google-analytics.com / *.analytics.google.com，不要只列一次實測看到的固定主機
+#   （gtag 會依 transport、地區、廣告設定改用不同端點）。
+#
+# ⚠️ Advertising endpoints（stats.g.doubleclick.net、www.google.com/.com.tw）:
+#   這些只在 property 啟用廣告功能時才會被打。目前 lib/analytics/index.ts 同意後
+#   把 ad_storage / ad_user_data 設為 granted（ad_personalization 維持 denied），
+#   所以先列入。若確認不需要 Google Ads 轉換歸因，把那兩個 signal 改回 denied 後
+#   就能把這幾行從 CSP 拿掉，攻擊面更小。
+#   注意 Google 的地區化 endpoint 無法用 wildcard 涵蓋所有 TLD（官方明示），
+#   只列了 .com 與 .com.tw；若未來有其他地區流量需逐一增列。
+/*
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'unsafe-inline' https://static.cloudflareinsights.com https://www.googletagmanager.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.google-analytics.com https://www.googletagmanager.com https://stats.g.doubleclick.net https://www.google.com https://www.google.com.tw; font-src 'self'; connect-src 'self' https://cdn.ntutbox.com https://static.cloudflareinsights.com https://*.google-analytics.com https://*.analytics.google.com https://www.googletagmanager.com https://stats.g.doubleclick.net; manifest-src 'self'; worker-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'

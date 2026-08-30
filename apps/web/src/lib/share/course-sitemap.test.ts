@@ -36,3 +36,11 @@ describe("buildCourseSitemapXml", () => {
     expect(xml).toContain("</urlset>");
   });
 });
+
+describe("buildCourseSitemapXml lastmod", () => {
+  it("does not emit <lastmod>: no per-course timestamp is available", () => {
+    // manifest 只有全域 generated_at，套到全部 URL 會讓訊號失真（見實作註解）。
+    const xml = buildCourseSitemapXml("https://course.ntutbox.com", "115-1", { "360744": "國文" });
+    expect(xml).not.toContain("<lastmod>");
+  });
+});

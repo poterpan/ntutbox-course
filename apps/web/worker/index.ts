@@ -83,6 +83,10 @@ async function courseSitemap(env: Env): Promise<Response> {
     headers: {
       "content-type": "application/xml; charset=utf-8",
       "cache-control": "public, max-age=3600",
+      // 這份回應是 worker 從零建構的，不經 Static Assets，所以 public/_headers 套不到
+      // （實測：/ 與 /og.jpg 有標頭，本路徑 0 個）。XML 不執行腳本、不嵌 iframe，
+      // 其餘標頭意義不大，但 nosniff 值得補：避免 MIME 嗅探把它當別的型態處理。
+      "x-content-type-options": "nosniff",
     },
   });
 }
