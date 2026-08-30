@@ -37,7 +37,11 @@ export function WeeklyGrid() {
 
   return (
     <div
-      className="grid h-full gap-1"
+      // 窄機用 min-h-full：放不下 14 節時讓 grid 保有自然高度，捲動容器的
+      // padding-bottom 才能真正延長可捲距離（用 h-full 的話 padding 會把 grid
+      // 一起壓縮，scrollHeight 不變 → FAB 仍壓住最後一列）。
+      // lg 以上回到 h-full：桌面容器夠高，grid 應填滿而非撐出捲軸。
+      className="grid min-h-full lg:h-full lg:min-h-0 gap-1"
       style={{
         gridTemplateColumns: `3rem repeat(${DAYS.length}, minmax(0,1fr))`,
         gridTemplateRows: `2rem repeat(${tokens.length}, minmax(2.6rem, 1fr))`,

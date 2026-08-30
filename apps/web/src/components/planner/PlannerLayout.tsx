@@ -73,7 +73,12 @@ export function PlannerLayout() {
         {/* timetable */}
         <GlassPanel className="flex min-h-0 flex-1 flex-col overflow-hidden p-3 sm:p-4">
           <MobileViewControls />
-          <div className="min-h-0 flex-1 overflow-auto">
+          {/* pb-7 lg:pb-0：窄機的「課程庫」FAB（fixed bottom-28）會壓在課表右下角，
+              捲到底時覆蓋週五 D 節約 61%（實測），該格幾乎點不到。
+              實測容器底緣到 FAB 頂只差 25px，給 28px 剛好讓最後一列停在 FAB 上方——
+              不要給整個 FAB 高度（56px），那會留下明顯過多的底部空白。
+              桌面沒有 FAB，不需要這段留白。 */}
+          <div className="min-h-0 flex-1 overflow-auto pb-7 lg:pb-0">
             {status === "loading" ? (
               <div className="flex h-full items-center justify-center text-sm text-[var(--ink-soft)]">載入課程中…</div>
             ) : (
