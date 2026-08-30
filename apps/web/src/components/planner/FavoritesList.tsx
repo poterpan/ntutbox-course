@@ -21,7 +21,7 @@ export function FavoritesList() {
       <div className="flex h-full flex-col items-center justify-center gap-1 p-6 text-center">
         <span className="text-2xl">☆</span>
         <p className="text-sm text-[var(--ink-soft)]">尚無收藏</p>
-        <p className="text-xs text-[var(--ink-faint)]">在課程庫點任一課程的 ★ 加入帶選清單</p>
+        <p className="text-xs text-[var(--ink-faint)]">在課程庫點任一課程的 ★ 加入待選清單</p>
       </div>
     );
   }
