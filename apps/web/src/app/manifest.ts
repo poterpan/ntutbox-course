@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "北科盒子 排課",
     short_name: "北科排課",
     description:
-      "免登入查詢國立臺北科技大學（北科大）歷年課程與課綱，排週課表、即時檢查衝堂與學分、分享課表，一鍵匯入北科盒子 App。",
+      "查詢國立臺北科技大學（北科大）歷年課程與課綱，排週課表、即時檢查衝堂與學分、分享課表，一鍵匯入北科盒子 App。",
     id: "/",
     start_url: "/",
     scope: "/",

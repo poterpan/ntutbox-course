@@ -30,7 +30,7 @@ export function AboutDialog() {
           <DialogTitle className="text-lg font-bold text-[var(--ink)]">關於北科盒子 排課</DialogTitle>
           <div className="mt-4 space-y-4 text-sm leading-relaxed text-[var(--ink-soft)]">
             <p>
-              免登入的臺北科技大學（北科大）課程查詢與排課規劃工具：全文查課、多維篩選、
+              臺北科技大學（北科大）的課程查詢與排課規劃工具：全文查課、多維篩選、
               衝堂偵測、學分統計、微學程瀏覽，排好後可匯入
               <a href={APP_SITE} target="_blank" rel="noopener noreferrer" className="text-[var(--accent-ink)] underline underline-offset-2"> 北科盒子 App </a>
               完成選課。
@@ -47,14 +47,14 @@ export function AboutDialog() {
             <section>
               <h3 className="font-semibold text-[var(--ink)]">非官方聲明</h3>
               <p className="mt-1">
-                本站為學生獨立開發的非官方工具，與國立臺北科技大學無隸屬或合作關係，
+                本站為獨立開發的非官方工具，與國立臺北科技大學無隸屬或合作關係，
                 亦非校方委託建置。
               </p>
             </section>
             <section>
               <h3 className="font-semibold text-[var(--ink)]">開發與回饋</h3>
               <p className="mt-1">
-                由北科學生 PoterPan 開發與維護。原始碼與問題回報：
+                由 PoterPan 開發與維護。原始碼與問題回報：
                 <a href={REPO} target="_blank" rel="noopener noreferrer" className="text-[var(--accent-ink)] underline underline-offset-2">GitHub</a>
                 。
               </p>
