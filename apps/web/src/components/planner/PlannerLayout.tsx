@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useTermStore } from "@/store/term-store";
 import { useUiStore } from "@/store/ui-store";
 import { useDraftStore } from "@/store/draft-store";
@@ -52,6 +53,14 @@ export function PlannerLayout() {
             <span>資料更新</span>
             <span className="font-medium text-[var(--ink-soft)]">{fmtDate(enrollAt ?? catalogAt)}</span>
           </div>
+          {/* 內容頁的站內入口。排課器是 app shell、沒有頁尾，指南若沒有任何站內連結
+              就會變成孤兒頁（爬蟲只能從 sitemap 找到）。樣式對齊「關於」按鈕。 */}
+          <Link
+            href="/guide/"
+            className="rounded-lg px-2.5 py-2 text-[11px] text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)]"
+          >
+            選課指南
+          </Link>
           <AboutDialog />
         </div>
       </header>
