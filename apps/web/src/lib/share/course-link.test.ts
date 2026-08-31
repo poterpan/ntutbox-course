@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCourseLink, parseCourseLink } from "./course-link";
+import { buildCourseLink, courseHref, parseCourseLink } from "./course-link";
 
 describe("course-link", () => {
   it("build → parse round-trips", () => {
@@ -24,5 +24,15 @@ describe("course-link", () => {
     expect(parseCourseLink("?course=360744")).toBeNull();
     expect(parseCourseLink("?term=&course=360744")).toBeNull();
     expect(parseCourseLink("")).toBeNull();
+  });
+});
+
+describe("courseHref", () => {
+  it("builds a relative in-site link (no origin baked into static HTML)", () => {
+    expect(courseHref({ termKey: "115-1", offeringId: "360744" })).toBe("/?term=115-1&course=360744");
+  });
+  it("round-trips through parseCourseLink", () => {
+    const href = courseHref({ termKey: "114-2", offeringId: "300123" });
+    expect(parseCourseLink(href.slice(href.indexOf("?")))).toEqual({ termKey: "114-2", offeringId: "300123" });
   });
 });

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo } from "react";
+import Link from "next/link";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
 import { useSearchIndex } from "@/lib/planner/use-search-index";
 import { useMprograms } from "@/lib/planner/use-mprograms";
@@ -75,8 +76,18 @@ export function CourseLibrary() {
 
       <FilterBar units={units} classes={classOpts} mprogramReady={!!mprogDir} />
 
-      <div className="text-[11px] tabular-nums text-[var(--ink-soft)]">
-        {results.length} 門{results.length > CAP ? `（顯示前 ${CAP}）` : ""}
+      <div className="flex items-baseline gap-2 text-[11px] text-[var(--ink-soft)]">
+        <span className="tabular-nums">
+          {results.length} 門{results.length > CAP ? `（顯示前 ${CAP}）` : ""}
+        </span>
+        {/* 顯示上限 200 門，剩下的靠系所 hub 逐頁列完——對使用者是「看完整清單」的出口，
+            對爬蟲是課程頁的靜態內部連結來源（見 app/browse/[unit]/page.tsx）。 */}
+        <Link
+          href="/browse/"
+          className="ml-auto shrink-0 font-medium text-[var(--accent-ink)] hover:underline"
+        >
+          依系所瀏覽全部 →
+        </Link>
       </div>
 
       <div className="min-h-0 flex-1">

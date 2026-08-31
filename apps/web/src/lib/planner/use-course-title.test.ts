@@ -56,4 +56,14 @@ describe("useCourseTitle", () => {
     unmount();
     expect(document.title).toBe(HOME_TITLE);
   });
+
+  it("does not clobber a title someone else set before unmount", () => {
+    // 實測回歸：從首頁 client-side 導航到 /browse/ 時，Next 會先套上 hub 頁的
+    // metadata title，planner 才卸載——無條件還原會把 hub 頁的標題蓋回首頁標題。
+    const { unmount } = renderHook(() => useCourseTitle());
+    act(() => useUiStore.setState({ detailOfferingId: "360744" }));
+    document.title = "北科大課程總覽・依系所瀏覽（115-1）｜北科盒子 排課";
+    unmount();
+    expect(document.title).toBe("北科大課程總覽・依系所瀏覽（115-1）｜北科盒子 排課");
+  });
 });

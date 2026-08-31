@@ -25,3 +25,14 @@ export function parseCourseLink(search: URLSearchParams | string): CourseLinkPar
   if (!termKey || !offeringId) return null;
   return { termKey, offeringId };
 }
+
+/**
+ * 站內相對連結（hub 頁與課程頁交叉連結用）。
+ *
+ * 與 buildCourseLink 同參數但不帶 origin：站內連結用相對路徑，本機 / preview 部署 /
+ * 正式站都指得對，也不會把 origin 寫死進靜態 HTML。
+ */
+export function courseHref({ termKey, offeringId }: CourseLinkParams): string {
+  const p = new URLSearchParams({ term: termKey, course: offeringId });
+  return `/?${p.toString()}`;
+}

@@ -11,6 +11,9 @@ import { useDraftStore } from "@/store/draft-store";
 import { placeTracked } from "@/lib/analytics/track-plan";
 import { getDataSource } from "@/lib/data";
 import { buildCourseLink } from "@/lib/share/course-link";
+import { RelatedCourses } from "./RelatedCourses";
+import { unitSlug } from "@/lib/hub/units";
+import { useLatestTerm } from "@/lib/planner/use-latest-term";
 import { shareOrCopy } from "@/lib/share/share-course";
 import { useToast } from "@/components/ui/toast";
 import type { CourseDetail } from "@/lib/data/types";
@@ -48,6 +51,7 @@ export function CourseDetailContent({
   headerLeading,
   scrollRef,
   showProgramChips = true,
+  onSelectCourse,
 }: {
   offeringId: string;
   onAfterPlace?: () => void;
@@ -56,12 +60,19 @@ export function CourseDetailContent({
   // 分享課表就地詳情（SharedTimetableModal）關掉——chip 的 openProgram 改的是 modal
   // 背後的 planner 狀態，在全螢幕 dialog 裡點了會像「無聲跳轉」。
   showProgramChips?: boolean;
+  // 相關課程連結被點擊時要切到哪一堂。未提供 → 走 ui-store 的 openDetail
+  // （planner 主 drawer）；SharedTimetableModal 傳自己的 setDetailId，
+  // 才不會改到 modal 背後的 planner 狀態。
+  onSelectCourse?: (offeringId: string) => void;
 }) {
   const { byId, enrollment } = useTermCourses();
   const termKey = useTermStore((s) => s.termKey);
   // 微學程反查：termKey 比照 MicroProgramList（term-store 優先、fallback ui-store）。
   const selectedTerm = useUiStore((s) => s.selectedTerm);
   const openProgram = useUiStore((s) => s.openProgram);
+  const openDetail = useUiStore((s) => s.openDetail);
+  // 系所 hub（/browse/<unit>/）只為最新學期的單位產生靜態頁；看舊學期時不給連結（會 404）。
+  const latestTerm = useLatestTerm();
   const { data: mprogDir } = useMprograms(termKey ?? selectedTerm);
   const programChips = useMemo(
     () => buildProgramIndex(mprogDir).get(offeringId) ?? [],
@@ -168,7 +179,23 @@ export function CourseDetailContent({
         <dl className="grid grid-cols-1 gap-x-8 gap-y-3 text-sm sm:grid-cols-2">
           <Row k="授課教師" v={(c.teachers ?? []).map((t) => t.name).join("、") || "—"} />
           <Row k="學制" v={division?.label ?? "—"} />
-          <Row k="開課單位" v={c.unit_name ?? "—"} />
+          <Row
+            k="開課單位"
+            v={
+              c.unit_code && c.unit_name && termKey && latestTerm === termKey ? (
+                // 課程頁 → 系所 hub 的回連：2,4xx 個課程頁各給 hub 一條內部連結，
+                // 讓「首頁 → hub → 課程」這條爬行路徑變成雙向、權重能回流。
+                <a
+                  href={`/browse/${unitSlug(c.unit_code)}/`}
+                  className="font-medium text-[var(--accent-ink)] hover:underline"
+                >
+                  {c.unit_name}
+                </a>
+              ) : (
+                c.unit_name ?? "—"
+              )
+            }
+          />
           <Row k="開課班級" v={(c.classes ?? []).map((k) => `${k.name}${k.kind === "pool" ? "(池)" : k.kind === "virtual" ? "(佔位)" : ""}`).join("、") || "—"} />
           <Row k="時數" v={c.hours != null ? String(c.hours) : "—"} />
           <Row k="上課時間" v={(c.meetings ?? []).map((m) => `週${DAY[m.day]} ${m.periods.join("、")}節`).join("；") || "—"} />
@@ -226,6 +253,15 @@ export function CourseDetailContent({
             本課程暫無課程概述／教學大綱資料。
           </p>
         )}
+
+        {termKey && (
+          <RelatedCourses
+            course={c}
+            termKey={termKey}
+            onSelect={onSelectCourse ?? openDetail}
+            syncUrl={!onSelectCourse}
+          />
+        )}
       </div>
 
       <div className="flex items-center gap-2 border-t border-black/5 px-6 py-4">
@@ -277,7 +313,7 @@ function DcardChip({ query, label }: { query: string; label: string }) {
   );
 }
 
-function Row({ k, v }: { k: string; v: string }) {
+function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
     <div className="flex gap-3">
       <dt className="w-20 shrink-0 text-[var(--ink-soft)]">{k}</dt>

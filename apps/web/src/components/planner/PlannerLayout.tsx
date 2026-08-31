@@ -48,16 +48,26 @@ export function PlannerLayout() {
         </h1>
         <TermSwitcher />
         <MatricSwitcher />
-        <div className="ml-auto flex items-center gap-2">
-          <div className="hidden items-center gap-1.5 text-[11px] text-[var(--ink-faint)] sm:flex">
+        <div className="ml-auto flex items-center gap-1">
+          <div className="mr-1 hidden items-center gap-1.5 text-[11px] text-[var(--ink-faint)] sm:flex">
             <span>資料更新</span>
             <span className="font-medium text-[var(--ink-soft)]">{fmtDate(enrollAt ?? catalogAt)}</span>
           </div>
-          {/* 內容頁的站內入口。排課器是 app shell、沒有頁尾，指南若沒有任何站內連結
-              就會變成孤兒頁（爬蟲只能從 sitemap 找到）。樣式對齊「關於」按鈕。 */}
+          {/* 兩個內容入口都要：排課器是 app shell、沒有頁尾，這些頁若沒有站內連結
+              就是孤兒頁（爬蟲只能從 sitemap 找到）。
+              「課程總覽」用 hidden sm:inline-flex——實測 390px 視寬塞不進這條 header
+              （會把 h1 擠成兩行並產生 4px 橫向溢出），行動版的入口放在下方
+              MobileViewControls 那排。兩者的 anchor 在兩種視寬都存在於靜態 HTML，
+              不執行 JS 的爬蟲都讀得到。 */}
+          <Link
+            href="/browse/"
+            className="hidden shrink-0 rounded-lg px-2 py-2 text-[11px] font-medium text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)] sm:inline-flex"
+          >
+            課程總覽
+          </Link>
           <Link
             href="/guide/"
-            className="rounded-lg px-2.5 py-2 text-[11px] text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)]"
+            className="shrink-0 rounded-lg px-2 py-2 text-[11px] text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)]"
           >
             選課指南
           </Link>
@@ -159,6 +169,8 @@ function MobileViewControls() {
           </button>
         ))}
       </div>
+      {/* 行動版的 hub 入口。這排本來只放週/日 pill、右側是空的 → 加連結不佔額外高度，
+          也不會像 header 那樣把標題擠成兩行。日檢視時排在星期選擇器之後。 */}
       {viewMode === "day" && (
         <div className="thin-scroll flex gap-1 overflow-x-auto">
           {[1, 2, 3, 4, 5, 6].map((d) => (
@@ -176,6 +188,12 @@ function MobileViewControls() {
           ))}
         </div>
       )}
+      <Link
+        href="/browse/"
+        className="ml-auto shrink-0 rounded-lg px-2 py-1 text-[11px] font-medium text-[var(--accent-ink)] transition-colors hover:bg-[var(--accent)]/10"
+      >
+        課程總覽 →
+      </Link>
     </div>
   );
 }

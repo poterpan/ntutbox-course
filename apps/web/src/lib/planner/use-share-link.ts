@@ -53,6 +53,22 @@ export function useShareLink() {
     // 不是 bug。使用者要離開該課就關窗後自行導航，或直接編輯網址。
   }, [setSelectedTerm, openSharedPlan]);
 
+  // 上/下一頁（popstate）→ 依網址重新對齊「開著哪一堂課」。
+  //
+  // 為什麼需要：課程詳情的「相關課程」連結（RelatedCourses）是真 anchor，點擊時攔下來
+  // 就地換課 + `history.pushState`（不整頁重載、不清掉搜尋/篩選狀態）。沒有這段的話
+  // 使用者按上一頁，網址會回到前一堂課但畫面停在後一堂——網址與 UI 說法不一致。
+  // 只讀網址、只動 detailOfferingId：不碰草稿、不重載學期。
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const sync = () => {
+      const course = parseCourseLink(window.location.search);
+      openDetail(course ? course.offeringId : null);
+    };
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, [openDetail]);
+
   // 目標學期就緒後開窗；找不到 → 提示。
   useEffect(() => {
     const pending = pendingRef.current;

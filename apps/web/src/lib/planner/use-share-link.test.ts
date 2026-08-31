@@ -91,6 +91,43 @@ describe("useShareLink", () => {
     expect(useUiStore.getState().detailOfferingId).toBe("360744");
   });
 
+  it("re-aligns the open course with the URL on back/forward (popstate)", () => {
+    // 「相關課程」交叉連結是真 anchor + pushState 就地換課；沒有這段同步，
+    // 使用者按上一頁會出現「網址一堂課、畫面另一堂課」。
+    window.history.replaceState({}, "", "/?term=115-1&course=360744");
+    renderHook(() => useShareLink());
+    act(() => {
+      useTermStore.setState({ status: "ready", termKey: "115-1", bundle: bundleWith(["360744", "360745"]) });
+    });
+    expect(useUiStore.getState().detailOfferingId).toBe("360744");
+
+    // 就地換課（RelatedCourses 做的事）
+    act(() => {
+      window.history.pushState(null, "", "/?term=115-1&course=360745");
+      useUiStore.setState({ detailOfferingId: "360745" });
+    });
+
+    // 上一頁：網址回到 360744 → 畫面也要回到 360744
+    act(() => {
+      window.history.replaceState({}, "", "/?term=115-1&course=360744");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(useUiStore.getState().detailOfferingId).toBe("360744");
+  });
+
+  it("closes the detail when back lands on a URL without ?course", () => {
+    window.history.replaceState({}, "", "/?term=115-1&course=360744");
+    renderHook(() => useShareLink());
+    act(() => {
+      useTermStore.setState({ status: "ready", termKey: "115-1", bundle: bundleWith(["360744"]) });
+    });
+    act(() => {
+      window.history.replaceState({}, "", "/");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+    expect(useUiStore.getState().detailOfferingId).toBeNull();
+  });
+
   it("opens the shared-plan overlay for a ?plan link, without touching detail/draft", () => {
     window.history.replaceState({}, "", "/?term=114-2&plan=360744.360745.360763");
     renderHook(() => useShareLink());
