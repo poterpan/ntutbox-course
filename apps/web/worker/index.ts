@@ -8,6 +8,7 @@
 // Excluded from the app tsconfig (separate runtime); wrangler bundles it.
 import { resolveShareOg } from "../src/lib/share/og";
 import { buildCourseSitemapXml, latestTermKey } from "../src/lib/share/course-sitemap";
+import { buildCourseNoscriptHtml } from "../src/lib/share/course-noscript";
 
 // Canonical host baked into the static metadata; worker-written canonical /
 // og:url / sitemap URLs must match it (preview deploys also point here).
@@ -22,9 +23,12 @@ interface Env {
   ASSETS: Fetcher;
   DATA_BASE_URL: string;
 }
+interface RewriterAppendOpts { html: boolean }
+
 interface RewriterElement {
   setAttribute(name: string, value: string): void;
   setInnerContent(content: string): void;
+  append(content: string, opts?: RewriterAppendOpts): void;
 }
 declare class HTMLRewriter {
   on(selector: string, handlers: { element(el: RewriterElement): void }): HTMLRewriter;
@@ -45,6 +49,28 @@ async function getNames(term: string, base: string): Promise<Record<string, stri
   const names = (await res.json()) as Record<string, string>;
   namesCache.set(term, names);
   return names;
+}
+
+/** 單課詳情（課綱等）。best-effort：拿不到就不輸出 noscript，不讓頁面壞掉。 */
+async function getCourseDetail(term: string, id: string, base: string): Promise<unknown | null> {
+  try {
+    const res = await fetch(`${base}/terms/${term}/course/${id}.json`, {
+      cf: { cacheTtl: 3600, cacheEverything: true },
+    } as RequestInit);
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
+/** noscript 用的 body 內容：CSR 站在不執行 JS 時 body 是空殼，AI 爬蟲讀不到課綱。
+ * 注入 </body> 前，React 樹不受影響（noscript 不參與 hydration）。 */
+class AppendNoscript {
+  constructor(private html: string) {}
+  element(el: RewriterElement) {
+    el.append(`<noscript>${this.html}</noscript>`, { html: true });
+  }
 }
 
 class SetContent {
@@ -130,6 +156,20 @@ const worker = {
           .on('link[rel="canonical"]', new SetHref(canonical))
           .on('meta[property="og:url"]', new SetContent(canonical));
       }
+
+      // 課程連結才注入 noscript 內容（plan 連結是無限組合、canonical 回首頁，不需要）。
+      const courseId = url.searchParams.get("course");
+      if (courseId && term) {
+        const detail = await getCourseDetail(term, courseId, env.DATA_BASE_URL);
+        if (detail) {
+          const html = buildCourseNoscriptHtml(
+            detail as Parameters<typeof buildCourseNoscriptHtml>[0],
+            term,
+          );
+          if (html) rewriter.on("body", new AppendNoscript(html));
+        }
+      }
+
       return rewriter.transform(assetRes);
     } catch {
       return assetRes; // never break the page
