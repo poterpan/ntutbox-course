@@ -29,6 +29,26 @@ def _clean(text: str) -> str:
     return text.replace("　", " ").replace("\xa0", " ").strip()
 
 
+def _match_label(label: str) -> Optional[str]:
+    """把來源標籤對映到 Syllabus 欄位，容忍校方加的後綴。
+
+    2026-08 實測：學校把 `<th>課程進度</th>` 改成 `<th>課程進度<BR>(1-16週)</th>`，
+    原本的精確比對失效 → schedule 變 None、內容掉進 extra（線上 CDN 已實際壞掉，
+    週更 cron 每次都會覆寫）。校方逐年微調標題文字是常態，所以改用前綴比對。
+
+    只允許「已知標籤 + 括號補充」這種形式，不做模糊比對——避免把不相干的標籤誤收。
+    """
+    if label in _SYLLABUS_LABELS:
+        return _SYLLABUS_LABELS[label]
+    for known, field in _SYLLABUS_LABELS.items():
+        if label.startswith(known):
+            rest = label[len(known):].strip()
+            # 後綴必須是空的或括號補充（全形/半形），否則視為不同欄位
+            if not rest or rest[0] in "（(":
+                return field
+    return None
+
+
 def parse_curr(html: str) -> Dict[str, Optional[str]]:
     """課程描述頁 → {course_code, name_zh, name_en, description_zh, description_en}。"""
     soup = BeautifulSoup(html, "html5lib")
@@ -87,6 +107,11 @@ def parse_syllabus(html: str, teacher_code: Optional[str] = None) -> Syllabus:
         return syl
 
     for tr in table.find_all("tr"):
+        # 115-1 起「彈性學習(17-18週)」是嵌套的 <table class="flex-learn-table">，
+        # find_all("tr") 會連它的列一起撈出來，把「類別/內容/時數(小時)/學習成果/
+        # 評量比例」誤當成頂層欄位塞進 extra。只處理直屬本表的列。
+        if tr.find_parent("table") is not table:
+            continue
         cells = tr.find_all(["th", "td"], recursive=False)
         if len(cells) < 2:
             continue
@@ -105,8 +130,8 @@ def parse_syllabus(html: str, teacher_code: Optional[str] = None) -> Syllabus:
             syl.email = value or None
         elif label == "最後更新時間":
             syl.updated_at = value or None
-        elif label in _SYLLABUS_LABELS:
-            setattr(syl, _SYLLABUS_LABELS[label], value or None)
+        elif (field := _match_label(label)) is not None:
+            setattr(syl, field, value or None)
         elif label and label not in ("教師姓名",) and value:
             syl.extra[label] = value
     return syl
