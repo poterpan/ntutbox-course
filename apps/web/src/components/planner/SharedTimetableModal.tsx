@@ -78,6 +78,9 @@ export function SharedTimetableModal() {
             <CourseDetailContent
               offeringId={detailId}
               showProgramChips={false}
+              // 相關課程連結就地換課：走 modal 自己的 state，不動背後的 planner，
+              // 也不改寫網址（網址代表的是這份分享課表）。
+              onSelectCourse={setDetailId}
               onAfterPlace={() => setDetailId(null)}
               headerLeading={
                 <button

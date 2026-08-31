@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useUiStore } from "@/store/ui-store";
 import { useTermCourses } from "./use-term-courses";
 
@@ -20,7 +20,13 @@ export function courseTitle(name: string): string {
  * 在索引端 title 全部相同。
  *
  * 由 detailOfferingId 驅動（而非只在分享連結進站時寫一次），確保關窗、切課、
- * 切學期、卸載時都會回到首頁 title，不會停在上一堂課的名字。
+ * 切學期都會回到首頁 title，不會停在上一堂課的名字。
+ *
+ * ⚠️ 卸載時**只在 title 仍是本 hook 寫的那個值**才還原成首頁 title。原本無條件還原，
+ * 在只有 "/" 一個路由時看不出問題；`/browse/**` hub 頁上線後，從首頁 client-side
+ * 導航過去會變成：Next 先套上 hub 頁的 metadata title → planner 卸載 → 這裡把它蓋回
+ * 首頁 title（實測 /browse/ 的 tab 標題變成首頁標題）。document.title 是全域、本 hook
+ * 不獨佔它，所以還原前要先確認沒有別人已經接手。
  *
  * **只寫不讀** document.title——analytics/config.ts 的鐵則是絕不可讀它當 GA 的
  * page_title（課名進 GA 違反個資規範）；這裡單向寫入不影響該邊界。
@@ -29,12 +35,20 @@ export function useCourseTitle() {
   const detailOfferingId = useUiStore((s) => s.detailOfferingId);
   const { byId } = useTermCourses();
 
+  // 本 hook 最後寫進 document.title 的值（卸載時的所有權判準）。
+  const writtenRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (typeof document === "undefined") return;
     const name = detailOfferingId ? byId(detailOfferingId)?.name?.zh : null;
-    document.title = name ? courseTitle(name) : HOME_TITLE;
+    const next = name ? courseTitle(name) : HOME_TITLE;
+    document.title = next;
+    writtenRef.current = next;
     return () => {
+      // 已被別人（如 hub 頁的 metadata）改掉 → 那是新頁面的 title，別搶回來。
+      if (document.title !== writtenRef.current) return;
       document.title = HOME_TITLE;
+      writtenRef.current = HOME_TITLE;
     };
   }, [detailOfferingId, byId]);
 }
