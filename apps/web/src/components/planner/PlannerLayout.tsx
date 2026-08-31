@@ -55,10 +55,11 @@ export function PlannerLayout() {
           </div>
           {/* 兩個內容入口都要：排課器是 app shell、沒有頁尾，這些頁若沒有站內連結
               就是孤兒頁（爬蟲只能從 sitemap 找到）。
-              「課程總覽」用 hidden sm:inline-flex——實測 390px 視寬塞不進這條 header
-              （會把 h1 擠成兩行並產生 4px 橫向溢出），行動版的入口放在下方
-              MobileViewControls 那排。兩者的 anchor 在兩種視寬都存在於靜態 HTML，
-              不執行 JS 的爬蟲都讀得到。 */}
+              兩者都用 hidden sm:inline-flex——實測 390px 視寬塞不進這條 header
+              （兩個入口並排會把 h1 擠成兩行、產生 6px 橫向溢出）。行動版的入口
+              改放在下方 MobileViewControls 那排。
+              ⚠️ anchor 本體在兩種視寬都存在於靜態 HTML（只是 CSS 隱藏），
+              不執行 JS 的爬蟲照樣讀得到，爬行路徑不受影響。 */}
           <Link
             href="/browse/"
             className="hidden shrink-0 rounded-lg px-2 py-2 text-[11px] font-medium text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)] sm:inline-flex"
@@ -67,7 +68,7 @@ export function PlannerLayout() {
           </Link>
           <Link
             href="/guide/"
-            className="shrink-0 rounded-lg px-2 py-2 text-[11px] text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)]"
+            className="hidden shrink-0 rounded-lg px-2 py-2 text-[11px] text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)] sm:inline-flex"
           >
             選課指南
           </Link>
@@ -189,8 +190,14 @@ function MobileViewControls() {
         </div>
       )}
       <Link
+        href="/guide/"
+        className="ml-auto shrink-0 rounded-lg px-2 py-1 text-[11px] font-medium text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)]"
+      >
+        指南
+      </Link>
+      <Link
         href="/browse/"
-        className="ml-auto shrink-0 rounded-lg px-2 py-1 text-[11px] font-medium text-[var(--accent-ink)] transition-colors hover:bg-[var(--accent)]/10"
+        className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-medium text-[var(--accent-ink)] transition-colors hover:bg-[var(--accent)]/10"
       >
         課程總覽 →
       </Link>
