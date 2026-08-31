@@ -8,3 +8,11 @@
 - 課表分享連結格式：https://course.ntutbox.com/?term=<學期>&plan=<課號.課號.…>
 - 資料來源：臺北科技大學公開課程查詢系統（aps.ntut.edu.tw），自動更新
 - 本站僅供排課規劃；正式選課以學校選課系統送出為準
+
+## 說明頁（第三方整理，制度細節以學校公告為準）
+
+- https://course.ntutbox.com/guide/ — 選課與查課指南總覽
+- https://course.ntutbox.com/guide/timetable/ — 節次與上課時間對照（1234N56789ABCD）、課號與課程編碼、修別符號
+- https://course.ntutbox.com/guide/selection-phases/ — 期末網路初選／志願選填分發／開學後加退選／獨立登記四種機制的差別
+- https://course.ntutbox.com/guide/general-education/ — 通識博雅四向度、體育與共同英文、課程池班級與佔位課
+- https://course.ntutbox.com/guide/micro-programs/ — 微學程的登記修讀與選課是兩件事、課程分類與線上課程

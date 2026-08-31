@@ -11,8 +11,9 @@
   "assets": {
     "directory": "./out",
     "binding": "ASSETS",
-    // 唯一實體路由是 "/"（分享連結都是 query string），未知路徑回 out/404.html + 404 狀態碼，
-    // 避免整站被搜尋引擎當 soft-404。（曾為 SPA fallback；本站沒有 path-based client route。）
+    // 實體路由＝"/"（分享連結都是 query string）＋ /guide/*（靜態內容頁）；未知路徑回
+    // out/404.html + 404 狀態碼，避免整站被搜尋引擎當 soft-404。
+    //（曾為 SPA fallback；本站沒有 path-based client route。）
     "not_found_handling": "404-page",
     // 只讓根文件（分享連結 path 為 "/"）與動態課程 sitemap 先進 worker；
     // 其餘靜態資源直接由 assets 服務，不付 worker 額外開銷。
