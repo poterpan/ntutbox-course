@@ -2,6 +2,7 @@
 
 擋：session/cookie/帳密/授權標頭、完整 HTML 頁、學校錯誤頁標記、疑似學號（9+ 連續數字）。
 課程資料合法欄位（課號6碼、課程編碼7碼英數、教師/教室/班級碼、ISO 時間戳）不應誤判。
+自由文字（課綱）另放寬兩條規則，見 scan_text 的 free_text 說明。
 
 用法：python infra/redline_scan.py <dir>   # 命中則 exit 1 並印違規
 """
@@ -23,17 +24,38 @@ _PATTERNS = [
 ]
 
 
-# suspect_student_id（9+ 連續數字）對「結構化」資料才有意義（課號6-7碼、人數小→不該出現）；
-# 大綱/描述等自由文字本就含 ISBN/電話/社群連結等長數字，套此規則純誤判 → free_text 跳過。
+# 哪些檔算「自由文字」（課綱等人類撰寫的長文）。
 _FREE_TEXT_NAMES = ("details.ndjson",)
 _FREE_TEXT_DIRS = ("course",)
 
+# 自由文字（課綱）只套用「真正對得上風險」的規則。
+#
+# 為什麼：紅線掃描的原始意圖（2026-06-13 設計文件 §110）是防「解析失敗時 malformed row
+# 整列塞進 raw_fields，夾帶整頁 HTML 進公開 repo」。但實測：
+#   catalog.ndjson  每筆都有 raw_fields（models.py:324「欄數≠24 整列入此」）→ 風險成立
+#   details.ndjson  完全沒有 raw_fields（3,047 筆零命中）→ 該風險不適用
+#
+# 而爬取是**免登入**的公開頁面，details 不可能出現 session/cookie/授權標頭/學號。
+# 那三條規則對 details 只會誤判，實績兩次：
+#   suspect_student_id → 課綱的 ISBN/電話（commit 5b769f5 已跳過）
+#   authorization      → 課綱英文句子 "authorization: from cryptography to..."
+#                        （2026-09-01 111-2 因此白爬 57 分）
+#
+# 留著「永遠只會誤判」的規則比沒有規則更糟——會讓人習慣性放寬，或像這次白跑一輪。
+# 故 details 只掃真實風險：整頁 HTML 漏入、學校錯誤頁被當成資料。
+_FREE_TEXT_RULES = frozenset({"html_page", "error_page"})
+
 
 def scan_text(text: str, free_text: bool = False) -> List[str]:
-    """回傳命中的紅線名稱清單（空＝乾淨）。free_text=True 跳過 suspect_student_id（自由文字）。"""
+    """回傳命中的紅線名稱清單（空＝乾淨）。
+
+    free_text=True（課綱等自由文字）只套用 _FREE_TEXT_RULES——理由見其註解。
+    結構化檔（catalog/classes/mprograms）維持全部規則：那裡有 raw_fields，
+    解析失敗會夾帶原始 HTML，是紅線掃描真正要防的東西。
+    """
     return [
         name for name, rx in _PATTERNS
-        if not (free_text and name == "suspect_student_id") and rx.search(text)
+        if (not free_text or name in _FREE_TEXT_RULES) and rx.search(text)
     ]
 
 
