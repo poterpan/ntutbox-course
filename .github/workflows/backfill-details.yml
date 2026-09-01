@@ -1,0 +1,199 @@
+name: backfill details (matrix)
+
+# 歷史學期課綱補抓：**併發爬取 → 收斂後單次發佈**。
+#
+# 為什麼要獨立於 crawl-details.yml：
+#   週更只跑當前學期、單一 job 即足夠，且它的 concurrency: data-pipeline 保證
+#   不撞 data branch / R2。補抓要跑 10 個學期（28,977 請求 ≈ 6.8 小時單線程），
+#   單一 job 會超過 GitHub hosted runner 的 6 小時上限。
+#
+# 為什麼「爬取可併發、發佈不可」：
+#   爬取產物（canonical/<term>/details.ndjson）逐學期獨立、無共享狀態。
+#   但 commit 與 publish 有兩個真實競態：
+#     ① data branch：`git pull --rebase || true` 後 push——兩個 job 同時推，
+#        後者 non-fast-forward 被拒，而 `|| true` 會吞掉 rebase 失敗 → workflow 掛掉
+#     ② publish.py 的 build_v1 從 canonical 重建**全部**學期的 manifest——
+#        兩個 job 各自只看到自己 checkout 的狀態，後推的會覆蓋先推的條目
+#   → 故 crawl 用 matrix 併發、publish 收斂成單一 job 並保留 data-pipeline 序列化。
+#
+# 對學校端的節流：max-parallel 直接控制併發數（預設 3），不改爬蟲程式碼、
+# 也不動 client.py 的 per-request delay（0.4-0.8s）——實際 QPS 上限 = 併發 × 單線程 QPS。
+# 這是別人的生產系統，寧可慢一點。程式碼層的多線程見 issue #66（風險較高，暫不做）。
+
+on:
+  workflow_dispatch:
+    inputs:
+      terms:
+        description: '學期（逗號分隔，如 110-1,110-2,111-1）。刻意不支援範圍語法——補抓要明確列出跑哪些'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      terms: ${{ steps.split.outputs.terms }}
+    steps:
+      # 不可信輸入只經 env 注入，不直接插進 shell（防 command injection）
+      - name: Validate and split terms
+        id: split
+        env:
+          INPUT_TERMS: ${{ github.event.inputs.terms }}
+        run: |
+          set -euo pipefail
+          echo "$INPUT_TERMS" | grep -Eq '^[0-9]{3}-[123](,[0-9]{3}-[123])*$' \
+            || { echo "invalid terms: $INPUT_TERMS（只接受逗號分隔的完整學期）"; exit 1; }
+          JSON="$(echo "$INPUT_TERMS" | tr ',' '\n' | grep -v '^$' \
+                  | python3 -c 'import sys,json; print(json.dumps([l.strip() for l in sys.stdin]))')"
+          echo "terms=$JSON" >> "$GITHUB_OUTPUT"
+          echo "will crawl: $JSON"
+
+  crawl:
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false      # 一個學期失敗不該讓其他學期的成果一起丟掉
+      # 固定 3：max-parallel 對表達式的支援有限（不吃 github.event.inputs），
+      # 寫死比執行期才炸掉安全。要調整就改這裡——這是對學校端壓力的唯一旋鈕。
+      max-parallel: 3
+      matrix:
+        term: ${{ fromJSON(needs.plan.outputs.terms) }}
+    # 刻意不設 concurrency：這些 job 只讀 data branch、產物走 artifact，
+    # 不碰 data branch 或 R2，故可安全併發。
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout canonical (data branch)
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data/canonical
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install crawler
+        run: pip install -e ./crawler
+
+      - name: Crawl details for ${{ matrix.term }}
+        timeout-minutes: 170
+        env:
+          TERM_KEY: ${{ matrix.term }}
+        run: |
+          set -euo pipefail
+          python -m ntut_catalog crawl-detail --terms "$TERM_KEY" --out data
+
+      # 每個學期各自守門：壞資料不該被帶進收斂階段
+      - name: Redline scan (block PII/secrets/error pages)
+        run: python infra/redline_scan.py data/canonical
+
+      - name: Upload details artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: details-${{ matrix.term }}
+          path: data/canonical/${{ matrix.term }}/details.ndjson
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    needs: crawl
+    if: always() && needs.crawl.result != 'cancelled'
+    runs-on: ubuntu-latest
+    # 收斂階段才需要序列化——與週更／每日 crawl 共用同一個 group，
+    # 確保不會有兩個流程同時動 data branch 或重建 manifest。
+    concurrency:
+      group: data-pipeline
+      cancel-in-progress: false
+    env:
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      R2_S3_ACCESS_KEY_ID: ${{ secrets.R2_S3_ACCESS_KEY_ID }}
+      R2_S3_SECRET_ACCESS_KEY: ${{ secrets.R2_S3_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout canonical (data branch)
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data/canonical
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install crawler
+        run: pip install -e ./crawler
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install wrangler
+        run: npm install -g wrangler@4
+
+      # artifact 名稱帶學期，下載後各自落在 details-<term>/details.ndjson
+      - name: Download all details artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: details-*
+          path: /tmp/artifacts
+
+      - name: Place details into canonical
+        id: place
+        run: |
+          set -euo pipefail
+          PLACED=""
+          for d in /tmp/artifacts/details-*/; do
+            [ -d "$d" ] || continue
+            TERM="$(basename "$d" | sed 's/^details-//')"
+            SRC="$d/details.ndjson"
+            [ -f "$SRC" ] || { echo "skip $TERM: no details.ndjson"; continue; }
+            mkdir -p "data/canonical/$TERM"
+            cp "$SRC" "data/canonical/$TERM/details.ndjson"
+            PLACED="${PLACED:+$PLACED,}$TERM"
+            echo "placed $TERM ($(wc -l < "$SRC") lines)"
+          done
+          [ -n "$PLACED" ] || { echo "no artifacts placed — nothing to publish"; exit 1; }
+          echo "terms=$PLACED" >> "$GITHUB_OUTPUT"
+
+      - name: Redline scan (block PII/secrets/error pages)
+        run: python infra/redline_scan.py data/canonical
+
+      # 新造字監測：非零退出＝真的有未收錄碼位（F3xx-F7xx 殘留已排除，見 pua_scan.py）。
+      # continue-on-error：紅標提醒但不擋管線，處置流程見 pua.py 檔頭。
+      - name: PUA scan (新造字監測)
+        continue-on-error: true
+        env:
+          TERMS: ${{ steps.place.outputs.terms }}
+        run: python -m ntut_catalog pua-scan --terms "$TERMS" --out data
+
+      - name: Commit details to data branch
+        working-directory: data/canonical
+        env:
+          TERMS: ${{ steps.place.outputs.terms }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          DATE="$(TZ=Asia/Taipei date +%F)"
+          git add -- '*/details.ndjson' || true
+          git diff --cached --quiet || git commit -m "data(details): backfill $TERMS $DATE"
+          # 不用 `|| true`：rebase 失敗要讓 workflow 紅燈，不可默默 push 失敗
+          git pull --rebase origin data
+          git push origin HEAD:data
+
+      - name: Publish v1 to R2 (with details)
+        env:
+          TERMS: ${{ steps.place.outputs.terms }}
+        run: |
+          python infra/publish.py \
+            --bucket "$R2_BUCKET" \
+            --terms "$TERMS" \
+            --include-details \
+            --out data \
+            --generated-at "$(date -u +%FT%TZ)"
