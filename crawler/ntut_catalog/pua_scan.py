@@ -6,6 +6,9 @@ web 端就會出現畫不出的 tofu。本掃描接在每日 crawl / 每週 craw
 
 處置流程（發現新碼位時）：照 docs/research/2026-07-20-pua-glyph-verification.md 的 GServer
 外字服務流程考證字形，補進 `pua.PUA_MAP`；若無字形/證據未定，加進 KNOWN_EXCEPTIONS 並註明。
+
+**不掃的區間**：F3xx-F7xx（Adobe/PDF 字型殘留）依 pua.py 設計刻意不處理，見 _RESIDUE_RANGES。
+掃描要保持「有命中＝真的有待辦」，否則每學期一批殘留噪音會讓真正的新造字被忽略。
 """
 from __future__ import annotations
 
@@ -22,6 +25,22 @@ from ntut_catalog.pua import PUA_MAP
 #       （docs/research/2026-07-20-pua-glyph-verification.md §4.2）。
 KNOWN_EXCEPTIONS: frozenset[int] = frozenset({0xEF0D})
 
+# Adobe/PDF 字型殘留區：老師從 PDF/Word 貼課綱時帶進來的字型私用碼位。
+# pua.py 檔頭第 3 條已定調「不處理、保留原樣」——沒有可靠的對照表可查，
+# 猜了只會製造錯誤資料（對比 F0xx 有 Wingdings/Symbol 官方字碼表可核實）。
+#
+# 為什麼要排除在掃描之外：這些碼位每學期都會出現一批（115-1 就有 9 個），
+# 若一律報成「待考證的新造字」，真正需要處理的 E 區學校造字會被噪音淹沒，
+# 也讓「新碼位出現時通知開發者」這件事無法自動化——分不清哪些是真的新。
+_RESIDUE_RANGES: tuple[tuple[int, int], ...] = (
+    (0xF300, 0xF7FF),  # Adobe/PDF 殘留（實測出現 F332 / F6B1-F6B5 / F6F3 / F762 / F793）
+)
+
+
+def _is_residue(cp: int) -> bool:
+    """落在「刻意不處理」區間 → 不算新碼位（但也不會被 normalize 轉字）。"""
+    return any(lo <= cp <= hi for lo, hi in _RESIDUE_RANGES)
+
 # 掃描的 canonical 檔（存在才掃）。catalog/details 為 NDJSON、mprograms 為單一 JSON。
 _SCAN_FILES = ("catalog.ndjson", "details.ndjson", "mprograms.json")
 
@@ -37,7 +56,7 @@ class PuaHit:
 
 
 def _is_known(cp: int) -> bool:
-    return cp in PUA_MAP or cp in KNOWN_EXCEPTIONS
+    return cp in PUA_MAP or cp in KNOWN_EXCEPTIONS or _is_residue(cp)
 
 
 def _context(text: str, idx: int, width: int = 20) -> str:

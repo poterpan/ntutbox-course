@@ -116,3 +116,32 @@ def test_partial_files_ok(tmp_path):
     (d / "catalog.ndjson").write_text(course.model_dump_json() + "\n", encoding="utf-8")
     hits = scan_canonical(tmp_path, ["115-1"])
     assert [h.codepoint for h in hits] == [0xE2FE]
+
+
+# ── Adobe/PDF 殘留區（F3xx-F7xx）：依 pua.py 設計「不處理、保留原樣」，
+#    不該每次掃描都當成新碼位噪音，否則真正的新造字會被淹沒。
+
+def test_adobe_pdf_residue_range_is_not_flagged_as_new(tmp_path):
+    # 115-1 實際出現過的 9 個：U+F332 / F6B1-F6B5 / F6F3 / F762 / F793
+    residue = "".join(chr(cp) for cp in
+                      (0xF332, 0xF6B1, 0xF6B2, 0xF6B3, 0xF6B4, 0xF6B5, 0xF6F3, 0xF762, 0xF793))
+    _write_term(tmp_path, notes=f"課程進度 {residue} 說明")
+    assert scan_canonical(tmp_path, ["115-1"]) == [], (
+        "F3xx-F7xx 是 Word/PDF 字型殘留、無可靠對照表（pua.py 檔頭第 3 條），"
+        "不該報成待考證的新造字"
+    )
+
+
+def test_word_symbol_range_still_flagged_when_unmapped(tmp_path):
+    # F0xx 是 Word 符號字型殘留、**有** Wingdings/Symbol 對照表可查 → 未收錄就該報
+    unmapped_f0 = chr(0xF0AA)  # 不在 PUA_MAP 的 F0xx
+    _write_term(tmp_path, notes=f"項目 {unmapped_f0} 符號")
+    hits = scan_canonical(tmp_path, ["115-1"])
+    assert [h.codepoint for h in hits] == [0xF0AA]
+
+
+def test_school_glyph_range_still_flagged(tmp_path):
+    # E 區學校造字：有 GServer 可考證 → 未收錄一定要報（這是本掃描的主要目的）
+    _write_term(tmp_path, notes=f"某{E2FE}師")
+    hits = scan_canonical(tmp_path, ["115-1"])
+    assert [h.codepoint for h in hits] == [ord(E2FE)]
