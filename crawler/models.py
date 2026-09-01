@@ -261,6 +261,11 @@ class Syllabus(BaseModel):
     sdgs: Optional[str] = None                   # 課程對應 SDGs 指標
     ai_usage: Optional[str] = None               # 課程是否導入 AI
     notes: Optional[str] = None                  # 備註
+    # 彈性學習(17-18週)：來源是 <table class="flex-learn-table">，欄位為
+    # 類別/內容/時數(小時)/學習成果/評量比例。刻意用**泛型 key-value 而非固定欄位**——
+    # 學校改欄位名或增減欄位時（已發生過：課程進度 → 課程進度(1-16週)），
+    # 解析與 UI 都自動跟隨，不必改 code。順序即來源順序（Python dict 保序）。
+    flex_learning: Dict[str, str] = Field(default_factory=dict)
     extra: Dict[str, str] = Field(default_factory=dict)  # 來源新增的未知標籤欄（label→值）
 
 

@@ -64,3 +64,44 @@ def test_parse_syllabus_nested_flex_table_not_mistaken_for_labels():
     s = parse_syllabus(html, teacher_code="12567")
     for junk in ("類別", "內容", "時數(小時)", "學習成果", "評量比例"):
         assert junk not in s.extra, f"嵌套表格的 {junk} 不該成為 extra 的 key"
+
+
+def test_parse_syllabus_extracts_flex_learning_table():
+    """115-1 起的「彈性學習(17-18週)」是 <table class="flex-learn-table">，
+    每列 (th, td) = 欄位名/值。PR #58 為了不讓巢狀 tr 污染頂層欄位而整個跳過，
+    導致這些欄位在資料層遺失（線上只剩「內容」那一欄跑進 extra）。"""
+    html = (FIXTURES / "syllabus_360748_live.html").read_text(encoding="utf-8")
+    s = parse_syllabus(html, teacher_code="12567")
+    assert s.flex_learning, "flex-learn-table 應被解析成 key-value"
+    # 欄位名跟隨來源，不寫死——只驗「有抓到多個欄位」與內容非空
+    assert len(s.flex_learning) >= 2
+    assert all(k and v for k, v in s.flex_learning.items())
+    # 不該同時留在 extra（已被識別的區塊）
+    assert "彈性學習(17-18週)" not in s.extra
+
+
+def test_flex_learning_is_generic_key_value_not_fixed_schema():
+    """寬容性（選 D 的核心理由）：學校改欄位名／增減欄位時不該漏抓或噴錯。
+    解析器把 (th, td) 原樣存成 dict，不比對預期欄位名。"""
+    html = """
+    <table><tr><th>教師姓名</th><td>王小明</td></tr>
+    <tr><th>彈性學習(17-18週)</th><td>
+      <table class="flex-learn-table">
+        <tr><th>類別</th><td>線上數位教材學習</td></tr>
+        <tr><th>時數</th><td>4</td></tr>
+        <tr><th>學校未來新增的欄位</th><td>某個新值</td></tr>
+      </table>
+    </td></tr></table>
+    """
+    s = parse_syllabus(html, teacher_code="x")
+    assert s.flex_learning == {
+        "類別": "線上數位教材學習",
+        "時數": "4",                      # 改名（原「時數(小時)」）照樣抓到
+        "學校未來新增的欄位": "某個新值",      # 新欄位自動吸收
+    }
+
+
+def test_flex_learning_absent_when_no_such_table():
+    html = (FIXTURES / "syllabus_360748.html").read_text(encoding="utf-8")  # 舊 fixture 無此表
+    s = parse_syllabus(html, teacher_code="12567")
+    assert not s.flex_learning

@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { ShareIcon } from "lucide-react";
 import { AccentButton } from "@/components/ui/accent-button";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
@@ -231,12 +231,20 @@ export function CourseDetailContent({
                   <dl className="space-y-2.5">
                     {SYLLABUS_FIELDS.map(([key, label]) => {
                       const val = s[key];
-                      return typeof val === "string" && val.trim() ? (
+                      const node = typeof val === "string" && val.trim() ? (
                         <div key={key}>
                           <dt className="text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-soft)]">{label}</dt>
                           <dd className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed text-[var(--ink)]">{val}</dd>
                         </div>
                       ) : null;
+                      // 彈性學習(17-18週) 緊接在課程進度(1-16週)之後——時序相連，
+                      // 且來源的「課程進度」常會寫一句「第17-18週：彈性學習」指向這裡。
+                      return key === "schedule" ? (
+                        <Fragment key={key}>
+                          {node}
+                          <FlexLearning rows={s.flex_learning} />
+                        </Fragment>
+                      ) : node;
                     })}
                   </dl>
                 </div>
@@ -318,6 +326,35 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
     <div className="flex gap-3">
       <dt className="w-20 shrink-0 text-[var(--ink-soft)]">{k}</dt>
       <dd className="min-w-0 flex-1 text-[var(--ink)]">{v}</dd>
+    </div>
+  );
+}
+
+/**
+ * 彈性學習(17-18週)：與「課程進度」同級的欄位（不做獨立 block——教學大綱本身
+ * 已是一層有背景的 block，再包一層會層級過重）。子欄位用 --ink-faint 小標拉出層級差。
+ *
+ * 欄位名與順序**完全跟隨來源**（泛型 key-value，不寫死「類別/內容/時數…」）：
+ * 學校改欄位名或增減欄位時 UI 自動跟隨，不必改 code。
+ * 已被咬過一次——2026-08 學校把「課程進度」改成「課程進度(1-16週)」，
+ * 精確比對失效導致線上資料壞掉數週（見 crawler/ntut_catalog/parse_detail.py）。
+ */
+function FlexLearning({ rows }: { rows?: Record<string, string> | null }) {
+  const entries = Object.entries(rows ?? {}).filter(([, v]) => v && v.trim());
+  if (entries.length === 0) return null;
+  return (
+    <div>
+      <dt className="text-[11px] font-semibold uppercase tracking-wide text-[var(--ink-soft)]">
+        彈性學習（17-18 週）
+      </dt>
+      <dd className="mt-1 space-y-1.5">
+        {entries.map(([k, v]) => (
+          <div key={k} className="grid grid-cols-[5.5rem_1fr] gap-2">
+            <span className="pt-px text-[11px] text-[var(--ink-faint)]">{k}</span>
+            <span className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--ink)]">{v}</span>
+          </div>
+        ))}
+      </dd>
     </div>
   );
 }
