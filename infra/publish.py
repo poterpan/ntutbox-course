@@ -17,6 +17,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -89,6 +90,14 @@ def _v1_files_for(out_dir: Path, terms: Optional[List[str]], include_details: bo
     return files
 
 
+# R2 偶發 500（wrangler 回 code 10001「We encountered an internal error. Please try
+# again.」）。實測：crawl details #5（2026-08-16）上傳第 6 個檔案時中招，前 5 個已上傳、
+# 整個 workflow 掛掉。單檔上傳是冪等的 PUT，重試安全。
+# backfill 要上傳 11 學期 ×（6 檔 + 約 21,500 個 course/*.json），不重試幾乎必然踩到。
+UPLOAD_ATTEMPTS = 4
+UPLOAD_BACKOFF_S = (2, 5, 15)  # 指數退避；長度 = UPLOAD_ATTEMPTS - 1
+
+
 def wrangler_put(bucket: str, key: str, path: Path, cache_control: str, dry_run: bool) -> None:
     cmd = [
         "wrangler", "r2", "object", "put", f"{bucket}/{key}",
@@ -100,7 +109,21 @@ def wrangler_put(bucket: str, key: str, path: Path, cache_control: str, dry_run:
     if dry_run:
         print(f"[dry-run] PUT {bucket}/{key}  ({cache_control})  <- {path}")
         return
-    subprocess.run(cmd, check=True)
+
+    for attempt in range(1, UPLOAD_ATTEMPTS + 1):
+        try:
+            subprocess.run(cmd, check=True)
+            return
+        except subprocess.CalledProcessError:
+            if attempt == UPLOAD_ATTEMPTS:
+                # 耗盡重試 → 往外拋，讓 workflow 紅燈。不可吞掉：半完成的發佈
+                # 比明確失敗更難處理（manifest 最後推的原子性設計就是為此）。
+                print(f"upload failed after {UPLOAD_ATTEMPTS} attempts: {key}", file=sys.stderr)
+                raise
+            wait = UPLOAD_BACKOFF_S[attempt - 1]
+            print(f"upload attempt {attempt}/{UPLOAD_ATTEMPTS} failed: {key} — retrying in {wait}s",
+                  file=sys.stderr)
+            time.sleep(wait)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
