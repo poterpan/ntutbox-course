@@ -444,8 +444,12 @@ export interface Syllabus1 {
   sdgs?: Sdgs;
   ai_usage?: AiUsage;
   notes?: Notes;
+  flex_learning?: FlexLearning;
   extra?: Extra;
   [k: string]: unknown;
+}
+export interface FlexLearning {
+  [k: string]: string;
 }
 export interface Extra {
   [k: string]: string;

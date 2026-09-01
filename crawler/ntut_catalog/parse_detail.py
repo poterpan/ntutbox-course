@@ -106,10 +106,24 @@ def parse_syllabus(html: str, teacher_code: Optional[str] = None) -> Syllabus:
     if table is None:
         return syl
 
+    # 「彈性學習(17-18週)」是嵌套的 <table class="flex-learn-table">，先單獨解出來。
+    # 欄位名原樣保存（泛型 key-value，不比對預期欄位）——學校改名或增減欄位時
+    # 自動跟隨，不必改 code。見 models.Syllabus.flex_learning 的註解。
+    flex_table = table.find("table", class_="flex-learn-table")
+    if flex_table is not None:
+        for ftr in flex_table.find_all("tr"):
+            fcells = ftr.find_all(["th", "td"], recursive=False)
+            if len(fcells) < 2:
+                continue
+            fk = _clean(fcells[0].get_text())
+            fta = fcells[1].find("textarea")
+            fv = _clean(fta.get_text()) if fta else _clean(fcells[1].get_text())
+            if fk and fv:
+                syl.flex_learning[fk] = fv
+
     for tr in table.find_all("tr"):
-        # 115-1 起「彈性學習(17-18週)」是嵌套的 <table class="flex-learn-table">，
-        # find_all("tr") 會連它的列一起撈出來，把「類別/內容/時數(小時)/學習成果/
-        # 評量比例」誤當成頂層欄位塞進 extra。只處理直屬本表的列。
+        # 巢狀表格（如上面的 flex-learn-table）的列會被 find_all("tr") 一併撈出，
+        # 若不濾掉會把它的欄位名誤當頂層標籤塞進 extra。只處理直屬本表的列。
         if tr.find_parent("table") is not table:
             continue
         cells = tr.find_all(["th", "td"], recursive=False)
@@ -132,6 +146,9 @@ def parse_syllabus(html: str, teacher_code: Optional[str] = None) -> Syllabus:
             syl.updated_at = value or None
         elif (field := _match_label(label)) is not None:
             setattr(syl, field, value or None)
+        elif label.startswith("彈性學習") and syl.flex_learning:
+            # 已由 flex-learn-table 結構化解出，不重複塞進 extra
+            pass
         elif label and label not in ("教師姓名",) and value:
             syl.extra[label] = value
     return syl

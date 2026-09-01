@@ -51,8 +51,10 @@ def test_maps_checkmark_and_school_glyph():
     (0xE049, "湉"),
     (0xE04D, "晧"),
     (0xE04F, "婕"),
+    (0xE053, "珺"),   # 2026-09 補：GServer 字形 + 遠流譯者楊祖珺
     (0xE054, "栢"),
     (0xE055, "葳"),
+    (0xE058, "媜"),   # 2026-09 補：GServer 字形（右旁貞非真）+ 印刻作者簡媜
     (0xE065, "鋒"),
     (0xE06E, "玎"),
     (0xE077, "姵"),
@@ -81,7 +83,7 @@ def test_maps_checkmark_and_school_glyph():
     (0xE26C, "晣"),
 ])
 def test_pua_map_matches_gserver_glyphs(cp, want):
-    # 全 42 個學校造字對照（GServer 採收＋使用者考證修正 E031/E10D/E0E1）；見 docs/research/2026-07-20-pua-glyph-verification.md
+    # 全 44 個學校造字對照（2026-09 補 E053 珺 / E058 媜）（GServer 採收＋使用者考證修正 E031/E10D/E0E1）；見 docs/research/2026-07-20-pua-glyph-verification.md
     assert PUA_MAP[cp] == want
     assert normalize_pua(f"林{chr(cp)}") == f"林{want}"
 

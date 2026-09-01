@@ -29,6 +29,7 @@ beforeEach(() => {
   seedTerm();
   useUiStore.setState({ libraryTab: "courses", selectedProgramCode: null, detailOfferingId: "A", libraryOpen: false });
   mockUseMprograms.mockReset();
+  mockGetDataSource.mockReturnValue(DEFAULT_SOURCE);
 });
 
 describe("CourseDetailContent — 所屬微學程 chips", () => {
@@ -64,5 +65,52 @@ describe("CourseDetailContent — 所屬微學程 chips", () => {
     mockUseMprograms.mockReturnValue({ data: null, error: true, loading: false, retry: vi.fn() });
     render(<CourseDetailContent offeringId="A" />);
     expect(screen.queryByText("所屬微學程")).not.toBeInTheDocument();
+  });
+});
+
+
+// ── 彈性學習（17-18 週）──────────────────────────────────────
+// 用 getDataSource mock 注入 detail；元件是透過它取 syllabi 的。
+const { mockGetDataSource } = vi.hoisted(() => ({ mockGetDataSource: vi.fn() }));
+// 預設實作：既有測試不呼叫 seedDetail，也要能正常 render（不注入 detail）。
+const DEFAULT_SOURCE = {
+  getManifest: () => Promise.resolve({ terms: { "115-1": {} } }),
+  getCourseDetail: () => Promise.resolve(null),
+};
+vi.mock("@/lib/data", async (orig) => ({
+  ...(await orig<Record<string, unknown>>()),
+  getDataSource: mockGetDataSource,
+}));
+
+function seedDetail(syllabi: unknown[]) {
+  // 元件樹也會用 getManifest（use-latest-term），mock 要一併提供，否則整個 render 掛掉。
+  mockGetDataSource.mockReturnValue({
+    getManifest: () => Promise.resolve({ terms: { "115-1": {} } }),
+    getCourseDetail: () => Promise.resolve({
+      term_key: "115-1", offering_id: "A", name: { zh: "資料結構" }, syllabi,
+    }),
+  });
+}
+
+describe("彈性學習（17-18 週）", () => {
+  it("renders source field names as-is (generic key-value, no fixed schema)", async () => {
+    // 寬容性是選這個呈現方式的核心理由：學校改欄位名／增減欄位時 UI 自動跟隨。
+    mockUseMprograms.mockReturnValue({ data: dirNone, error: false, loading: false, retry: vi.fn() });
+    // 用「基本資料表沒有的」欄位名，避免與課程資訊的「時數」撞名
+    seedDetail([{ teacher_name: "王", schedule: "第一週…",
+      flex_learning: { "類別": "線上數位教材學習", "彈性時數": "4", "未來新欄位": "某值" } }]);
+    render(<CourseDetailContent offeringId="A" />);
+    expect(await screen.findByText("彈性學習（17-18 週）")).toBeInTheDocument();
+    for (const t of ["類別", "線上數位教材學習", "彈性時數", "未來新欄位", "某值"]) {
+      expect(await screen.findByText(t)).toBeInTheDocument();
+    }
+  });
+
+  it("is omitted when the course has no flex learning", async () => {
+    mockUseMprograms.mockReturnValue({ data: dirNone, error: false, loading: false, retry: vi.fn() });
+    seedDetail([{ teacher_name: "王", schedule: "第一週…" }]);
+    render(<CourseDetailContent offeringId="A" />);
+    expect(await screen.findByText("課程進度")).toBeInTheDocument();
+    expect(screen.queryByText("彈性學習（17-18 週）")).toBeNull();
   });
 });

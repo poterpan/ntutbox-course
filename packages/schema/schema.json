@@ -1265,6 +1265,13 @@
           "default": null,
           "title": "Notes"
         },
+        "flex_learning": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Flex Learning",
+          "type": "object"
+        },
         "extra": {
           "additionalProperties": {
             "type": "string"
