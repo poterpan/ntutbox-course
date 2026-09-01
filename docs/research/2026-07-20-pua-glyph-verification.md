@@ -1,6 +1,6 @@
 # PUA 造字字形考證（GServer 外字採收，2026-07-20）
 
-> 逆向學校華康 GServer 外字服務，從學校自有造字檔 `MingGaiji.TTE` 撈出全部 **43 個**
+> 逆向學校華康 GServer 外字服務，從學校自有造字檔 `MingGaiji.TTE` 撈出全部 **43 個**（2026-09 另補 2 個新出現碼位，共 **45**）
 > PUA 造字碼位的字形並認字。**6 個既有對照（#44／#45 系網考證）與 GServer 字形完全吻合＝權威反證**。
 > 本文為 `crawler/ntut_catalog/pua.py` 的 `PUA_MAP` 造字段依據。
 
@@ -10,7 +10,7 @@
 
 - **字形來源＝權威**：學校自己的華康 GServer 外字服務（`font.ntut.edu.tw`）供應的 `MingGaiji.TTE`（學校造字檔）。直接取學校用來畫這些字的原始字型輪廓來認字，不再靠上下文猜測，並與既有系網考證交叉反證。
 
-- **結果統計（43 碼位）**：
+- **結果統計（43 碼位；2026-09 補 2 碼位 → 45）**：
   - **42 碼位已認字**（含 6 個既有對照；其中 `E031`／`E10D`／`E0E1` 由使用者覆核修正／補上，見 §4.1、§5）；
   - **1 碼位無字形**：`U+EF0D`（cmap 有碼位但 glyf 無輪廓，非實際造字，見 §4.2）。
 
@@ -58,8 +58,10 @@
 | `U+E049` | 湉 (U+6E49) | high | 課綱課號 [366781](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=366781&code=23670)：…Co.（著）、謝永湉（譯），《一九五八…；課綱課號 [366844](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=366844&code=23670)：…Co.（著）、謝永湉（譯），《一九五八… | 本 PR 新增 PUA_MAP |
 | `U+E04D` | 晧 (U+6667) | high | 教師 [林晢晧](https://aps.ntut.edu.tw/course/tw/Teach.jsp?format=-3&year=112&sem=2&code=24507)（112-2） | 本 PR 新增 PUA_MAP |
 | `U+E04F` | 婕 (U+5A55) | high | 課綱課號 [366876](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=366876&code=22640)：…劉昉青 祁業榮 郭婕 (2007)。運… | 本 PR 新增 PUA_MAP |
+| `U+E053` | 珺 (U+73FA) | high | 課綱課號 [366826](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=366826&code=23919)：…Cultural Studies. 2nd ed.)（楊祖珺譯），台北：遠流。… | 2026-09-01 新增（外部佐證：遠流 1997《傳播及文化研究主要概念》譯者楊祖珺） |
 | `U+E054` | 栢 (U+6822) | high | 備註課號 [325372](https://aps.ntut.edu.tw/course/tw/Curr.jsp?format=-2&code=325372)：…教師李栢浡,CLS410教…；備註課號 [318094](https://aps.ntut.edu.tw/course/tw/Curr.jsp?format=-2&code=318094)：…教師李栢浡,CLS410教… | 本 PR 新增 PUA_MAP |
 | `U+E055` | 葳 (U+8473) | high | 課綱課號 [361268](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=361268&code=12200)：…，有任何問題可與吳南葳老師(nwwu@n…；課綱課號 [362492](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=362492&code=12200)：…，有任何問題可與吳南葳老師(nwwu@n… | 本 PR 新增 PUA_MAP |
+| `U+E058` | 媜 (U+5A9C) | high | 課綱課號 [360744](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=360744&code=23602)：…伊莉莎白《當綠葉緩緩落下》 簡媜《誰在銀閃閃的地方 等你》… | 2026-09-01 新增（外部佐證：印刻《誰在銀閃閃的地方，等你》作者簡媜；字形右旁 貞(⺊+貝) 非 真） |
 | `U+E065` | 鋒 (U+92D2) | high | 課綱課號 [361491](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=361491&code=12036)：…之超快雷射鑽孔 曾釋鋒 教授 第2週 P…；課綱課號 [362821](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=362821&code=11493)：…計（第二版）, 劉邦鋒 著, 國立臺灣大… | 本 PR 新增 PUA_MAP |
 | `U+E06E` | 玎 (U+738E) | high | 課綱課號 [364509](https://aps.ntut.edu.tw/course/tw/ShowSyllabus.jsp?snum=364509&code=12037)：…裕, 張宇欣, 廖凰玎，2015 ，臺灣… | 本 PR 新增 PUA_MAP |
 | `U+E077` | 姵 (U+59F5) | high | 備註課號 [325274](https://aps.ntut.edu.tw/course/tw/Curr.jsp?format=-2&code=325274)：…教師黃文曄、丁姵如,法2F03教室…；備註課號 [325284](https://aps.ntut.edu.tw/course/tw/Curr.jsp?format=-2&code=325284)：…教師丁姵如,商5F01教室… | 本 PR 新增 PUA_MAP |
