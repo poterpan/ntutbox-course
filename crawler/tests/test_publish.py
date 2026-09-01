@@ -96,3 +96,43 @@ def test_wrangler_put_dry_run_does_not_call_subprocess(monkeypatch):
     monkeypatch.setattr(publish.subprocess, "run", fake_run)
     publish.wrangler_put("b", "k", Path("f.json"), "cc", dry_run=True)
     assert not called
+# ── S3 批次同步（backfill 用；wrangler 逐檔 put 撐不住 26,840 個 course/*.json）──
+
+def test_s3_available_requires_all_credentials(monkeypatch):
+    for k in ("R2_S3_ACCESS_KEY_ID", "R2_S3_SECRET_ACCESS_KEY", "CLOUDFLARE_ACCOUNT_ID"):
+        monkeypatch.delenv(k, raising=False)
+    assert publish.s3_available() is False
+    monkeypatch.setenv("R2_S3_ACCESS_KEY_ID", "k")
+    assert publish.s3_available() is False, "只有一個 key 不算可用"
+    monkeypatch.setenv("R2_S3_SECRET_ACCESS_KEY", "s")
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "a")
+    assert publish.s3_available() is True
+
+
+def test_s3_groups_by_cache_control_and_keeps_manifest_last(monkeypatch):
+    """同步必須維持原子性：manifest 最後推。且不同 Cache-Control 要分批
+    （aws s3 cp --recursive 只能對整批下同一個 metadata）。"""
+    calls = []
+    monkeypatch.setenv("CLOUDFLARE_ACCOUNT_ID", "acct")  # _s3_endpoint 需要
+    monkeypatch.setattr(publish, "_run_aws", lambda cmd: calls.append(cmd))
+    files = [
+        "v1/terms/115-1/catalog.json",
+        "v1/terms/115-1/enrollment.json",
+        "v1/terms/115-1/course/1.json",
+        "v1/manifest.json",
+    ]
+    publish.s3_sync_upload("bkt", Path("/tmp/out"), files, dry_run=False)
+    joined = [" ".join(c) for c in calls]
+    assert any("manifest.json" in j for j in joined)
+    # manifest 必須在最後一個呼叫
+    assert "manifest.json" in joined[-1], f"manifest 不在最後: {joined}"
+    # enrollment 用短快取、catalog 用長快取 → 至少要分開的呼叫
+    assert any("max-age=300" in j for j in joined)
+    assert any("max-age=3600" in j for j in joined)
+
+
+def test_s3_sync_dry_run_makes_no_calls(monkeypatch):
+    calls = []
+    monkeypatch.setattr(publish, "_run_aws", lambda cmd: calls.append(cmd))
+    publish.s3_sync_upload("bkt", Path("/tmp/out"), ["v1/manifest.json"], dry_run=True)
+    assert calls == []
