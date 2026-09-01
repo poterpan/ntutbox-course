@@ -1,3 +1,9 @@
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from infra import publish
 from infra.publish import cache_control_for, plan_uploads, quality_gate, r2_key
 
 
@@ -43,3 +49,50 @@ def test_v1_files_ignores_stray_files(tmp_path):
     assert not any(".DS_Store" in f for f in files)
     assert "v1/manifest.json" in files
     assert sum(1 for f in files if f.startswith("v1/terms/115-1/")) == 4
+
+
+# ── wrangler_put 重試（R2 偶發 500）─────────────────────────────
+# 實測背景：crawl details #5（2026-08-16）在上傳第 6 個檔案時撞到
+# Cloudflare 500 internal error（code 10001「Please try again」），
+# 前 5 個已上傳、整個 workflow 掛掉。backfill 要上傳 11 學期 ×（6 檔 +
+# 約 21,500 個 course/*.json），撞到的機率很高，必須能自己撐過去。
+
+def test_wrangler_put_retries_then_succeeds(monkeypatch):
+    calls = []
+
+    def fake_run(cmd, check):
+        calls.append(cmd)
+        if len(calls) < 3:
+            raise subprocess.CalledProcessError(1, cmd)
+        return None
+
+    monkeypatch.setattr(publish.subprocess, "run", fake_run)
+    monkeypatch.setattr(publish.time, "sleep", lambda _s: None)  # 測試不要真的等
+    publish.wrangler_put("b", "k", Path("f.json"), "cc", dry_run=False)
+    assert len(calls) == 3, "前兩次失敗後應該重試到成功"
+
+
+def test_wrangler_put_raises_after_exhausting_retries(monkeypatch):
+    calls = []
+
+    def always_fail(cmd, check):
+        calls.append(cmd)
+        raise subprocess.CalledProcessError(1, cmd)
+
+    monkeypatch.setattr(publish.subprocess, "run", always_fail)
+    monkeypatch.setattr(publish.time, "sleep", lambda _s: None)
+    with pytest.raises(subprocess.CalledProcessError):
+        publish.wrangler_put("b", "k", Path("f.json"), "cc", dry_run=False)
+    assert len(calls) == publish.UPLOAD_ATTEMPTS, "耗盡重試後要往外拋，不可吞掉"
+
+
+def test_wrangler_put_dry_run_does_not_call_subprocess(monkeypatch):
+    called = False
+
+    def fake_run(cmd, check):
+        nonlocal called
+        called = True
+
+    monkeypatch.setattr(publish.subprocess, "run", fake_run)
+    publish.wrangler_put("b", "k", Path("f.json"), "cc", dry_run=True)
+    assert not called
