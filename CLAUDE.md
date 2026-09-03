@@ -57,6 +57,17 @@
 - **NTUT_Tools**（**私有** PoC、本 repo 姊妹專案）：台北科大各校務系統的 Python 逆向驗證層。cwish/oads **送件邏輯**（`preselect.py`/`add_drop.py`）已在那驗證，**Phase 3 會參考**。本 repo＝產品；NTUT_Tools＝研究/PoC。
 - 使用者技術文件《北科盒子排課系統技術文件 v0.1》：功能分級 / phases / 規則引擎 / payload / MVP 驗收——產品需求來源（請使用者帶入 repo 或詢問）。
 
+## ⚠️ 部署前必讀
+
+本 repo 部署到 `ntutbox.com` zone，而該 zone 每個 hostname 都由 route ＋
+Custom Domain 兩套機制共同擁有，交互作用不在任何單一設定檔裡。部署前先讀
+`ntutbox-edge/docs/zone-topology.md`（受版控的唯一真相來源），並在 Cloudflare
+dashboard 確認實際 route 表。
+
+本 repo 相關事實：`course.ntutbox.com` 是 **Custom Domain** 指向
+`ntutbox-course-web`，與 apex 的 route/Custom Domain 分流機制是分開的；
+資料 CDN `cdn.ntutbox.com` 是 **R2 public custom domain，不是 worker**。
+
 ## ⚠️ 公開 repo 守則（本 repo 將 public）
 
 **適用範圍：進到 git 版控的檔案內容**（原始碼、docs、測試 fixture、範例資料）。
