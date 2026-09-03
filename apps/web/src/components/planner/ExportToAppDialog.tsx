@@ -70,11 +70,14 @@ export function ExportToAppDialog({
   useEffect(() => {
     if (!open || !payload) return;
     let cancelled = false;
-    // Data-fetch effect: 開窗/payload 變動時先清掉上一輪的錯誤旗標，再開始非同步編碼；
-    // 只在 (open, payload, termKey) 變動時跑一次。React Compiler over-flags this —
-    // see CourseDetailContent for the same pattern.
+    // Data-fetch effect: 開窗/payload 變動時先清掉上一輪的錯誤旗標與舊連結，再開始非同步
+    // 編碼——不清 url/qrUsable 的話，使用者會在新連結編碼完成前的短暫窗口看到／複製到
+    // 對應上一版課表的連結。只在 (open, payload, termKey) 變動時跑一次。React Compiler
+    // over-flags this — see CourseDetailContent for the same pattern.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setFailed(false);
+    setUrl(null);
+    setQrUsable(false);
     void (async () => {
       try {
         const { encoded, compressed } = await encodePlanPayload(payload);
