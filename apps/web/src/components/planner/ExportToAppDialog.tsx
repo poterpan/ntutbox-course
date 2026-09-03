@@ -9,7 +9,12 @@ import { useToast } from "@/components/ui/toast";
 import { useDraftStore } from "@/store/draft-store";
 import { useTermStore } from "@/store/term-store";
 import { useTermCourses } from "@/lib/planner/use-term-courses";
-import { buildPlanPayload, encodePlanPayload, buildPlanHandoffURL } from "@/lib/share/plan-payload";
+import {
+  buildPlanPayload,
+  encodePlanPayload,
+  buildPlanHandoffURL,
+  QR_MAX_CHARS,
+} from "@/lib/share/plan-payload";
 import { shareOrCopy } from "@/lib/share/share-course";
 import { trackEvent } from "@/lib/analytics";
 import { countBucket } from "@/lib/analytics/events";
@@ -24,16 +29,6 @@ function isTouchPrimary(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia("(hover: none) and (pointer: coarse)").matches;
 }
-
-/**
- * QR 密度上限。2026-09-03 用「每門課名稱／教師／教室皆不同」的真實形狀樣本實測
- * （deflate-raw + base64url）：10 門 999、15 門 1,224、20 門 1,442、30 門 1,859 字元。
- * QR byte mode 在 level L 的硬上限是 2,953 bytes，所以這些都在容量內，真正的限制是
- * 好不好掃。門檻取 2000 而不是更緊：20 門課是很正常的一份預排（滿修＋備選），
- * 把它擋在 QR 之外會讓桌機使用者無故退回複製連結。
- * 未壓縮（`e=0`）的 10 門課是 2,742 字元 → 自然超過門檻、不給 QR，這是刻意的。
- */
-const QR_MAX_CHARS = 2000;
 
 export function ExportToAppDialog({
   open,

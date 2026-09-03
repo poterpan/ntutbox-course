@@ -13,6 +13,21 @@ import type { PlacedCourse } from "@/store/draft-store";
 
 export const PLAN_PAYLOAD_VERSION = 1;
 
+/**
+ * QR 密度上限。2026-09-03 用「每門課名稱／教師／教室皆不同」的真實形狀樣本實測
+ * （deflate-raw + base64url）：10 門 999、15 門 1,224、20 門 1,442、30 門 1,859 字元。
+ * QR byte mode 在 level L 的硬上限是 2,953 bytes，所以這些都在容量內，真正的限制是
+ * 好不好掃。門檻取 2000 而不是更緊：20 門課是很正常的一份預排（滿修＋備選），
+ * 把它擋在 QR 之外會讓桌機使用者無故退回複製連結。
+ * 未壓縮（`e=0`）的 10 門課是 2,742 字元 → 自然超過門檻、不給 QR，這是刻意的。
+ *
+ * 住在這裡而不是 `ExportToAppDialog`：這是 payload 編碼的性質（壓縮後的 base64url
+ * 長度），不是那個對話框的 UI 性質。放在 lib 才能讓 payload 的測試直接引用它，
+ * 而不是把 2000 這個數字複製第二份——複製之後兩邊會各自漂移，而漂移的那一天
+ * 不會有任何測試變紅。
+ */
+export const QR_MAX_CHARS = 2000;
+
 export interface PlanPayloadCourse {
   /** offering_id（課號） */
   i: string;
