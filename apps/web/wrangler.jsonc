@@ -21,5 +21,6 @@
   },
   "vars": {
     "DATA_BASE_URL": "https://cdn.ntutbox.com/course/v1"
-  }
+  },
+  "observability": { "enabled": true }
 }
