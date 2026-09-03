@@ -60,4 +60,29 @@ describe("submitOrder", () => {
     expect(r.map((o) => o.offeringId)).toEqual(["D", "A"]);
     expect(r.map((o) => o.priority)).toEqual([1, 2]);
   });
+
+  it("多個獨立衝堂組：兩段內都各自重排，不只 winners 段", () => {
+    // 需要兩個彼此不衝堂、但各自內部衝堂的組。
+    // 用既有的 A/B（Mon4 相衝）當一組；另一組要自己建，且與 A/B 都不衝。
+    const F = mk("F", [{ day: 2, periods: ["1", "2"] }]);   // Tue 1-2
+    const G = mk("G", [{ day: 2, periods: ["2"] }]);        // Tue 2 → 與 F 衝
+    const table2: Record<string, CourseOffering> = { A, B, F, G };
+    const byId2 = (id: string) => table2[id];
+
+    // priority: A=5 B=9（組一）、F=1 G=7（組二）
+    // 組一 winner=A(5) loser=B(9)；組二 winner=F(1) loser=G(7)
+    // winners 按 priority 升序 → [F(1), A(5)]
+    // losers  按 priority 升序 → [G(7), B(9)]
+    // 合併重編 → F(1,t1) A(2,t1) G(3,t2) B(4,t2)
+    const r = submitOrder(placed(["A", 5], ["B", 9], ["F", 1], ["G", 7]), byId2);
+    expect(r.map((o) => o.offeringId)).toEqual(["F", "A", "G", "B"]);
+    expect(r.map((o) => o.tier)).toEqual([1, 1, 2, 2]);
+    expect(r.map((o) => o.priority)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("meetings 欄位整個缺席（非空陣列）也視為無衝堂", () => {
+    const H = { offering_id: "H", name: { zh: "H" } } as unknown as CourseOffering;
+    const r = submitOrder(placed(["H", 1]), (id) => (id === "H" ? H : undefined));
+    expect(r).toEqual([{ offeringId: "H", priority: 1, tier: 1 }]);
+  });
 });
