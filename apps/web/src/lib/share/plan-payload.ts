@@ -35,6 +35,12 @@ export interface PlanPayloadCourse {
 }
 
 export interface PlanPayload {
+  /**
+   * 學校代碼，目前只接受 "ntut"。必填——排課站只有北科課表，但這個保證只在
+   * 送出端成立；接收端（App）靠這個欄位斷言來源，缺欄或值不符即拒收。
+   * 見 spec §3〈學校 provenance 在接收端強制〉。
+   */
+  u: "ntut";
   /** term_key，例 "115-1" */
   t: string;
   /** 課程資料爬取時間（ISO 8601）。取不到就省略；不參與任何邏輯判斷 */
@@ -88,6 +94,7 @@ export function buildPlanPayload(args: {
   });
 
   return {
+    u: "ntut",
     t: termKey,
     ...(catalogCrawledAt ? { d: catalogCrawledAt } : {}),
     x: Math.floor((now ?? Date.now()) / 1000),

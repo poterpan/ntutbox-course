@@ -52,6 +52,7 @@ describe("buildPlanPayload", () => {
       catalogCrawledAt: "2026-08-30T02:11:00Z",
       now: 1725336000_000,
     });
+    expect(p.u).toBe("ntut");
     expect(p.t).toBe("115-1");
     expect(p.d).toBe("2026-08-30T02:11:00Z");
     expect(p.x).toBe(1725336000);
