@@ -64,13 +64,21 @@ export function buildPlanPayload(args: {
     return {
       i: src.offering_id,
       n: src.name?.zh ?? src.offering_id,
+      // credits 用 ?? ：0 是有效學分（0 學分課存在），只有欄位真的缺席
+      // （undefined）才退為 null。
       r: src.credits ?? null,
-      h: (src.teachers ?? []).map((t) => t.name ?? t.code).filter((v): v is string => !!v),
+      // teacher/classroom 的 name 用 || 而非 ??：crawler/models.py 的
+      // EntityRef.name 預設值是 ""（不是 Optional[str] = None），所以真實
+      // 資料裡「沒有姓名」是空字串。?? 只在 null/undefined 才 fallback，
+      // 空字串會直接穿過再被下面的 filter(Boolean) 濾掉——整個 entity 從
+      // h/l 消失，而不是退顯示 code。與 credits 的 ?? 方向刻意相反，別為了
+      // 「統一運算子」而互相套用。
+      h: (src.teachers ?? []).map((t) => t.name || t.code).filter((v): v is string => !!v),
       m: (src.meetings ?? []).map(
         (mt) => [toIsoDay(mt.day), mt.periods.join("")] as [number, string],
       ),
       l: (src.classrooms ?? [])
-        .map((r) => r.name ?? r.code)
+        .map((r) => r.name || r.code)
         .filter((v): v is string => !!v)
         .join("、"),
       q: src.requirement?.category ?? "unknown",

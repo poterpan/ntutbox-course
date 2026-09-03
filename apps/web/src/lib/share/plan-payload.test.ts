@@ -91,6 +91,46 @@ describe("buildPlanPayload", () => {
     expect(p.c[0].h).toEqual([]);
     expect(p.c[0].l).toBe("");
   });
+
+  it("教師／教室 name 為空字串時 fallback 到 code，不會整個從陣列消失", () => {
+    // EntityRef.name 在 crawler/models.py 預設是 "" 而非 None，
+    // 所以真實資料裡「沒有姓名」長這樣：{ code: "T9", name: "" }。
+    // 若誤用 ?? 只在 null/undefined 才 fallback，空字串會直接穿過，
+    // 再被 filter(Boolean) 濾掉——整個 entity 從 h/l 消失，而不是退顯示 code。
+    const emptyName = {
+      offering_id: "Y",
+      name: { zh: "Y" },
+      teachers: [{ code: "T9", name: "" }],
+      classrooms: [{ code: "R9", name: "" }],
+      meetings: [],
+    } as unknown as CourseOffering;
+    const p = buildPlanPayload({
+      termKey: "115-1",
+      placed: [{ offering_id: "Y", priority: 1 }],
+      byId: (id) => (id === "Y" ? emptyName : undefined),
+    });
+    expect(p.c[0].h).toEqual(["T9"]);
+    expect(p.c[0].l).toBe("R9");
+  });
+
+  it("credits 為 0 時保留 0，不退為 null", () => {
+    // 刻意與上一題方向相反：0 是有效學分（0 學分課存在），要保留；
+    // 只有 credits 真的缺席（undefined）才退為 null。所以這裡用 ??
+    // 而不是 ||——別看到 name 那題改用 || 就順手把這裡也統一，
+    // 會把 0 學分課的學分變成「未知」。
+    const zeroCredit = {
+      offering_id: "Z",
+      name: { zh: "Z" },
+      credits: 0,
+      meetings: [],
+    } as unknown as CourseOffering;
+    const p = buildPlanPayload({
+      termKey: "115-1",
+      placed: [{ offering_id: "Z", priority: 1 }],
+      byId: (id) => (id === "Z" ? zeroCredit : undefined),
+    });
+    expect(p.c[0].r).toBe(0);
+  });
 });
 
 describe("encodePlanPayload / buildPlanHandoffURL", () => {
