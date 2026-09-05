@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // wrangler dev/deploy 的建置暫存檔——非我們寫的程式碼，不該進 lint（#72）
+    ".wrangler/**",
   ]),
 ]);
 

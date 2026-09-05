@@ -105,3 +105,31 @@ def test_crawl_standards():
     assert p.entry_year == 115
     assert len(p.courses) >= 5
     assert any(c.course_code == "1410045" for c in p.courses)
+
+
+def test_crawl_mprograms_rules_parse_failure_logs_once(monkeypatch, caplog):
+    """rules 解析拋例外時只報一行 warning。
+
+    抓得到頁面、但 parse_cprog_rules 拋例外時，舊版會連報兩行：
+    「rules parse failed」＋「no rules_text」——同一次失敗兩則 log，
+    掃 warning 時會誤以為是兩個獨立問題（#43 log 噪音）。
+    注意 broken/raising 兩個既有 fixture 都走不到這條路：前者解析回 None 但不拋，
+    後者連 cprog 都沒抓成功、整段 enrich 被跳過。
+    """
+    import logging
+
+    from ntut_catalog import programs as mod
+
+    def boom(_html):
+        raise ValueError("simulated rules parse failure")
+
+    monkeypatch.setattr(mod, "parse_cprog_rules", boom)
+    with caplog.at_level(logging.WARNING, logger="ntut_catalog.programs"):
+        d = crawl_mprograms(FakeProgClient(), "115-1")
+
+    assert all(p.rules_text is None for p in d.programs)   # 全部降級，但不拋
+    msgs = [r.getMessage() for r in caplog.records]
+    assert all("no rules_text" not in m for m in msgs), (
+        "解析已拋例外並報過，不該再報一次 no_rules_text"
+    )
+    assert sum("rules parse failed" in m for m in msgs) == len(d.programs)

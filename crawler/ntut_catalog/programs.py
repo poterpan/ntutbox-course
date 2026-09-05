@@ -49,6 +49,7 @@ def crawl_mprograms(client, term_key: str) -> MicroProgramDirectory:
         # 抓取／規則／課程各自 try：一門壞課不得丟掉整段規則原文，反之亦然。
         courses: list[MicroProgramCourse] = []
         rules_text = None
+        rules_failed = False
         cprog_html = None
         try:
             cprog_html = client.cprog("-4", year=year, matric="H", division=code)
@@ -58,6 +59,7 @@ def crawl_mprograms(client, term_key: str) -> MicroProgramDirectory:
             try:
                 rules_text = parse_cprog_rules(cprog_html)
             except Exception:  # noqa: BLE001
+                rules_failed = True
                 logger.warning("[%s] cprog -4 rules parse failed for %s", term_key, code, exc_info=True)
             try:
                 std = parse_cprog_standard(cprog_html, entry_year=year, matric="H", division=code)
@@ -72,7 +74,9 @@ def crawl_mprograms(client, term_key: str) -> MicroProgramDirectory:
                 courses = parsed
             except Exception:  # noqa: BLE001
                 logger.warning("[%s] cprog -4 courses parse failed for %s", term_key, code, exc_info=True)
-            if rules_text is None:
+            # 解析拋例外時上面已報過一次；這裡只報「解析成功但頁面確實沒有規定原文」，
+            # 否則同一次失敗會產生兩行 warning（#43 log 噪音）。
+            if rules_text is None and not rules_failed:
                 logger.warning("[%s] cprog -4 no rules_text for %s", term_key, code)
         programs.append(MicroProgram(code=code, name=name, offering_ids=oids,
                                      courses=courses, rules_text=rules_text))

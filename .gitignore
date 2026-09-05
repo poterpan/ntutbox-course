@@ -41,6 +41,15 @@ apps/web/public/data/v1/terms/*/course/
 *.sqlite
 *.sqlite-*
 
+# --- Cloudflare Workers 建置產物 ---
+# wrangler dev/deploy 會在此產生 bundle-*/dev-* 暫存檔（middleware facade、source map）。
+# 曾被誤commit進版控，是 4 個長期 eslint no-unused-vars warning 的來源（#72）。
+.wrangler/
+
+# packages/schema 的 `pnpm generate` 走 `pnpm dlx json-schema-to-typescript`，
+# 會在該目錄留下一份無用的 lockfile 副作用；apps/web/pnpm-lock.yaml 是正式的、不在此列。
+packages/schema/pnpm-lock.yaml
+
 # --- OS / editor ---
 .DS_Store
 Thumbs.db
