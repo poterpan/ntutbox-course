@@ -1,0 +1,135 @@
+name: backfill mprograms
+
+# 歷史學期微學程補抓。
+#
+# 為什麼需要這支：`crawl-mprograms` 只掛在每日 crawl.yml 上跑**當學期**，
+# backfill-details.yml 又只做課綱——所以 110-1~114-2 從來沒抓過微學程，
+# data branch 上只有 115-1 有 mprograms.json。
+#
+# 為什麼不直接用 crawl.yml 的 dispatch 帶 110-1:115-1：
+#   那會連整個 catalog 一起重爬（每學期 ~1,500 門課），殺雞用牛刀。
+#
+# 為什麼是單一 job 而非 backfill-details 那種 matrix：
+#   實測上游 10 個學期共 376 個學程 → 約 762 請求（每學程 2 個：SearchMProgram
+#   課程列表 + Cprog -4 課程標準／規定，每學期再 +1 個清單請求）。
+#   單線程 @0.6s ≈ 8 分鐘，遠低於 runner 6 小時上限，沒有拆併發的理由。
+#   對照：details backfill 是 28,977 請求／6.8 小時，那才需要 matrix。
+#
+# concurrency 直接掛在 job 上（不像 backfill-details 只掛 publish 階段）——
+# 爬取階段夠短，整個 job 序列化最簡單，也不會與每日 crawl 撞 data branch / R2。
+
+on:
+  workflow_dispatch:
+    inputs:
+      terms:
+        description: '學期（如 110-1:114-2 或 110-1,110-2）。留空＝補齊所有缺 mprograms.json 的學期'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data-pipeline
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    env:
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      R2_S3_ACCESS_KEY_ID: ${{ secrets.R2_S3_ACCESS_KEY_ID }}
+      R2_S3_SECRET_ACCESS_KEY: ${{ secrets.R2_S3_SECRET_ACCESS_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Checkout canonical (data branch)
+        uses: actions/checkout@v4
+        with:
+          ref: data
+          path: data/canonical
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install crawler
+        run: pip install -e ./crawler
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install wrangler
+        run: npm install -g wrangler@4
+
+      # 不可信輸入只經由 env 注入，不直接插入 shell（防 command injection）
+      - name: Resolve terms
+        id: terms
+        env:
+          INPUT_TERMS: ${{ github.event.inputs.terms }}
+        run: |
+          set -euo pipefail
+          T="$INPUT_TERMS"
+          if [ -z "$T" ]; then
+            # 留空＝掃 data branch 找出有 catalog.ndjson 但缺 mprograms.json 的學期
+            T="$(cd data/canonical && for d in [0-9][0-9][0-9]-[123]; do
+                  [ -f "$d/catalog.ndjson" ] || continue
+                  [ -f "$d/mprograms.json" ] && continue
+                  printf '%s,' "$d"
+                done | sed 's/,$//')"
+            [ -n "$T" ] || { echo "所有學期都已有 mprograms.json，無事可做"; exit 1; }
+            echo "auto-detected missing terms: $T"
+          else
+            echo "$T" | grep -Eq '^[0-9]{3}-[123]([:,][0-9]{3}-[123])*$' || { echo "invalid terms: $T"; exit 1; }
+          fi
+          echo "terms=$T" >> "$GITHUB_OUTPUT"
+
+      # crawl_mprograms 對「解析出 0 個學程」會拋錯（fail loud），不會用空清單
+      # 覆寫既有 canonical——見 crawler/ntut_catalog/programs.py。
+      - name: Crawl micro-programs
+        env:
+          TERMS: ${{ steps.terms.outputs.terms }}
+        run: |
+          set -euo pipefail
+          python -m ntut_catalog crawl-mprograms --terms "$TERMS" --out data
+
+      - name: Redline scan (block PII/secrets/error pages)
+        run: python infra/redline_scan.py data/canonical
+
+      # 新造字監測：微學程名稱／規定原文也可能含 PUA 造字。
+      # continue-on-error：紅標提醒但不擋管線，處置流程見 pua.py 檔頭。
+      - name: PUA scan (新造字監測)
+        continue-on-error: true
+        env:
+          TERMS: ${{ steps.terms.outputs.terms }}
+        run: python -m ntut_catalog pua-scan --terms "$TERMS" --out data
+
+      - name: Commit mprograms to data branch
+        working-directory: data/canonical
+        env:
+          TERMS: ${{ steps.terms.outputs.terms }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          DATE="$(TZ=Asia/Taipei date +%F)"
+          git add -- '*/mprograms.json' || true
+          git diff --cached --quiet || git commit -m "data(mprograms): backfill $TERMS $DATE"
+          # 不用 `|| true`：rebase 失敗要讓 workflow 紅燈，不可默默 push 失敗
+          git pull --rebase origin data
+          git push origin HEAD:data
+
+      # 不帶 --include-details：課綱 JSON 量大且本次沒動到。上傳是 `aws s3 cp`（加法、
+      # 不刪遠端），既有的 course/{id}.json 不受影響；mprograms.json 本來就在預設清單裡。
+      - name: Publish v1 to R2
+        env:
+          TERMS: ${{ steps.terms.outputs.terms }}
+        run: |
+          python infra/publish.py \
+            --bucket "$R2_BUCKET" \
+            --terms "$TERMS" \
+            --out data \
+            --generated-at "$(date -u +%FT%TZ)"
