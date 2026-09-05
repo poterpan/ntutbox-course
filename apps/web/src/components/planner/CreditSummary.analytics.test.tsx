@@ -48,37 +48,26 @@ afterEach(() => {
   delete window.gtag;
 });
 
-describe("export_to_app_click（F-C 佔位鈕）", () => {
-  it("sends the placeholder handoff with a bucketed count when a plan exists", async () => {
+describe("匯出到 App（開啟 ExportToAppDialog）", () => {
+  // F-C 佔位鈕已換成真流程（ExportToAppDialog）。CreditSummary 這層只負責「開窗」，
+  // 真正的 export_to_app_click / export_to_app_error 追蹤（何時送、handoff_method 為何）
+  // 是 ExportToAppDialog 自己的責任與測試範圍，這裡不斷言那些事件。
+  it("clicking opens the dialog when a plan exists", async () => {
     useDraftStore.setState({ placed: [{ offering_id: "360744", priority: 1 }, { offering_id: "360745", priority: 2 }] });
     render(<CreditSummary />);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: /匯出到 App/ }));
-
-    expect(eventsNamed("export_to_app_click")[0][2]).toEqual({
-      site_surface: "course",
-      term_key: "115-1",
-      handoff_method: "placeholder",
-      course_count_bucket: "2_5",
-    });
-    // 佔位鈕原本的行為（提示即將上線）必須保留。
-    expect(useToast.getState().message).toBe("匯出到 App 功能即將上線");
+    expect(await screen.findByRole("dialog", { name: "匯入到北科盒子" })).toBeInTheDocument();
   });
 
-  it("sends nothing for an empty plan, but still shows the toast", async () => {
+  it("disables the button for an empty plan, so the dialog never opens", async () => {
     render(<CreditSummary />);
-    await userEvent.click(screen.getByRole("button", { name: /匯出到 App/ }));
-    expect(eventsNamed("export_to_app_click")).toHaveLength(0);
-    expect(useToast.getState().message).toBe("匯出到 App 功能即將上線");
-  });
-
-  it("still shows the toast when gtag throws", async () => {
-    useDraftStore.setState({ placed: [{ offering_id: "360744", priority: 1 }] });
-    window.gtag = (() => {
-      throw new Error("blocked by extension");
-    }) as unknown as typeof window.gtag;
-    render(<CreditSummary />);
-    await userEvent.click(screen.getByRole("button", { name: /匯出到 App/ }));
-    expect(useToast.getState().message).toBe("匯出到 App 功能即將上線");
+    const button = screen.getByRole("button", { name: /匯出到 App/ });
+    expect(button).toBeDisabled();
+    // 不只驗 disabled 屬性——實際嘗試點擊，確認空課表真的開不了窗（這是唯一的
+    // guard：ExportToAppDialog 本身對 0 門課不會拒絕，見 team-lead 對這條的補充要求）。
+    await userEvent.click(button);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
 

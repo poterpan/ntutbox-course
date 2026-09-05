@@ -3,7 +3,7 @@
 ## 託管（決策 D6/D7）
 - **爬蟲**：GitHub Actions（cron）。公開 repo 免費分鐘、長 job OK。**勿用 CF Workers 跑爬蟲**（50 子請求/CPU 上限）。
 - **資料出口**：Cloudflare R2 → 自訂網域 `cdn.ntutbox.com/course/v1/…`（egress $0、邊緣快取）。Action 結束用 `wrangler` 推上去。
-- **Web**：Cloudflare Pages，綁本 monorepo、**Root directory 設 `apps/web`**。網域 `course.ntutbox.com`。
+- **Web**：Cloudflare Workers（Static Assets），綁本 monorepo、**Root directory 設 `apps/web`**。網域 `course.ntutbox.com`。
 - `api.ntutbox.com`：**預留**給未來動態後端（勿被靜態資料佔用）。
 
 ## 待辦
