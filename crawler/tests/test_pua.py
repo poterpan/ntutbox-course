@@ -44,6 +44,7 @@ def test_maps_checkmark_and_school_glyph():
     (0xE011, "豐"),
     (0xE016, "敘"),   # 2026-09 補：GServer 字形為「敍」，正規化為通用字
     (0xE017, "況"),   # 2026-09 補：GServer 字形為「况」，正規化為通用字
+    (0xE019, "鑛"),   # 2026-09 r2
     (0xE026, "炯"),
     (0xE02E, "暐"),
     (0xE031, "凃"),
@@ -63,16 +64,20 @@ def test_maps_checkmark_and_school_glyph():
     (0xE05F, "瀞"),   # 2026-09 補
     (0xE062, "献"),   # 2026-09 補
     (0xE065, "鋒"),
+    (0xE069, "參"),   # 2026-09 r2：字形為「叁」，正規化為通用字
     (0xE06E, "玎"),
     (0xE077, "姵"),
+    (0xE079, "數"),   # 2026-09 r2：字形為「数」，正規化為通用字
     (0xE07C, "銹"),
     (0xE081, "庄"),   # 2026-09 補
     (0xE082, "芃"),
     (0xE08F, "双"),
     (0xE098, "瑢"),
+    (0xE0A5, "焄"),   # 2026-09 r2
     (0xE0AF, "溫"),
     (0xE0B2, "勳"),
     (0xE0BF, "參"),
+    (0xE0C8, "運"),   # 2026-09 r2：字形為「运」，正規化為通用字
     (0xE0CD, "坂"),   # 2026-09 補
     (0xE0E1, "勳"),
     (0xE0E3, "烱"),   # 2026-09 補
@@ -94,6 +99,7 @@ def test_maps_checkmark_and_school_glyph():
     (0xE188, "塲"),
     (0xE195, "熺"),
     (0xE19C, "瑤"),   # 2026-09 補
+    (0xE19D, "菓"),   # 2026-09 r2
     (0xE19E, "庙"),   # 2026-09 補
     (0xE1B3, "廸"),
     (0xE1B7, "姉"),
@@ -106,7 +112,7 @@ def test_maps_checkmark_and_school_glyph():
     (0xE26C, "晣"),
 ])
 def test_pua_map_matches_gserver_glyphs(cp, want):
-    # 全 67 個學校造字對照（2026-09 補 E053 珺 / E058 媜 + 本批 23 碼）
+    # 全 73 個學校造字對照（2026-09 補 E053 珺 / E058 媜 + 本批 23 碼）
     # （GServer 採收＋使用者考證修正 E031/E10D/E0E1、正規化 E016/E017/E15C）；
     # 見 docs/research/2026-07-20-pua-glyph-verification.md
     assert PUA_MAP[cp] == want
@@ -254,7 +260,8 @@ def test_wingdings_symbols_keep_meaning(cp, want):
     assert normalize_pua(f"前{chr(cp)}後") == f"前{want}後"
 
 
-@pytest.mark.parametrize("cp", [0xF020, 0xF052, 0xF070, 0xF071, 0xF07E])
+@pytest.mark.parametrize("cp", [0xF020, 0xF052, 0xF070, 0xF071, 0xF07E,
+                               0xF02A, 0xF099, 0xF0B7])
 def test_wingdings_layout_glyphs_become_space(cp):
     # 條列裝飾方框/太陽/裝飾引號：不帶語意但佔位 → 空格（保住原有縮排結構）
     assert PUA_MAP[cp] == " "

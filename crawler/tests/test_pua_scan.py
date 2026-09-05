@@ -153,7 +153,9 @@ def test_school_glyph_range_still_flagged(tmp_path):
 def test_2026_09_resolved_codepoints_are_all_silent(tmp_path):
     # 23 個學校造字進 PUA_MAP、22 個 Wingdings 進 PUA_MAP、
     # 4 個 E 區子集殘留進 KNOWN_EXCEPTIONS、F81A/F845 併入 _RESIDUE_RANGES
-    resolved = (0xE005, 0xE202, 0xF081, 0xF08A, 0xF026,        # 已收錄
+    resolved = (0xE005, 0xE202, 0xF081, 0xF08A, 0xF026,        # 已收錄（第一批）
+                0xE019, 0xE069, 0xE079, 0xE0A5, 0xE0C8,        # 已收錄（round 2）
+                0xE19D, 0xF02A, 0xF099, 0xF0B7,
                 0xE922, 0xE9AF, 0xEEE8, 0xEF0F,                # 例外
                 0xF81A, 0xF845)                                # 殘留區
     _write_term(tmp_path, notes="".join(chr(cp) for cp in resolved))
