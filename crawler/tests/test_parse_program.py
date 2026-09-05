@@ -76,3 +76,73 @@ def test_parse_cprog_rules_absent():
 ])
 def test_normalize_mprogram_category(raw, cat, online):
     assert normalize_mprogram_category(raw) == (cat, online)
+
+
+# ── 2026-09 上游改版防護（#43）──
+# 兩個 fixture 都由真實的 cprog_-4_mprogram_av2.html 衍生，只動要測的那一處。
+
+def test_rules_ignores_decoy_table_before_anchor():
+    """錨點之前的干擾單欄表不得被選中——即使它比真正的規定文字更長。
+
+    舊實作是「全頁最長單一 td 表」，這個 fixture 就是它的反例：頁面上方多一則
+    比規定內容更長的公告，舊法會回公告、新法靠「相關規定」錨點只看其後的表。
+    """
+    html = (FIXTURES / "cprog_-4_decoy_table.html").read_text(encoding="utf-8")
+
+    # 防呆：干擾表必須比真規定長，否則舊啟發式（取最長）本來就會選對、這個測試變空砲。
+    from bs4 import BeautifulSoup
+    singles = [" ".join(t.get_text().split())
+               for t in BeautifulSoup(html, "html5lib").find_all("table")
+               if len(t.find_all("td")) == 1]
+    assert len(singles) == 2 and max(map(len, singles)) == len(
+        next(x for x in singles if "維護期間" in x)), "fixture 失效：干擾表不再是最長的那個"
+
+    rules = parse_cprog_rules(html)
+    assert rules is not None
+    assert "微學程設置定義" in rules            # 真正的規定內容
+    assert "維護期間" not in rules              # 干擾公告
+
+
+def test_rules_ambiguous_after_anchor_returns_none():
+    """錨點之後有兩個以上候選 → 回 None，不猜。
+
+    注意：上游是未閉合標籤的老式 HTML（29 個 <tr> 只有 1 個 </tr>、沒有 </body>），
+    字串插入會失效，必須經 html5lib 正規化後再改 DOM。
+    """
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup((FIXTURES / "cprog_-4_mprogram_av2.html").read_text(encoding="utf-8"),
+                         "html5lib")
+    extra = BeautifulSoup(
+        "<table><tr><td>" + ("填充文字，長度必須超過五十字的門檻才會被視為候選。" * 4)
+        + "</td></tr></table>", "html5lib").table
+    soup.body.append(extra)
+    assert parse_cprog_rules(str(soup)) is None
+
+
+def test_standard_survives_inserted_column():
+    """上游在「課程名稱」後插一欄「英語授課」→ 表頭式仍讀到正確欄位。
+
+    位置式解析（符號欄 +2 起算）會整列右移：學分讀成「否」、時數讀成學分……
+    而且是**無聲**的錯，這正是本項加固要防的。
+    """
+    html = (FIXTURES / "cprog_-4_inserted_column.html").read_text(encoding="utf-8")
+    std = parse_cprog_standard(html, entry_year=115, matric="H", division="AV2")
+    assert len(std.courses) == 27
+    phys = next(c for c in std.courses if c.course_code == "1401041")
+    assert phys.name_zh == "物理"
+    assert phys.credits == 3.0          # 不是插入的「否」
+    assert phys.hours == 3.0
+    assert phys.notes == "基礎"
+
+
+def test_standard_falls_back_when_header_missing():
+    """表頭整列被拿掉 → 退回位置式解析，仍解得出課程（降級但不掉資料）。"""
+    from bs4 import BeautifulSoup
+    soup = BeautifulSoup((FIXTURES / "cprog_-4_mprogram_av2.html").read_text(encoding="utf-8"),
+                         "html5lib")
+    header_tr = next(tr for tr in soup.find_all("tr")
+                     if "學年" in tr.get_text() and "課程編碼" in tr.get_text())
+    header_tr.decompose()
+    std = parse_cprog_standard(str(soup), entry_year=115, matric="H", division="AV2")
+    assert len(std.courses) == 27
+    assert next(c for c in std.courses if c.course_code == "1401041").credits == 3.0
