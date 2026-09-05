@@ -145,3 +145,27 @@ def test_school_glyph_range_still_flagged(tmp_path):
     _write_term(tmp_path, notes=f"某{E2FE}師")
     hits = scan_canonical(tmp_path, ["115-1"])
     assert [h.codepoint for h in hits] == [ord(E2FE)]
+
+
+# ── 2026-09：51 個待辦碼位清空後的迴歸鎖定 ──
+#    目的是「有命中＝真的有待辦」；這批全部靜音，但相鄰的未知碼位仍須報出來。
+
+def test_2026_09_resolved_codepoints_are_all_silent(tmp_path):
+    # 23 個學校造字進 PUA_MAP、22 個 Wingdings 進 PUA_MAP、
+    # 4 個 E 區子集殘留進 KNOWN_EXCEPTIONS、F81A/F845 併入 _RESIDUE_RANGES
+    resolved = (0xE005, 0xE202, 0xF081, 0xF08A, 0xF026,        # 已收錄
+                0xE922, 0xE9AF, 0xEEE8, 0xEF0F,                # 例外
+                0xF81A, 0xF845)                                # 殘留區
+    _write_term(tmp_path, notes="".join(chr(cp) for cp in resolved))
+    assert scan_canonical(tmp_path, ["115-1"]) == [], (
+        "2026-09 已逐碼考證完畢的 51 個碼位不該再報成待辦"
+    )
+
+
+def test_subset_residue_upper_bound_still_reports_beyond_bmp_pua(tmp_path):
+    # 殘留區上界收在 F8FF（BMP PUA 結尾）；未落在任何已知區間的碼位仍要報
+    _write_term(tmp_path, notes=f"{chr(0xE300)} 與 {chr(0xF100)}")
+    hits = scan_canonical(tmp_path, ["115-1"])
+    assert [h.codepoint for h in hits] == [0xE300, 0xF100], (
+        "E300（學校造字區之外的 E 區）與 F100（殘留區之外的 F 區）都不在已知範圍，須報出"
+    )
