@@ -38,12 +38,18 @@ def test_maps_checkmark_and_school_glyph():
 
 @pytest.mark.parametrize("cp, want", [
     (0xE001, "峯"),
+    (0xE005, "綉"),   # 2026-09 補
     (0xE00F, "琮"),
+    (0xE010, "堃"),   # 2026-09 補
     (0xE011, "豐"),
+    (0xE016, "敘"),   # 2026-09 補：GServer 字形為「敍」，正規化為通用字
+    (0xE017, "況"),   # 2026-09 補：GServer 字形為「况」，正規化為通用字
+    (0xE019, "鑛"),   # 2026-09 r2
     (0xE026, "炯"),
     (0xE02E, "暐"),
     (0xE031, "凃"),
     (0xE034, "烟"),
+    (0xE03C, "烜"),   # 2026-09 補
     (0xE03F, "羣"),
     (0xE041, "稜"),
     (0xE043, "霙"),
@@ -55,35 +61,60 @@ def test_maps_checkmark_and_school_glyph():
     (0xE054, "栢"),
     (0xE055, "葳"),
     (0xE058, "媜"),   # 2026-09 補：GServer 字形（右旁貞非真）+ 印刻作者簡媜
+    (0xE05F, "瀞"),   # 2026-09 補
+    (0xE062, "献"),   # 2026-09 補
     (0xE065, "鋒"),
+    (0xE069, "參"),   # 2026-09 r2：字形為「叁」，正規化為通用字
     (0xE06E, "玎"),
     (0xE077, "姵"),
+    (0xE079, "數"),   # 2026-09 r2：字形為「数」，正規化為通用字
     (0xE07C, "銹"),
+    (0xE081, "庄"),   # 2026-09 補
     (0xE082, "芃"),
     (0xE08F, "双"),
     (0xE098, "瑢"),
+    (0xE0A5, "焄"),   # 2026-09 r2
     (0xE0AF, "溫"),
     (0xE0B2, "勳"),
     (0xE0BF, "參"),
+    (0xE0C8, "運"),   # 2026-09 r2：字形為「运」，正規化為通用字
+    (0xE0CD, "坂"),   # 2026-09 補
     (0xE0E1, "勳"),
+    (0xE0E3, "烱"),   # 2026-09 補
     (0xE0E9, "酶"),
+    (0xE0EA, "玨"),   # 2026-09 補
+    (0xE0F1, "槺"),   # 2026-09 補
+    (0xE0F3, "聿"),   # 2026-09 補
     (0xE101, "蔻"),
     (0xE102, "免"),
     (0xE10A, "肽"),
     (0xE10C, "胜"),
     (0xE10D, "苷"),
+    (0xE11A, "館"),   # 2026-09 補
+    (0xE122, "憙"),   # 2026-09 補
     (0xE12F, "祐"),
     (0xE136, "禎"),
+    (0xE15C, "腳"),   # 2026-09 補：GServer 字形為「脚」，正規化為通用字
+    (0xE17A, "个"),   # 2026-09 補
     (0xE188, "塲"),
     (0xE195, "熺"),
+    (0xE19C, "瑤"),   # 2026-09 補
+    (0xE19D, "菓"),   # 2026-09 r2
+    (0xE19E, "庙"),   # 2026-09 補
     (0xE1B3, "廸"),
     (0xE1B7, "姉"),
+    (0xE1D1, "棊"),   # 2026-09 補
     (0xE1DA, "啓"),
     (0xE1EB, "爲"),
+    (0xE1EC, "腈"),   # 2026-09 補
+    (0xE1F4, "暳"),   # 2026-09 補
+    (0xE202, "強"),   # 2026-09 補
     (0xE26C, "晣"),
 ])
 def test_pua_map_matches_gserver_glyphs(cp, want):
-    # 全 44 個學校造字對照（2026-09 補 E053 珺 / E058 媜）（GServer 採收＋使用者考證修正 E031/E10D/E0E1）；見 docs/research/2026-07-20-pua-glyph-verification.md
+    # 全 73 個學校造字對照（2026-09 補 E053 珺 / E058 媜 + 本批 23 碼）
+    # （GServer 採收＋使用者考證修正 E031/E10D/E0E1、正規化 E016/E017/E15C）；
+    # 見 docs/research/2026-07-20-pua-glyph-verification.md
     assert PUA_MAP[cp] == want
     assert normalize_pua(f"林{chr(cp)}") == f"林{want}"
 
@@ -214,3 +245,68 @@ def test_build_v1_normalizes_mprograms(tmp_path):
 
     # canonical mprograms 不得被改動
     assert E1B3 in (canonical / "mprograms.json").read_text(encoding="utf-8")
+
+
+# ── 2026-09 補：Wingdings 批次（字形取自系統 Wingdings.ttf，非查表推測）──
+
+@pytest.mark.parametrize("cp, want", [
+    (0xF081, "①"), (0xF082, "②"), (0xF083, "③"), (0xF084, "④"), (0xF085, "⑤"),
+    (0xF086, "⑥"), (0xF087, "⑦"), (0xF088, "⑧"), (0xF089, "⑨"), (0xF08A, "⑩"),
+    (0xF09E, "●"), (0xF0A2, "○"), (0xF0A7, "▪"), (0xF0E0, "➔"),
+])
+def test_wingdings_symbols_keep_meaning(cp, want):
+    # 有語意的符號（編號、項目符號、箭頭）保留成對應 Unicode 字元
+    assert PUA_MAP[cp] == want
+    assert normalize_pua(f"前{chr(cp)}後") == f"前{want}後"
+
+
+@pytest.mark.parametrize("cp", [0xF020, 0xF052, 0xF070, 0xF071, 0xF07E,
+                               0xF02A, 0xF099, 0xF0B7])
+def test_wingdings_layout_glyphs_become_space(cp):
+    # 條列裝飾方框/太陽/裝飾引號：不帶語意但佔位 → 空格（保住原有縮排結構）
+    assert PUA_MAP[cp] == " "
+    assert normalize_pua(f"前{chr(cp)}後") == "前 後"
+
+
+@pytest.mark.parametrize("cp", [0xF024, 0xF0B2])
+def test_wingdings_pure_decoration_is_deleted(cp):
+    # 放大鏡/花飾：純裝飾且不佔語意位置 → 刪除（U+F024 在 "technology▨." 這種句中位置，
+    # 換成空格會變成 "technology ." 反而更糟）
+    assert PUA_MAP[cp] == ""
+    assert normalize_pua(f"前{chr(cp)}後") == "前後"
+
+
+def test_wingdings_book_uses_covered_codepoint():
+    # U+1F56E 是 Unicode 對 Wingdings 0x26 的官方對應，但實測無字型覆蓋、畫出來仍空白，
+    # 故改用覆蓋完整的 U+1F4D6；換一個同樣畫不出來的碼位等於沒修。
+    assert PUA_MAP[0xF026] == "\U0001F4D6"
+    assert "\U0001F56E" not in PUA_MAP.values()
+
+
+def test_real_syllabus_line_from_school_page():
+    # 「研究方法」(snum=298920) 第 8 週原文：&#61569;/&#61570; 即 U+F081/U+F082
+    src = "圖書館資源分享：\uf081圖書館學術資源；\uf082美加地區碩博士論文"
+    assert normalize_pua(src) == "圖書館資源分享：①圖書館學術資源；②美加地區碩博士論文"
+
+
+def test_build_v1_carries_non_bmp_replacement(tmp_path):
+    # 0xF026 → 📖 是唯一的非 BMP 目標字。production 的正規化跑在**序列化後的 JSON 字串**上
+    # （artifacts._write_v1_json → normalize_pua），非 BMP 若被 \\u 代理對轉義就會替換失敗，
+    # 故鎖定端到端行為。
+    d = tmp_path / "canonical" / "115-1"
+    d.mkdir(parents=True)
+    course = CourseOffering(
+        term_key="115-1", offering_id="1", name=LocalizedText(zh="測試"),
+        notes_raw="第一章 參考書 甲",
+        selection=Selection(cwish_subj="1"),
+    )
+    (d / "catalog.ndjson").write_text(course.model_dump_json() + "\n", encoding="utf-8")
+    (d / "classes.json").write_text(
+        ClassDirectory(term_key="115-1").model_dump_json(), encoding="utf-8"
+    )
+    build_v1(tmp_path, "2026-09-05T00:00:00+08:00")
+
+    text = (tmp_path / "v1" / "terms" / "115-1" / "catalog.json").read_text(encoding="utf-8")
+    assert "\\u" not in text
+    assert json.loads(text)["courses"][0]["notes_raw"] == "第一章\U0001F4D6 參考書① 甲"
+    TermCatalog.model_validate_json(text)

@@ -7,7 +7,7 @@ web 端就會出現畫不出的 tofu。本掃描接在每日 crawl / 每週 craw
 處置流程（發現新碼位時）：照 docs/research/2026-07-20-pua-glyph-verification.md 的 GServer
 外字服務流程考證字形，補進 `pua.PUA_MAP`；若無字形/證據未定，加進 KNOWN_EXCEPTIONS 並註明。
 
-**不掃的區間**：F3xx-F7xx（Adobe/PDF 字型殘留）依 pua.py 設計刻意不處理，見 _RESIDUE_RANGES。
+**不掃的區間**：F300-F8FF（PDF/Word 字型子集殘留）依 pua.py 設計刻意不處理，見 _RESIDUE_RANGES。
 掃描要保持「有命中＝真的有待辦」，否則每學期一批殘留噪音會讓真正的新造字被忽略。
 """
 from __future__ import annotations
@@ -23,7 +23,18 @@ from ntut_catalog.pua import PUA_MAP
 # 已知但刻意不收錄 PUA_MAP 的碼位（不視為「新碼位」，但也不會被 normalize 轉字）。
 # EF0D：GServer 造字庫無字形輪廓、證據未定的壞損孤例，已考證不收
 #       （docs/research/2026-07-20-pua-glyph-verification.md §4.2）。
-KNOWN_EXCEPTIONS: frozenset[int] = frozenset({0xEF0D})
+#
+# E300 以上的 E 區四碼（2026-09 考證）：學校造字只落在 E000–E2FF——這批向 GServer
+# 一次要 51 個字，有輪廓的 23 個全在 E005–E202，這 4 個一律無輪廓。逐碼看學校原始頁面
+# 的結論是「字型子集殘留」而非造字，故列為例外而非擴大成整段區間——真有新造字出現在
+# E300 以上時仍應報出來讓人看一眼。
+#   E922：「上課出席：20%▨」出現在字串尾，疑為段落符號殘留（線上頁面已被學校改掉）
+#   E9AF：「讀書報告▨表20%」線上確認為 &#59823;；讀成「発表」語意通順但無字形佐證，不入表
+#   EEE8：「It includes ▨olymer」代替的是一個 ASCII p（polymer）（線上頁面已被改掉）
+#   EF0F：「主要分為▨q子構裝高分子」（線上頁面已被改掉）
+KNOWN_EXCEPTIONS: frozenset[int] = frozenset({
+    0xEF0D, 0xE922, 0xE9AF, 0xEEE8, 0xEF0F,
+})
 
 # Adobe/PDF 字型殘留區：老師從 PDF/Word 貼課綱時帶進來的字型私用碼位。
 # pua.py 檔頭第 3 條已定調「不處理、保留原樣」——沒有可靠的對照表可查，
@@ -32,8 +43,12 @@ KNOWN_EXCEPTIONS: frozenset[int] = frozenset({0xEF0D})
 # 為什麼要排除在掃描之外：這些碼位每學期都會出現一批（115-1 就有 9 個），
 # 若一律報成「待考證的新造字」，真正需要處理的 E 區學校造字會被噪音淹沒，
 # 也讓「新碼位出現時通知開發者」這件事無法自動化——分不清哪些是真的新。
+# 上界 2026-09 由 F7FF 延到 F8FF（BMP PUA 結尾）：F81A/F845 實測為同一現象——
+# F845 出現在「Johan Nicolay T▨nnessen」＝捕鯨史學者 Tønnessen，確定是 ø(U+00F8)；
+# F81A 在「故以▨課堂上公佈▨為主」成對出現＝引號。一個拉丁字母與一組引號落在相鄰碼位，
+# 正是子集化字型把任意字形塞進任意槽位的特徵，與 F3xx-F7xx 同源，故併入同一區間。
 _RESIDUE_RANGES: tuple[tuple[int, int], ...] = (
-    (0xF300, 0xF7FF),  # Adobe/PDF 殘留（實測出現 F332 / F6B1-F6B5 / F6F3 / F762 / F793）
+    (0xF300, 0xF8FF),  # 字型子集殘留（實測 F332 / F6B1-F6B5 / F6F3 / F762 / F793 / F81A / F845）
 )
 
 
