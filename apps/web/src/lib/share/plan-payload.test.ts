@@ -5,6 +5,7 @@ import {
   buildPlanPayload,
   encodePlanPayload,
   buildPlanHandoffURL,
+  buildPlanRelayURL,
   QR_MAX_CHARS,
 } from "./plan-payload";
 import type { CourseOffering } from "@/lib/data/types";
@@ -167,6 +168,32 @@ describe("encodePlanPayload / buildPlanHandoffURL", () => {
   it("連結形狀是 /plan/#v=&e=&p=，且 payload 不被百分比編碼", () => {
     const url = buildPlanHandoffURL({ encoded: "abc-_123", compressed: true });
     expect(url).toBe(`https://ntutbox.com/plan/#v=${PLAN_PAYLOAD_VERSION}&e=1&p=abc-_123`);
+  });
+
+  // QR 與「複製連結／手機直連」刻意指向**不同**網址：iOS 內建掃描器掃到被 AASA
+  // 認領的網址時只會開 App、不傳 URL（2026-09-05 實機驗證）。這幾條測試守住那個
+  // 差異——兩者哪天被「順手統一」成同一個網址，QR 就會安靜地退回壞掉的行為。
+  it("QR 用中繼頁網址，路徑是 /open/ 而不是 /plan/", () => {
+    const url = buildPlanRelayURL({
+      encoded: "abc",
+      compressed: true,
+      origin: "https://course.ntutbox.com",
+    });
+    expect(url).toBe(`https://course.ntutbox.com/open/#v=${PLAN_PAYLOAD_VERSION}&e=1&p=abc`);
+    expect(url).not.toContain("/plan/");
+  });
+
+  it("中繼頁與 App 交接網址帶的是同一份 payload", () => {
+    const args = { encoded: "xyz", compressed: true } as const;
+    const relay = buildPlanRelayURL({ ...args, origin: "https://course.ntutbox.com" });
+    const handoff = buildPlanHandoffURL(args);
+    const frag = (u: string) => u.slice(u.indexOf("#"));
+    expect(frag(relay)).toBe(frag(handoff));
+  });
+
+  it("中繼頁未壓縮時也照樣帶 e=0", () => {
+    const url = buildPlanRelayURL({ encoded: "abc", compressed: false, origin: "https://x.test" });
+    expect(url).toBe(`https://x.test/open/#v=${PLAN_PAYLOAD_VERSION}&e=0&p=abc`);
   });
 
   it("未壓縮時 e=0", () => {

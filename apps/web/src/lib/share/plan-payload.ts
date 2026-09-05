@@ -164,6 +164,29 @@ export async function encodePlanPayload(
   }
 }
 
+/**
+ * QR 專用的中繼網址（course 站自己的 `/open/` 頁）。
+ *
+ * 為什麼 QR 不能直接放 `buildPlanHandoffURL` 的結果：iOS 內建掃描器掃到被 AASA
+ * 認領的網址時，會把 App 啟動起來但**不把 URL 交給 App**（2026-09-05 實機驗證，
+ * 連最單純的 `/share/abcdefgh` 也一樣）。中繼頁不在 AASA 授權路徑裡，掃描器會
+ * 當普通網頁開，再由使用者點一下跨網域進 App。詳見 `app/open/PlanOpen.tsx`。
+ *
+ * origin 取 `window.location.origin` 而不是寫死：中繼頁是本站的一部分，這樣本機
+ * dev server、preview 部署、正式站三種環境都會自動指到各自的 `/open/`，
+ * 不需要為了測試改程式。
+ */
+export function buildPlanRelayURL(args: {
+  encoded: string;
+  compressed: boolean;
+  origin?: string;
+}): string {
+  const base =
+    args.origin ?? (typeof window === "undefined" ? "https://course.ntutbox.com" : window.location.origin);
+  const e = args.compressed ? "1" : "0";
+  return `${base}/open/#v=${PLAN_PAYLOAD_VERSION}&e=${e}&p=${args.encoded}`;
+}
+
 export function buildPlanHandoffURL(args: {
   encoded: string;
   compressed: boolean;

@@ -13,6 +13,7 @@ import {
   buildPlanPayload,
   encodePlanPayload,
   buildPlanHandoffURL,
+  buildPlanRelayURL,
   QR_MAX_CHARS,
 } from "@/lib/share/plan-payload";
 import { shareOrCopy } from "@/lib/share/share-course";
@@ -44,6 +45,8 @@ export function ExportToAppDialog({
   const showToast = useToast((s) => s.show);
 
   const [url, setUrl] = useState<string | null>(null);
+  /** QR 專用網址（中繼頁），與 `url` 刻意不同——見 setter 處的註解。 */
+  const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [qrUsable, setQrUsable] = useState(false);
   const [touch, setTouch] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -78,11 +81,16 @@ export function ExportToAppDialog({
         const { encoded, compressed } = await encodePlanPayload(payload);
         if (cancelled) return;
         setUrl(buildPlanHandoffURL({ encoded, compressed }));
+        // QR 走中繼頁，不是同一個網址——iOS 內建掃描器對被 AASA 認領的網址
+        // 只會開 App、不傳 URL。複製連結與手機的直接連結維持指向 ntutbox.com/plan/
+        // （那兩條在 iMessage／LINE 都已驗證正常）。理由詳見 `buildPlanRelayURL`。
+        setQrUrl(buildPlanRelayURL({ encoded, compressed }));
         setQrUsable(compressed && encoded.length <= QR_MAX_CHARS);
       } catch {
         if (cancelled) return;
         setFailed(true);
         setUrl(null);
+        setQrUrl(null);
         trackEvent("export_to_app_error", {
           ...(termKey ? { term_key: termKey } : {}),
           error_code: "payload_build_failed",
@@ -149,7 +157,7 @@ export function ExportToAppDialog({
 
         {url && !touch && qrUsable && (
           <div className="flex flex-col items-center gap-2 rounded-xl bg-white p-4">
-            <QRCodeSVG value={url} size={360} level="L" marginSize={2} />
+            <QRCodeSVG value={qrUrl ?? url} size={360} level="L" marginSize={2} />
             <p className="text-[13px] text-[var(--ink-soft)]">用手機相機掃這個 QR 直接匯入</p>
           </div>
         )}
