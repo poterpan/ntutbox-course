@@ -43,7 +43,7 @@
 - **gnehs 參考**：開源「北科課程好朋友」(ISC) 的爬蟲/網站可參考，**不 fork、重寫**。它漏抓授課語言(EMI)、課名被 pangu 加空格、按學制切檔造成重複——別重蹈。
 
 ## 解析防呆（爬蟲）
-表頭文字定位欄位（**勿寫死欄位索引**——gnehs 因此 language/ta 雙空）；`<a>` 缺失→欄位 null、**勿回退預設值**；html5lib 容錯（來源是未閉合 `<td>` 的 tag soup）；notes 保留原文（會混入「一般教室」這類教室類別字）；credit 用 decimal（有 0.5/0.0 佔位課，加總要排除佔位）；bootstrap 直讀 gnehs 期間：按課號去重 + pangu 空白 normalize、主鍵走課號。
+表頭文字定位欄位（**勿寫死欄位索引**——gnehs 因此 language/ta 雙空）；`<a>` 缺失→欄位 null、**勿回退預設值**；html5lib 容錯（來源是未閉合 `<td>` 的 tag soup）；notes 保留原文（會混入「一般教室」這類教室類別字）；credit 用 float（有 0.5/0.0 佔位課，加總要排除佔位；`models.py` 是 `Optional[float]`，repo 內沒有用 Decimal）；bootstrap 直讀 gnehs 期間：按課號去重 + pangu 空白 normalize、主鍵走課號。
 
 ## 目錄
 - `docs/DESIGN.md` — 資料架構 / schema / 端點地圖 / 選課規則 / 後端實證（**最重要**）
