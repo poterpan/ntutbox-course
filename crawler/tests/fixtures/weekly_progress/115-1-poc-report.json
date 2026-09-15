@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-01",
+  "term_key": "115-1",
+  "source": {
+    "repository": "poterpan/ntutbox-course",
+    "ref": "origin/data",
+    "commit": "c3cd485c87d600cb40d21bcfcafa088fb0ff6802",
+    "path": "115-1/details.ndjson"
+  },
+  "method": "explicit-week-marker parser POC",
+  "schedules": 2203,
+  "schedules_with_segments": 1255,
+  "schedules_with_ranges": 338,
+  "schedules_with_ambiguity": 104,
+  "schedules_with_16_plus_resolved_weeks": 980,
+  "schedules_with_all_18_resolved_weeks": 634,
+  "segments": 18218,
+  "expanded_week_assignments": 21153,
+  "marker_kinds": {
+    "list": 136,
+    "range": 1281,
+    "single": 16801
+  },
+  "coverage_buckets": {
+    "0": 1011,
+    "1-4": 71,
+    "5-8": 45,
+    "9-15": 96,
+    "16-17": 346,
+    "18": 634
+  },
+  "lookup_cells": {
+    "total": 39654,
+    "resolved": 18735,
+    "ambiguous": 734,
+    "missing": 20185
+  },
+  "issues": {
+    "reversed_range": 2,
+    "week_out_of_range": 1
+  },
+  "rates": {
+    "schedule_parse_coverage": 0.5697,
+    "schedule_range_coverage": 0.1534,
+    "schedule_16_plus_week_coverage": 0.4448,
+    "resolved_lookup_cell_rate": 0.4725,
+    "ambiguous_lookup_cell_rate": 0.0185
+  },
+  "interpretation": {
+    "range_support": "338 schedules (15.34%) contain at least one conservatively parsed multi-week range.",
+    "high_coverage_subset": "980 schedules resolve at least 16 weeks without a date parser or language model.",
+    "remaining_work": "Missing cells include free text, date-only schedules, bare numbered tables, topicless headings, and weeks the teacher did not publish.",
+    "ambiguity": "The 1.85% ambiguous lookup cells include bilingual duplicate rows and genuinely overlapping same-width ranges; they must not be arbitrarily collapsed."
+  },
+  "caveats": [
+    "Counts measure extraction coverage, not semantic accuracy.",
+    "Only explicit Chinese or English week markers are parsed.",
+    "Date-only schedules, bare numbered tables, and free text require another stage.",
+    "The checked-in observed fixture covers 7 real range-heavy schedules, not a statistically sufficient production gold set."
+  ]
+}
+

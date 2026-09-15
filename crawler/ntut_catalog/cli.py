@@ -9,6 +9,7 @@ term 範圍只展開 sem 1/2（暑期 3 不在 P0 範圍）。
 from __future__ import annotations
 
 import argparse
+import json
 import logging
 import sys
 from datetime import datetime, timezone, timedelta
@@ -33,6 +34,8 @@ from ntut_catalog.programs import crawl_mprograms, crawl_standards
 from ntut_catalog.migrate import migrate_all
 from ntut_catalog.orchestrator import crawl_enrollment, crawl_term, parse_term_key
 from ntut_catalog.rederive import rederive_all
+from ntut_catalog.parse_progress import progress_report
+from ntut_catalog.reprocess import load_term_weeks, reprocess_progress
 
 logger = logging.getLogger("ntut_catalog")
 
@@ -121,6 +124,10 @@ def main(argv: List[str] | None = None) -> int:
     cal.add_argument("--url", default=ICS_URL, help="覆寫來源 URL（測試用）")
     cal.add_argument("--terms", default=None,
                      help="要產週次表的學期（預設當前學年度兩個學期）")
+    rp = sub.add_parser("reprocess-progress",
+                        help="離線重算逐週進度 weekly_progress（不重爬）；parser 升版後用")
+    rp.add_argument("--terms", required=True, help="學期，如 115-1（可逗號/範圍）")
+    rp.add_argument("--out", default="../data")
     rc = sub.add_parser("recategorize", help="離線依符號補 requirement.category（不重爬）")
     rc.add_argument("--out", default="../data")
     rm = sub.add_parser("rematric", help="離線依 raw_fields.matric_codes 回算 matric_codes/matric_division（不重爬）")
@@ -219,6 +226,16 @@ def main(argv: List[str] | None = None) -> int:
         logger.info("crawl-mprograms done. requests: %d", client.request_count)
         return 0
 
+    if args.command == "reprocess-progress":
+        _setup_logging(out_dir, "reprocess-progress")
+        now = datetime.now(TAIPEI).isoformat(timespec="seconds")
+        reports = reprocess_progress(out_dir, expand_terms(args.terms), now)
+        build_v1(out_dir, now)
+        for r in reports:
+            logger.info("[%s] %s，有 topic 的週次比例 %.4f",
+                        r["term_key"], r["status_counts"], r["week_cells"]["rate"])
+        return 0
+
     if args.command == "crawl-calendar":
         _setup_logging(out_dir, "crawl-calendar")
         client = CalendarClient()
@@ -281,13 +298,25 @@ def main(argv: List[str] | None = None) -> int:
                     for line in cat_nd.read_text(encoding="utf-8").splitlines() if line.strip()
                 ]
                 logger.info("[%s] crawl-detail: %d offerings ...", term, len(offerings))
+                # 逐週進度的規則 (b)(c) 要吃契約三的 weeks[]；沒有就只跑 marker 路徑。
+                term_weeks = load_term_weeks(out_dir, term)
+                if term_weeks is None:
+                    logger.warning("[%s] 沒有 calendar.json，逐週進度的日期類規則停用", term)
                 try:
-                    details = crawl_detail(client, term, offerings, now_iso)
+                    details = crawl_detail(client, term, offerings, now_iso,
+                                           term_weeks=term_weeks)
                 except Exception:
                     logger.exception("[%s] crawl-detail failed", term)
                     failed.append(term)
                     continue
                 write_details(details, out_dir)
+                report = progress_report(details, term, now_iso, bool(term_weeks))
+                rp_dir = out_dir / "canonical" / "reports" / term
+                rp_dir.mkdir(parents=True, exist_ok=True)
+                (rp_dir / "weekly-progress.json").write_text(
+                    json.dumps(report, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+                logger.info("[%s] weekly_progress: %s，有 topic 的週次比例 %.4f",
+                            term, report["status_counts"], report["week_cells"]["rate"])
                 with_desc = sum(1 for d in details if d.description.zh or d.description.en)
                 with_syl = sum(1 for d in details if d.syllabi)
                 logger.info("[%s] detail done: %d courses, %d 有描述, %d 有大綱 (requests: %d)",

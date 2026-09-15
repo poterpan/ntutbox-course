@@ -89,7 +89,9 @@ POC 在 `/Users/poterpan/Documents/Coding/NTUT/ntut-course-progress-poc`（320 �
 
 **(b) 編號＋日期表。** 逐行以 tab／連續空白切欄。若同時滿足：首欄可解析為整數且序列**從 1 開始、單調 +1、無缺口**；另有一欄可解析為 `M/D` 或 `M月D日`；**所有相鄰列的日期差恰好 7 天**（不是平均 7 天，是每一對都是 7）→ **首欄即週次，自動接受**。**拒絕**：任一相鄰對不是 7 天（調課／放假會出現 14 天，這時不要猜）、序列不從 1 開始或有缺口、列數 < 12（建議值）。年份補齊：以該學期 `weeks[0].start` 的年份起算，月份回捲（12 → 1）時 +1 年。依據：使用者實測第 4 門課 18 列、間隔全為 7 —— **首欄 1..18 與「每列差 7 天」互相證明**，資料自己驗證自己。
 
-**(c) 純日期清單。** 行內只有日期 marker、沒有週次 marker 時，用該學期 `calendar.json` 的 `weeks[]` 把日期映射到週次。**需要契約三先就位。** **拒絕**：映射結果有重複週次，或任一日期落在學期外 → **整份拒絕**（日期表格式通常一致，局部失敗代表判讀方向錯了，不做部分接受）。
+**(c) 純日期清單。** 行內只有日期 marker、沒有週次 marker 時，用該學期 `calendar.json` 的 `weeks[]` 把日期映射到週次。**需要契約三先就位。**
+（實作：規則 (b)(c) 都要吃 `weeks[]`；該學期沒有 `calendar.json` 時**這兩條自動停用**、marker 路徑照常運作，
+report 的 `term_weeks_available` 會標 `false`。規則 (b) 需要它是為了補年份——月份回捲 12→1 時要 +1 年。） **拒絕**：映射結果有重複週次，或任一日期落在學期外 → **整份拒絕**（日期表格式通常一致，局部失敗代表判讀方向錯了，不做部分接受）。
 
 ### 明確拒絕（不論看起來多像）
 
@@ -98,15 +100,23 @@ POC 在 `/Users/poterpan/Documents/Coding/NTUT/ntut-course-progress-poc`（320 �
 
 ### 回歸基準（CI 必跑）
 
-| 項目 | 門檻 |
-|---|---|
-| `resolved_lookup_cell_rate` | ≥ **0.4725**（不得下降） |
-| `schedule_parse_coverage` | ≥ **0.5697**（不得下降） |
-| `fixtures/observed_115-1_range_cases.json` 的 7 個真實樣本 | **全數逐段逐字通過** |
+| 項目 | 門檻 | 實作後實測 |
+|---|---|---|
+| `resolved_lookup_cell_rate` | ≥ **0.4725**（不得下降） | **0.5004** |
+| `schedule_parse_coverage` | ≥ **0.5697**（不得下降） | **0.5742** |
+| `fixtures/observed_115-1_range_cases.json` 的 7 個真實樣本 | **全數逐段逐字通過** | 通過 |
+| POC 全量數字重現（1255 segments／18735 resolved／734 ambiguous） | 逐項相同 | 相同 |
+
+**回歸語料已進 repo**：`crawler/tests/fixtures/weekly_progress/schedules-115-1-c3cd485c.json.gz`
+（2,203 筆 schedule 原文，gzip 528 KB）。原本只存在於 `data` branch 的 11 MB `details.ndjson`，
+CI runner 取不到就等於門檻跑不了。⚠️ **語料裡的 email 一律遮成 `<email-redacted>`**（8 個個人
+gmail、2 個校內信箱），實測遮罩前後三個數字完全相同，不影響基準——見下方「一個順帶發現」。
 
 基準取自 `snapshots/115-1-poc-report.json`（對 `origin/data` commit `c3cd485c` 的 `115-1/details.ndjson` 全量跑）。7 個樣本涵蓋完整 range 表（`360752`）、備註陷阱（`360986`）、list marker（`361237` 的 `第17、18周`）與校方異常標點（`360826` 的 `第13-15: 週`）。新規則只能把數字往上推；往下就是回歸。
 
-**每次發布把三態統計寫進 report**（建議 `data/reports/{term}/weekly-progress.json`：resolved／partial／unparsed 課數與 lookup cell 三態比例），用來長期追蹤精度。**gold set 不阻擋上線** —— POC 建議的「≥200 筆分層 gold set、precision ≥98%」是**宣稱 precision** 的門檻，不是上線門檻；上線靠三態誠實揭露 ＋ `parser_version` 逐步提升。
+**每次發布把三態統計寫進 report**：`canonical/reports/{term}/weekly-progress.json`
+（resolved／partial／unparsed 課數與 lookup cell 比例）。**不是原案的 `data/reports/`** ——
+`data` branch 只掛在 `canonical` 這一層，寫在外面等於永遠進不了版控、長期精度追蹤就沒了。**gold set 不阻擋上線** —— POC 建議的「≥200 筆分層 gold set、precision ≥98%」是**宣稱 precision** 的門檻，不是上線門檻；上線靠三態誠實揭露 ＋ `parser_version` 逐步提升。
 
 ## 4. 契約三：`terms/{term}/calendar.json`（**2026-09-16 改寫：改由 ics 推導，不再解析 PDF**）
 
@@ -435,6 +445,20 @@ fixture 用校方公開的課程目錄資料即可（課名／教師名不是個
 → **本輪要一併加一支 `test.yml`**（push / PR 觸發，跑 `cd crawler && pytest` ＋ 檢查 `packages/schema` 產物沒有未提交的 diff）。沒有這支，下面列的測試寫了也只是文件。§4 不變量⑩ 因此**同時**掛在發佈路徑上，不只放 pytest。
 
 **CI 要加的測試**：`crawler/tests/test_parse_progress.py`（POC 的 `fixtures/gold_cases.json` ＋ 7 個 observed 樣本 ＋ 三條新規則的**接受與拒絕**案例，拒絕案例同等重要）；`crawler/tests/test_term_calendar.py`（§4 的 **10 條不變量** ＋ **111～115 十個學期對照 `docs/research/assets/2026-09-16-term-week-table-from-ics/pdf-week-tables-111-115.json` 的逐筆回歸** ＋ 115 學年度對照 `term-calendar-115.json`）；`crawler/tests/test_calendar_events.py`（ics 解析：全天 end-exclusive 轉 inclusive、缺 `DTEND`、有時刻事件時區、排序穩定性、**空結果不得覆寫既有 canonical**、horizon 判準）；`crawler/tests/test_artifacts.py` 加一條（`weekly_progress` 確實出現在 `v1/terms/{term}/course/{id}.json`）；§3 表格的回歸數字門檻跑在同一支 CI。
+
+### 一個順帶發現：已發布的課綱文字裡有教師個人 email
+
+建語料時掃到 115-1 的 `schedule` 自由文字內含 **10 個 email，其中 8 個是個人 gmail**
+（不是校內信箱），是教師自己寫進課程進度裡的。
+
+這不是本輪造成的：`details.ndjson` 早就連同這些文字一起發佈到
+`cdn.ntutbox.com/course/v1/terms/{term}/course/{id}.json`。本輪只在**新增的測試語料**裡遮罩。
+
+**`infra/redline_scan.py` 目前沒有 email 規則**，所以這類內容不會被現有閘門擋下。要不要處理
+是產品／隱私決定，不是實作細節，留給使用者判斷：
+- 加 email 規則到 `redline_scan` 的自由文字規則 → 每日管線會立刻紅（既有資料就含 email），
+  等於同時要決定「發布前是否從課綱文字剝除 email」。
+- 或維持現狀（視為校方公開課綱的一部分）。
 
 ## 8. 明確非目標
 
