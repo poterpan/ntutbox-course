@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 
 from models import (
+    CalendarEventsFeed,
     CourseOffering,
     Enrollment,
     EnrollmentLatest,
@@ -169,7 +170,31 @@ def build_v1(out_dir: Path, generated_at: str) -> Manifest:
         std_dst.mkdir(parents=True, exist_ok=True)
         for f in std_src.glob("*.json"):
             _write_v1_json(std_dst / f.name, f.read_text(encoding="utf-8"))
+    # 行事曆事件（跨學期 top-level，canonical/calendar/ → v1/calendar/events.json）
+    build_calendar_v1(out_dir, generated_at)
     return write_manifest(out_dir, generated_at)
+
+
+def build_calendar_v1(out_dir: Path, generated_at: str) -> bool:
+    """canonical/calendar/{events.ndjson,meta.json} → v1/calendar/events.json。
+
+    回傳有沒有產出（canonical 不存在時什麼都不做，讓沒跑過 crawl-calendar 的環境照常運作）。
+    """
+    src = out_dir / "canonical" / "calendar"
+    nd, meta_path = src / "events.ndjson", src / "meta.json"
+    if not (nd.exists() and meta_path.exists()):
+        return False
+    meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    feed = CalendarEventsFeed(
+        generated_at=generated_at,
+        source=meta["source"],
+        horizon=meta["horizon"],
+        events=[json.loads(line) for line in nd.read_text(encoding="utf-8").splitlines() if line.strip()],
+    )
+    dst = out_dir / "v1" / "calendar"
+    dst.mkdir(parents=True, exist_ok=True)
+    _write_v1_json(dst / "events.json", feed.model_dump_json())
+    return True
 
 
 def write_mprograms(directory, out_dir: Path) -> None:
@@ -182,6 +207,39 @@ def write_standards(directory, out_dir: Path) -> None:
     d = out_dir / "canonical" / "standards"
     d.mkdir(parents=True, exist_ok=True)
     (d / f"{directory.entry_year}.json").write_text(directory.model_dump_json(), encoding="utf-8")
+
+
+def write_calendar_events(feed: CalendarEventsFeed, out_dir: Path) -> bool:
+    """canonical/calendar/：events.ndjson（一行一事件、穩定排序）+ meta.json（provenance）。
+
+    **內容沒變就不重寫**——回傳 False。理由：抓取是每日跑的，但行事曆一年只動幾次；
+    每天重寫會在 data branch 產生無意義的 commit，把「行事曆改了什麼」這條免費稽核軌跡
+    淹沒在噪音裡。判斷依據是正規化後的 content_sha256，不是檔案 md5（VEVENT 順序不穩）。
+    """
+    d = out_dir / "canonical" / "calendar"
+    d.mkdir(parents=True, exist_ok=True)
+    meta_path = d / "meta.json"
+    if meta_path.exists():
+        prev = json.loads(meta_path.read_text(encoding="utf-8"))
+        if prev.get("source", {}).get("content_sha256") == feed.source.content_sha256:
+            return False
+    (d / "events.ndjson").write_text(
+        "".join(e.model_dump_json() + "\n" for e in feed.events), encoding="utf-8"
+    )
+    meta_path.write_text(
+        json.dumps({"source": feed.source.model_dump(), "horizon": feed.horizon.model_dump()},
+                   ensure_ascii=False, indent=1) + "\n",
+        encoding="utf-8",
+    )
+    return True
+
+
+def read_calendar_event_count(out_dir: Path) -> int:
+    """既有 canonical 的事件筆數，給空結果/殘缺防呆當比較基準。不存在回 0。"""
+    nd = out_dir / "canonical" / "calendar" / "events.ndjson"
+    if not nd.exists():
+        return 0
+    return sum(1 for line in nd.read_text(encoding="utf-8").splitlines() if line.strip())
 
 
 def _entry(path: Path, rel_url: str) -> ManifestEntry:

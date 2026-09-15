@@ -445,6 +445,62 @@ class StandardDirectory(BaseModel):
     programs: List[ProgramStandard] = Field(default_factory=list)
 
 
+# ============================================================== 行事曆（Google Calendar ics）
+
+# 行事曆的 schema 版本**刻意獨立於全域 SCHEMA_VERSION**。
+# 全域版本是任何一個 model 改動就 bump 的；綁上去等於課程 schema 的不相干改版會讓
+# App 整份拒收行事曆（App decoder 對 schema_version 不符是整份拒收、不解半套）。
+# 見 docs/research/2026-09-06-course-content-and-weekly-progress-handoff.md §4。
+CALENDAR_SCHEMA_VERSION = 1
+
+
+class CalendarEvent(BaseModel):
+    """一筆行事曆事件。日期語意固定 inclusive，全天與有時刻用不同欄位、不混用。
+
+    來源是校網公開的 Google Calendar ics。**summary 逐字保留、不做任何正規化**
+    （不 trim、不 pangu、不改標點）——App 端有三處靠中文關鍵字反推語意，
+    發布端再加一層改寫會讓它們靜默失效。
+    """
+    uid: str                                     # ics UID，主鍵（661 筆全有、兩種格式都穩定）
+    summary: str                                 # ics SUMMARY，逐字
+    all_day: bool
+    start_date: Optional[str] = None             # all_day=True：inclusive 本地日期 YYYY-MM-DD
+    end_date: Optional[str] = None               # 同上；單日事件 end_date == start_date
+    start_at: Optional[str] = None               # all_day=False：ISO-8601 +08:00
+    end_at: Optional[str] = None
+    description: Optional[str] = None            # ics DESCRIPTION（661 筆中 51 筆有）
+    location: Optional[str] = None               # ics LOCATION（7 筆有）
+    sequence: Optional[int] = None
+    last_modified: Optional[str] = None          # ics LAST-MODIFIED（非 DTSTAMP——那個每次抓都變）
+
+
+class CalendarHorizon(BaseModel):
+    """feed 涵蓋到多遠。判準是 max(DTSTART) >= 次年 6 月，不是「有沒有新學年的事件」——
+    112 學年度的下學期拖到 2024-02 才進來，看到新學年不等於整學年到位。"""
+    max_start: str                               # feed 內最遠的 DTSTART（YYYY-MM-DD）
+    ok: bool                                     # 未達判準 → False（告警，但不阻斷發布）
+    checked_at: str
+
+
+class CalendarSource(BaseModel):
+    type: str = "google_calendar_ics"
+    url: str
+    content_sha256: str                          # **正規化後**事件集合的雜湊，不是檔案 md5
+    fetched_at: str                              # 內容最後一次變動的時間（沒變就不重寫）
+    parser_version: str
+
+
+class CalendarEventsFeed(BaseModel):
+    """v1/calendar/events.json：全量單檔（gzip 後約 25-35 KB）。"""
+    schema_version: int = CALENDAR_SCHEMA_VERSION
+    timezone: str = "Asia/Taipei"
+    range_end_semantics: Literal["inclusive"] = "inclusive"
+    generated_at: Optional[str] = None
+    source: CalendarSource
+    horizon: CalendarHorizon
+    events: List[CalendarEvent] = Field(default_factory=list)
+
+
 class ManifestEntry(BaseModel):
     url: str
     sha256: str

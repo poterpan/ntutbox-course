@@ -87,6 +87,12 @@ def _v1_files_for(out_dir: Path, terms: Optional[List[str]], include_details: bo
     if std_dir.exists():
         for sf in sorted(std_dir.glob("*.json")):
             files.append(str(sf.relative_to(out_dir)))
+    # 行事曆事件 feed（跨學期，top-level）。Cache-Control 走預設 _LONG_CACHE(3600)：
+    # 每日重抓，颱風假／補課這種臨時異動要快到使用者手上，不宜比 1 小時更久。
+    cal_dir = v1 / "calendar"
+    if cal_dir.exists():
+        for cf in sorted(cal_dir.glob("*.json")):
+            files.append(str(cf.relative_to(out_dir)))
     files.append("v1/manifest.json")
     return files
 

@@ -25,6 +25,9 @@
     },
     "StandardDirectory": {
       "$ref": "#/$defs/StandardDirectory"
+    },
+    "CalendarEventsFeed": {
+      "$ref": "#/$defs/CalendarEventsFeed"
     }
   },
   "$defs": {
@@ -1642,6 +1645,235 @@
         "entry_year"
       ],
       "title": "StandardDirectory",
+      "type": "object"
+    },
+    "CalendarEvent": {
+      "description": "一筆行事曆事件。日期語意固定 inclusive，全天與有時刻用不同欄位、不混用。\n\n來源是校網公開的 Google Calendar ics。**summary 逐字保留、不做任何正規化**\n（不 trim、不 pangu、不改標點）——App 端有三處靠中文關鍵字反推語意，\n發布端再加一層改寫會讓它們靜默失效。",
+      "properties": {
+        "uid": {
+          "title": "Uid",
+          "type": "string"
+        },
+        "summary": {
+          "title": "Summary",
+          "type": "string"
+        },
+        "all_day": {
+          "title": "All Day",
+          "type": "boolean"
+        },
+        "start_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Date"
+        },
+        "end_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Date"
+        },
+        "start_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start At"
+        },
+        "end_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End At"
+        },
+        "description": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Description"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        },
+        "sequence": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sequence"
+        },
+        "last_modified": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Last Modified"
+        }
+      },
+      "required": [
+        "uid",
+        "summary",
+        "all_day"
+      ],
+      "title": "CalendarEvent",
+      "type": "object"
+    },
+    "CalendarHorizon": {
+      "description": "feed 涵蓋到多遠。判準是 max(DTSTART) >= 次年 6 月，不是「有沒有新學年的事件」——\n112 學年度的下學期拖到 2024-02 才進來，看到新學年不等於整學年到位。",
+      "properties": {
+        "max_start": {
+          "title": "Max Start",
+          "type": "string"
+        },
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "checked_at": {
+          "title": "Checked At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "max_start",
+        "ok",
+        "checked_at"
+      ],
+      "title": "CalendarHorizon",
+      "type": "object"
+    },
+    "CalendarSource": {
+      "properties": {
+        "type": {
+          "default": "google_calendar_ics",
+          "title": "Type",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "content_sha256": {
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "fetched_at": {
+          "title": "Fetched At",
+          "type": "string"
+        },
+        "parser_version": {
+          "title": "Parser Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "content_sha256",
+        "fetched_at",
+        "parser_version"
+      ],
+      "title": "CalendarSource",
+      "type": "object"
+    },
+    "CalendarEventsFeed": {
+      "description": "v1/calendar/events.json：全量單檔（gzip 後約 25-35 KB）。",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "timezone": {
+          "default": "Asia/Taipei",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "range_end_semantics": {
+          "const": "inclusive",
+          "default": "inclusive",
+          "title": "Range End Semantics",
+          "type": "string"
+        },
+        "generated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generated At"
+        },
+        "source": {
+          "$ref": "#/$defs/CalendarSource"
+        },
+        "horizon": {
+          "$ref": "#/$defs/CalendarHorizon"
+        },
+        "events": {
+          "items": {
+            "$ref": "#/$defs/CalendarEvent"
+          },
+          "title": "Events",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source",
+        "horizon"
+      ],
+      "title": "CalendarEventsFeed",
       "type": "object"
     }
   }
