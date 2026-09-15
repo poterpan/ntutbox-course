@@ -1,0 +1,22 @@
+{
+  "isAdmin" : false,
+  "fileList" : null,
+  "cal" : {
+    "id" : 61722,
+    "calStart" : 1799596800000,
+    "calEnd" : 1799510400000,
+    "allDay" : "1",
+    "calTitle" : "寒假開始、寒宿開始",
+    "calPlace" : "",
+    "calContent" : "",
+    "calColor" : "#DDDDDD;#000000",
+    "ownerId" : "1540521049552",
+    "ownerName" : "學校行事曆",
+    "creatorId" : "ntutoaa",
+    "creatorName" : "教務處",
+    "modifyDate" : 1784094766000,
+    "hasBeenDeleted" : 0,
+    "calInviteeList" : [ ],
+    "calAlertList" : [ ]
+  }
+}
