@@ -1,0 +1,42 @@
+{
+ "term_key": "115-1",
+ "offering_id": "360900",
+ "course_code": "360000",
+ "name": {
+  "zh": "純編號清單",
+  "en": null
+ },
+ "description": {
+  "zh": "",
+  "en": null
+ },
+ "syllabi": [
+  {
+   "teacher_code": "23604",
+   "teacher_name": "教師丙",
+   "email": null,
+   "office_hours_url": null,
+   "updated_at": null,
+   "outline": null,
+   "schedule": "1. 章節1\n2. 章節2\n3. 章節3\n4. 章節4\n5. 章節5\n6. 章節6\n7. 章節7\n8. 章節8\n9. 章節9\n10. 章節10\n11. 章節11\n12. 章節12\n13. 章節13\n14. 章節14",
+   "assessment": null,
+   "materials": null,
+   "consultation": null,
+   "extended_resources": null,
+   "sdgs": null,
+   "ai_usage": null,
+   "notes": null,
+   "flex_learning": {},
+   "extra": {},
+   "weekly_progress": {
+    "status": "unparsed",
+    "weeks": [],
+    "notes": [],
+    "parser_version": "progress/1.0.0",
+    "parsed_at": "2026-09-16T04:00:00+08:00",
+    "source_schedule_sha256": "396d4b3c1c8386acbc040b75df39b7ba18e36e354a104de2bfffb7e4f01d212d"
+   }
+  }
+ ],
+ "generated_at": "2026-09-16T04:00:00+08:00"
+}

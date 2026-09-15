@@ -151,6 +151,15 @@ export type ExtendedResources = string | null;
 export type Sdgs = string | null;
 export type AiUsage = string | null;
 export type Notes = string | null;
+export type Status = "resolved" | "partial" | "unparsed";
+export type Week = number;
+export type Topics = string[];
+export type SourceLines = string[];
+export type Weeks = WeeklyProgressWeek[];
+export type Notes1 = string[];
+export type ParserVersion = string;
+export type ParsedAt = string;
+export type SourceScheduleSha256 = string;
 export type Syllabi = Syllabus1[];
 export type GeneratedAt2 = string | null;
 export type SchemaVersion6 = number;
@@ -181,7 +190,7 @@ export type Credits2 = number | null;
 export type Hours1 = number | null;
 export type Stage1 = string | null;
 export type GroupId = string | null;
-export type Notes1 = string;
+export type Notes2 = string;
 export type Courses2 = StandardCourse[];
 export type Programs1 = ProgramStandard[];
 export type SchemaVersion8 = number;
@@ -192,7 +201,7 @@ export type Type = string;
 export type Url1 = string;
 export type ContentSha256 = string;
 export type FetchedAt = string;
-export type ParserVersion = string;
+export type ParserVersion1 = string;
 export type MaxStart = string;
 export type Ok = boolean;
 export type CheckedAt = string;
@@ -216,8 +225,8 @@ export type GeneratedAt4 = string | null;
 export type Type1 = string;
 export type Url2 = string;
 export type ContentSha2561 = string;
-export type ParsedAt = string;
-export type ParserVersion1 = string;
+export type ParsedAt1 = string;
+export type ParserVersion2 = string;
 export type DerivedFields = string[];
 export type AdministrativeStart = string | null;
 export type Start = string;
@@ -226,7 +235,7 @@ export type InstructionStart = string;
 export type Number = number;
 export type Start1 = string;
 export type End1 = string;
-export type Weeks = TermWeek[];
+export type Weeks1 = TermWeek[];
 export type BreakStart = string;
 
 export interface NtutboxCourseV1 {
@@ -493,6 +502,7 @@ export interface Syllabus1 {
   notes?: Notes;
   flex_learning?: FlexLearning;
   extra?: Extra;
+  weekly_progress?: WeeklyProgress | null;
   [k: string]: unknown;
 }
 export interface FlexLearning {
@@ -500,6 +510,33 @@ export interface FlexLearning {
 }
 export interface Extra {
   [k: string]: string;
+}
+/**
+ * `schedule` 自由文字的結構化衍生欄位。**原文 `schedule` 一律保留、不覆寫。**
+ *
+ * 三態的意義（App 要能誠實顯示，不能把「教師沒寫」顯示成「載入中」）：
+ *   resolved  1..week_count 每一週都恰好一筆結果（missing = 0、ambiguous = 0）
+ *   partial   至少一週有結果，但存在 missing 或原本 ambiguous 的週次
+ *   unparsed  沒有任何一週能 resolve，含 schedule 為空、TBA、以及明確拒絕的樣態
+ *             —— 這一態**仍要寫出來**（帶 parser_version）
+ *
+ * 衍生資料的身分鍵是 (term_key, offering_id, teacher_code, source_schedule_sha256)；
+ * source_schedule_sha256 或 parser_version 一變就必須重產。
+ */
+export interface WeeklyProgress {
+  status: Status;
+  weeks?: Weeks;
+  notes?: Notes1;
+  parser_version: ParserVersion;
+  parsed_at: ParsedAt;
+  source_schedule_sha256: SourceScheduleSha256;
+  [k: string]: unknown;
+}
+export interface WeeklyProgressWeek {
+  week: Week;
+  topics: Topics;
+  source_lines: SourceLines;
+  [k: string]: unknown;
 }
 /**
  * mprograms.json：逐學期微學程清單 + 各學程開課課號。
@@ -566,7 +603,7 @@ export interface StandardCourse {
   hours?: Hours1;
   stage?: Stage1;
   group_id?: GroupId;
-  notes?: Notes1;
+  notes?: Notes2;
   [k: string]: unknown;
 }
 /**
@@ -587,7 +624,7 @@ export interface CalendarSource {
   url: Url1;
   content_sha256: ContentSha256;
   fetched_at: FetchedAt;
-  parser_version: ParserVersion;
+  parser_version: ParserVersion1;
   [k: string]: unknown;
 }
 /**
@@ -642,8 +679,8 @@ export interface TermCalendarSource {
   type?: Type1;
   url: Url2;
   content_sha256: ContentSha2561;
-  parsed_at: ParsedAt;
-  parser_version: ParserVersion1;
+  parsed_at: ParsedAt1;
+  parser_version: ParserVersion2;
   derived_fields?: DerivedFields;
   [k: string]: unknown;
 }
@@ -661,7 +698,7 @@ export interface AcademicTerm {
   administrative_start?: AdministrativeStart;
   preparation?: DateRange1 | null;
   instruction_start: InstructionStart;
-  weeks?: Weeks;
+  weeks?: Weeks1;
   midterm: DateRange1;
   final_exam: DateRange1;
   flexible_learning?: DateRange1 | null;

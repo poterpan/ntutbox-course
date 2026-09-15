@@ -15,13 +15,14 @@
 - **v1（R2、gitignore、由 canonical 重建）**：`v1/terms/{term}/{catalog,classes,periods,enrollment,mprograms}.json` + `v1/terms/{term}/course/{offeringId}.json`（詳情，隨點隨取）+ `v1/standards/{year}.json` + `v1/manifest.json`。`build_v1` 從 canonical 完整重生。
 - **跨學期 top-level**：`canonical/calendar/{events.ndjson,meta.json}` → `v1/calendar/events.json`（行事曆事件 feed，契約四）。內容沒變就不重寫 → `data` branch 上每個 `data(calendar)` commit 都代表學校真的改了行事曆。
 - **週次表（逐學期）**：`canonical/{term}/calendar.json` → `v1/terms/{term}/calendar.json`（契約三）。**不綁課程目錄是否已爬**——下學期的週次表往往早於課程目錄就能產。
+- **逐週進度**：`Syllabus.weekly_progress` inline 在 `details.ndjson` 裡（契約一），隨既有管線自動流到 `course/{id}.json`。三態統計寫 `canonical/reports/{term}/weekly-progress.json`。
 - catalog 純結構 → 結構沒變則每日零 diff；enrollment 變動只進 snapshot（時序）。`requirement.category` 由符號圖例（Cprog -5）於 normalize 補。
 
 ### 使用
 ```bash
 cd crawler
 uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
-.venv/bin/pytest                                                    # 347 tests
+.venv/bin/pytest                                                    # 422 tests
 .venv/bin/python -m ntut_catalog current-term                       # 偵測當前學期（印 115-1）
 .venv/bin/python -m ntut_catalog crawl --terms 115-1 --out ../data --force   # 爬目錄 + 寫 snapshot + 重建 v1
 .venv/bin/python -m ntut_catalog crawl --terms 110-1:115-1 --out ../data     # 全量 backfill（skip 已存在 canonical）
@@ -29,6 +30,7 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 .venv/bin/python -m ntut_catalog crawl-mprograms --terms 115-1 --out ../data # 微學程(SearchMProgram) → mprograms.json
 .venv/bin/python -m ntut_catalog crawl-standards --years 115 --out ../data   # 課程標準/畢業標準(Cprog -2→-3→-4) → standards/{year}.json
 .venv/bin/python -m ntut_catalog crawl-calendar --out ../data       # 校網 Google Calendar ics → 事件 feed + 當前學年度週次表
+.venv/bin/python -m ntut_catalog reprocess-progress --terms 115-1 --out ../data  # 離線重算逐週進度（parser 升版後用，不重爬）
 .venv/bin/python -m ntut_catalog recategorize --out ../data         # 離線依符號補 requirement.category（不重爬）
 .venv/bin/python -m ntut_catalog migrate --out ../data              # 既有資料→structural+snapshot（一次性，不重爬）
 .venv/bin/python -m ntut_catalog refresh-enrollment --terms 115-1 --out ../data  # 選課季輕量人數刷新（~62 請求，hourly 快照）
@@ -46,7 +48,8 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 - `ntut_catalog/parse_detail.py` / `detail.py` — Curr(描述/EN)+ShowSyllabus(大綱)解析；`crawl_detail`（Curr 依 course_code 去重）+ `write_details`
 - `ntut_catalog/parse_program.py` / `programs.py` — 微學程(SearchMProgram)+課程標準(Cprog -2→-3→-4)解析與爬取
 - `ntut_catalog/requirement_legend.py` — 符號→必/選類別（Cprog -5 全域圖例）；normalize 套用
-- `ntut_catalog/reprocess.py` — 離線依符號補既有 catalog 的 requirement.category
+- `ntut_catalog/parse_progress.py` — 課程進度自由文字 → 逐週進度（契約一／二）。移植自 POC 並加三條規則：雙語配對／編號＋日期表／純日期清單。**拒絕沒有日期佐證的純編號清單**（那多半是章節）
+- `ntut_catalog/reprocess.py` — 離線重處理：requirement.category、weekly_progress（parser 升版不必重爬）
 - `ntut_catalog/migrate.py` — 既有資料一次性遷移成 structural canonical + seed snapshot
 - `ntut_catalog/rederive.py` — 離線從 classes.json 重建內嵌班級欄位（kind/unit/grade）
 - `ntut_catalog/periods.py` — 節次↔牆鐘（官方頁尾表，靜態+爬取時驗證）
