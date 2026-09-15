@@ -119,3 +119,9 @@ def test_unescape_handles_all_rfc5545_escapes():
 def test_parse_vevents_uppercases_property_names():
     props = parse_vevents("BEGIN:VEVENT\r\nuid:x\r\nEND:VEVENT")[0]
     assert "UID" in props
+
+
+def test_fixture_uses_crlf_like_real_ics():
+    """真實 ics 是 CRLF（RFC 5545）。這條防的是 git 把 fixture 正規化成 LF——
+    那會讓行尾與折行處理只測到不真實的輸入（.gitattributes 的 `*.ics -text` 釘住）。"""
+    assert b"\r\n" in FIXTURE.read_bytes()
