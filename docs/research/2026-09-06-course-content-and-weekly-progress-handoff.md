@@ -344,6 +344,13 @@ feed 最遠只到 **2027-07-03**（115 學年度結束），沒有任何 116 學
 
 照 **standards** 的形狀做（既有的「跨學期 top-level、不進 manifest」先例，`names.json` 同理）：
 `canonical/calendar/events.ndjson` → `crawler/ntut_catalog/artifacts.py:165-171` → `infra/publish.py:86-89` 的 top-level glob。
+
+⚠️ **實作時發現名單其實有四份，不是三份**：除了 `artifacts.py:200`（進不進 manifest）、
+`publish.py:78`（逐學期白名單）、`publish.py:86-89`（top-level glob）之外，
+`.github/workflows/crawl.yml:159-162` 的 **commit 步驟也是指名 glob**
+（`'*/catalog.ndjson' '*/classes.json' '*/mprograms.json'`、`'*/enrollment/*.ndjson'`）。
+跨學期的 top-level 產物**不吃那些逐學期 glob**，漏加就是「檔案有產出、但永遠不會進 data branch」。
+（既有的 `canonical/standards/` 就落在這個洞裡——沒有任何 workflow commit 它。）
 canonical 走 NDJSON 的好處是 **`data` branch 的 commit 歷史就是「行事曆改了什麼」的免費稽核軌跡** ——
 颱風假、補課日這種臨時異動會自己留痕（注意 canonical 不在 main，`data/` 在 `.gitignore:32`，
 workflow 用 `actions/checkout@v4 ref: data` 掛進來，見 `.github/workflows/crawl.yml:43-47`）。

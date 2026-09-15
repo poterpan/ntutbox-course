@@ -18,7 +18,14 @@ from typing import List
 from models import CourseOffering
 from ntut_catalog.artifacts import build_v1, write_canonical, write_enrollment_snapshot
 from ntut_catalog.client import CatalogClient, detect_current_term
-from ntut_catalog.artifacts import write_mprograms, write_standards
+from ntut_catalog.artifacts import (
+    read_calendar_event_count,
+    write_calendar_events,
+    write_mprograms,
+    write_standards,
+)
+from ntut_catalog.calendar_client import ICS_URL, CalendarClient
+from ntut_catalog.calendar_events import crawl_calendar_events
 from ntut_catalog.detail import crawl_detail, write_details
 from ntut_catalog.programs import crawl_mprograms, crawl_standards
 from ntut_catalog.migrate import migrate_all
@@ -105,6 +112,11 @@ def main(argv: List[str] | None = None) -> int:
     st.add_argument("--years", required=True, help="入學年，如 115（可逗號/範圍 110:115）")
     st.add_argument("--out", default="../data")
     st.add_argument("--delay", type=float, default=0.5)
+    cal = sub.add_parser(
+        "crawl-calendar",
+        help="抓校網 Google Calendar ics → canonical/calendar + v1/calendar/events.json")
+    cal.add_argument("--out", default="../data")
+    cal.add_argument("--url", default=ICS_URL, help="覆寫來源 URL（測試用）")
     rc = sub.add_parser("recategorize", help="離線依符號補 requirement.category（不重爬）")
     rc.add_argument("--out", default="../data")
     rm = sub.add_parser("rematric", help="離線依 raw_fields.matric_codes 回算 matric_codes/matric_division（不重爬）")
@@ -201,6 +213,26 @@ def main(argv: List[str] | None = None) -> int:
             client.close()
         build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
         logger.info("crawl-mprograms done. requests: %d", client.request_count)
+        return 0
+
+    if args.command == "crawl-calendar":
+        _setup_logging(out_dir, "crawl-calendar")
+        client = CalendarClient()
+        try:
+            feed = crawl_calendar_events(
+                client, args.url, previous_count=read_calendar_event_count(out_dir))
+        finally:
+            client.close()
+        changed = write_calendar_events(feed, out_dir)
+        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
+        logger.info("crawl-calendar done. events: %d, canonical changed: %s, horizon %s (max %s)",
+                    len(feed.events), changed,
+                    "ok" if feed.horizon.ok else "INSUFFICIENT", feed.horizon.max_start)
+        if not feed.horizon.ok:
+            # 告警但**不阻斷發布**——feed 沒有新學年不代表現有資料壞了。
+            # workflow 另有一步讀 canonical/calendar/meta.json 開/更新 issue（見 crawl.yml）。
+            print(f"::warning title=行事曆 horizon 不足::feed 最遠只到 "
+                  f"{feed.horizon.max_start}，新學年度資料尚未匯入")
         return 0
 
     if args.command == "crawl-standards":
