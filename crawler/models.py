@@ -501,6 +501,62 @@ class CalendarEventsFeed(BaseModel):
     events: List[CalendarEvent] = Field(default_factory=list)
 
 
+class DateRange(BaseModel):
+    """inclusive 區間。ics 的全天事件是 end-exclusive，轉進來時已減一天。"""
+    start: str
+    end: str
+
+
+class TermWeek(BaseModel):
+    """週次表單列。App 用 `number`，**不要改叫 index**
+    （NTUTBox/Models/AcademicTermCalendar.swift:22-64）。"""
+    number: int
+    start: str                                   # 週日（Asia/Taipei）
+    end: str                                     # 週六，inclusive
+
+
+class AcademicTerm(BaseModel):
+    """單一學期的行事曆。
+
+    四個 required 欄位不是隨意訂的：App 現在有三處靠中文事件標題反推語意
+    （VacationQuietLogic、detectSemesterRange、TermCalendarCrossCheck），
+    要它們改讀結構化欄位，發布端就必須保證這些欄位一定在（不變量⑨）。
+    """
+    administrative_start: Optional[str] = None   # 學年度第N學期開始（實際固定 8/1、2/1）
+    preparation: Optional[DateRange] = None      # 準備週＝第 1 週前一週（推導；PDF 有、ics 無）
+    instruction_start: str                       # 開學日
+    weeks: List[TermWeek] = Field(default_factory=list)
+    midterm: DateRange
+    final_exam: DateRange
+    flexible_learning: Optional[DateRange] = None  # 115 學年度才有 → 必須 optional
+    break_start: str                             # 寒假／暑假開始
+
+
+class TermCalendarSource(BaseModel):
+    type: str = "google_calendar_ics"
+    url: str
+    content_sha256: str
+    parsed_at: str
+    parser_version: str
+    derived_fields: List[str] = Field(default_factory=list)  # 非來源直取、由規則推導的欄位
+
+
+class TermCalendarFile(BaseModel):
+    """terms/{term}/calendar.json：逐學期一檔。
+
+    檔案是逐學期的，裡面卻仍保留單鍵的 `terms` map——這是為了讓 App 現行 decoder
+    （NTUTBox/Services/TermCalendarProvider.swift:119-163）一行都不用改。
+    代價是多一層巢狀，換到的是換來源時 App 端零改動。
+    """
+    schema_version: int = CALENDAR_SCHEMA_VERSION
+    timezone: str = "Asia/Taipei"
+    week_starts_on: Literal["sunday"] = "sunday"
+    range_end_semantics: Literal["inclusive"] = "inclusive"
+    generated_at: Optional[str] = None
+    source: TermCalendarSource
+    terms: Dict[str, AcademicTerm] = Field(default_factory=dict)
+
+
 class ManifestEntry(BaseModel):
     url: str
     sha256: str
@@ -515,6 +571,7 @@ class ManifestTerm(BaseModel):
     classes: Optional[ManifestEntry] = None
     periods: Optional[ManifestEntry] = None
     mprograms: Optional[ManifestEntry] = None     # 微學程（逐學期）
+    calendar: Optional[ManifestEntry] = None      # 學年度週次表（逐學期）
     dataset_version: Optional[str] = None         # payload 帶此值；App 過舊→提示重驗
 
 

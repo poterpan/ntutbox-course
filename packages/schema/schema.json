@@ -28,6 +28,9 @@
     },
     "CalendarEventsFeed": {
       "$ref": "#/$defs/CalendarEventsFeed"
+    },
+    "TermCalendarFile": {
+      "$ref": "#/$defs/TermCalendarFile"
     }
   },
   "$defs": {
@@ -1042,6 +1045,17 @@
           ],
           "default": null
         },
+        "calendar": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManifestEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "dataset_version": {
           "anyOf": [
             {
@@ -1874,6 +1888,211 @@
         "horizon"
       ],
       "title": "CalendarEventsFeed",
+      "type": "object"
+    },
+    "AcademicTerm": {
+      "description": "單一學期的行事曆。\n\n四個 required 欄位不是隨意訂的：App 現在有三處靠中文事件標題反推語意\n（VacationQuietLogic、detectSemesterRange、TermCalendarCrossCheck），\n要它們改讀結構化欄位，發布端就必須保證這些欄位一定在（不變量⑨）。",
+      "properties": {
+        "administrative_start": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Administrative Start"
+        },
+        "preparation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DateRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "instruction_start": {
+          "title": "Instruction Start",
+          "type": "string"
+        },
+        "weeks": {
+          "items": {
+            "$ref": "#/$defs/TermWeek"
+          },
+          "title": "Weeks",
+          "type": "array"
+        },
+        "midterm": {
+          "$ref": "#/$defs/DateRange"
+        },
+        "final_exam": {
+          "$ref": "#/$defs/DateRange"
+        },
+        "flexible_learning": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DateRange"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "break_start": {
+          "title": "Break Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "instruction_start",
+        "midterm",
+        "final_exam",
+        "break_start"
+      ],
+      "title": "AcademicTerm",
+      "type": "object"
+    },
+    "DateRange": {
+      "description": "inclusive 區間。ics 的全天事件是 end-exclusive，轉進來時已減一天。",
+      "properties": {
+        "start": {
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "title": "End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "DateRange",
+      "type": "object"
+    },
+    "TermCalendarSource": {
+      "properties": {
+        "type": {
+          "default": "google_calendar_ics",
+          "title": "Type",
+          "type": "string"
+        },
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "content_sha256": {
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "parsed_at": {
+          "title": "Parsed At",
+          "type": "string"
+        },
+        "parser_version": {
+          "title": "Parser Version",
+          "type": "string"
+        },
+        "derived_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Derived Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "url",
+        "content_sha256",
+        "parsed_at",
+        "parser_version"
+      ],
+      "title": "TermCalendarSource",
+      "type": "object"
+    },
+    "TermWeek": {
+      "description": "週次表單列。App 用 `number`，**不要改叫 index**\n（NTUTBox/Models/AcademicTermCalendar.swift:22-64）。",
+      "properties": {
+        "number": {
+          "title": "Number",
+          "type": "integer"
+        },
+        "start": {
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "title": "End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "number",
+        "start",
+        "end"
+      ],
+      "title": "TermWeek",
+      "type": "object"
+    },
+    "TermCalendarFile": {
+      "description": "terms/{term}/calendar.json：逐學期一檔。\n\n檔案是逐學期的，裡面卻仍保留單鍵的 `terms` map——這是為了讓 App 現行 decoder\n（NTUTBox/Services/TermCalendarProvider.swift:119-163）一行都不用改。\n代價是多一層巢狀，換到的是換來源時 App 端零改動。",
+      "properties": {
+        "schema_version": {
+          "default": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "timezone": {
+          "default": "Asia/Taipei",
+          "title": "Timezone",
+          "type": "string"
+        },
+        "week_starts_on": {
+          "const": "sunday",
+          "default": "sunday",
+          "title": "Week Starts On",
+          "type": "string"
+        },
+        "range_end_semantics": {
+          "const": "inclusive",
+          "default": "inclusive",
+          "title": "Range End Semantics",
+          "type": "string"
+        },
+        "generated_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Generated At"
+        },
+        "source": {
+          "$ref": "#/$defs/TermCalendarSource"
+        },
+        "terms": {
+          "additionalProperties": {
+            "$ref": "#/$defs/AcademicTerm"
+          },
+          "title": "Terms",
+          "type": "object"
+        }
+      },
+      "required": [
+        "source"
+      ],
+      "title": "TermCalendarFile",
       "type": "object"
     }
   }

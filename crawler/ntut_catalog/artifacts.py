@@ -13,9 +13,11 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import List
 
 from models import (
     CalendarEventsFeed,
+    TermCalendarFile,
     CourseOffering,
     Enrollment,
     EnrollmentLatest,
@@ -172,6 +174,10 @@ def build_v1(out_dir: Path, generated_at: str) -> Manifest:
             _write_v1_json(std_dst / f.name, f.read_text(encoding="utf-8"))
     # 行事曆事件（跨學期 top-level，canonical/calendar/ → v1/calendar/events.json）
     build_calendar_v1(out_dir, generated_at)
+    # 學年度週次表（逐學期）。**刻意不放在上面那個 term 迴圈裡**——那個迴圈要求
+    # canonical/{term}/catalog.ndjson 存在，但下一學期的週次表往往早於課程目錄就能產，
+    # 綁在一起會讓「還沒開放查詢的下學期」拿不到週次表（#168 要的正是提前拿到）。
+    build_term_calendars_v1(out_dir, generated_at)
     return write_manifest(out_dir, generated_at)
 
 
@@ -195,6 +201,29 @@ def build_calendar_v1(out_dir: Path, generated_at: str) -> bool:
     dst.mkdir(parents=True, exist_ok=True)
     _write_v1_json(dst / "events.json", feed.model_dump_json())
     return True
+
+
+def build_term_calendars_v1(out_dir: Path, generated_at: str) -> List[str]:
+    """canonical/{term}/calendar.json → v1/terms/{term}/calendar.json。回傳處理過的學期。"""
+    canonical = out_dir / "canonical"
+    done: List[str] = []
+    for term_dir in sorted(p for p in canonical.iterdir() if p.is_dir()) if canonical.exists() else []:
+        src = term_dir / "calendar.json"
+        if not src.exists():
+            continue
+        cal = TermCalendarFile.model_validate_json(src.read_text(encoding="utf-8"))
+        cal.generated_at = generated_at
+        dst = out_dir / "v1" / "terms" / term_dir.name
+        dst.mkdir(parents=True, exist_ok=True)
+        _write_v1_json(dst / "calendar.json", cal.model_dump_json())
+        done.append(term_dir.name)
+    return done
+
+
+def write_term_calendar(calendar: TermCalendarFile, term_key: str, out_dir: Path) -> None:
+    d = out_dir / "canonical" / term_key
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "calendar.json").write_text(calendar.model_dump_json(), encoding="utf-8")
 
 
 def write_mprograms(directory, out_dir: Path) -> None:
@@ -255,7 +284,7 @@ def write_manifest(out_dir: Path, generated_at: str) -> Manifest:
             continue
         term = term_dir.name
         files = {}
-        for name in ["catalog", "classes", "periods", "enrollment", "mprograms"]:
+        for name in ["catalog", "classes", "periods", "enrollment", "mprograms", "calendar"]:
             p = term_dir / f"{name}.json"
             if p.exists():
                 files[name] = _entry(p, f"terms/{term}/{name}.json")
@@ -268,6 +297,7 @@ def write_manifest(out_dir: Path, generated_at: str) -> Manifest:
             periods=files.get("periods"),
             enrollment=files.get("enrollment"),
             mprograms=files.get("mprograms"),
+            calendar=files.get("calendar"),
             dataset_version=files["catalog"].sha256,
         )
     manifest = Manifest(generated_at=generated_at, terms=terms)

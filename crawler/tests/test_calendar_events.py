@@ -224,15 +224,35 @@ def test_real_snapshot_agrees_with_school_api_event_for_event():
 
 # ----------------------------------------------------------------- CLI
 
-def test_cli_crawl_calendar_writes_canonical_and_v1(tmp_path, monkeypatch, sample_ics):
-    """走完整 CLI 路徑：抓取（假 client）→ canonical → build_v1 → v1/calendar/events.json。"""
+def test_cli_crawl_calendar_writes_canonical_and_v1(tmp_path, monkeypatch):
+    """走完整 CLI 路徑：抓取（假 client）→ canonical → build_v1 → v1/calendar/events.json。
+
+    用真實快照而不是小 fixture——crawl-calendar 同時要推導週次表（契約三），
+    小 fixture 沒有「開學」「期末考試」那些具名事件。
+    """
     from ntut_catalog import cli
 
-    monkeypatch.setattr(cli, "CalendarClient", lambda: FakeCalendarClient(sample_ics))
-    assert cli.main(["crawl-calendar", "--out", str(tmp_path)]) == 0
+    monkeypatch.setattr(cli, "CalendarClient",
+                        lambda: FakeCalendarClient(SNAPSHOT.read_text(encoding="utf-8")))
+    assert cli.main(["crawl-calendar", "--out", str(tmp_path), "--terms", "115-1"]) == 0
 
     assert (tmp_path / "canonical" / "calendar" / "events.ndjson").exists()
     out = CalendarEventsFeed.model_validate_json(
         (tmp_path / "v1" / "calendar" / "events.json").read_text(encoding="utf-8"))
-    assert len(out.events) == 7
+    assert len(out.events) == 661
     assert out.generated_at is not None
+
+
+def test_cli_fails_loudly_when_term_calendar_cannot_be_derived(tmp_path, monkeypatch, sample_ics):
+    """來源缺具名事件（或措辭改了）→ 整個 crawl-calendar 失敗，不寫出半套產物。
+
+    workflow 對這一步是 continue-on-error（不擋 catalog/enrollment 發布），
+    但最後有一步會把它變成紅燈——靜默沿用舊週次表正是換源要消滅的失效模式。
+    """
+    from ntut_catalog import cli
+    from ntut_catalog.term_calendar import CalendarDerivationError
+
+    monkeypatch.setattr(cli, "CalendarClient", lambda: FakeCalendarClient(sample_ics))
+    with pytest.raises(CalendarDerivationError):
+        cli.main(["crawl-calendar", "--out", str(tmp_path), "--terms", "115-1"])
+    assert not (tmp_path / "v1" / "terms" / "115-1" / "calendar.json").exists()
