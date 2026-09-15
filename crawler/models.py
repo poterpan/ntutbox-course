@@ -245,6 +245,32 @@ class SourceRefs(BaseModel):
 
 # ============================================================== 課程詳情（描述 + 大綱）
 
+class WeeklyProgressWeek(BaseModel):
+    week: int                                    # 1..week_count
+    topics: List[str]                            # 同一週的語言變體或並列主題；順序＝來源順序，CJK 優先
+    source_lines: List[str]                      # 原文行，供 UI 顯示來源與人工覆核
+
+
+class WeeklyProgress(BaseModel):
+    """`schedule` 自由文字的結構化衍生欄位。**原文 `schedule` 一律保留、不覆寫。**
+
+    三態的意義（App 要能誠實顯示，不能把「教師沒寫」顯示成「載入中」）：
+      resolved  1..week_count 每一週都恰好一筆結果（missing = 0、ambiguous = 0）
+      partial   至少一週有結果，但存在 missing 或原本 ambiguous 的週次
+      unparsed  沒有任何一週能 resolve，含 schedule 為空、TBA、以及明確拒絕的樣態
+                —— 這一態**仍要寫出來**（帶 parser_version）
+
+    衍生資料的身分鍵是 (term_key, offering_id, teacher_code, source_schedule_sha256)；
+    source_schedule_sha256 或 parser_version 一變就必須重產。
+    """
+    status: Literal["resolved", "partial", "unparsed"]
+    weeks: List[WeeklyProgressWeek] = Field(default_factory=list)
+    notes: List[str] = Field(default_factory=list)
+    parser_version: str                          # 例 "progress/1.0.0"，升版即可離線重產
+    parsed_at: str                               # ISO-8601
+    source_schedule_sha256: str
+
+
 class Syllabus(BaseModel):
     """單一教師的教學大綱（ShowSyllabus.jsp；label→textarea，用標籤文字定位）。"""
     teacher_code: Optional[str] = None
@@ -267,6 +293,10 @@ class Syllabus(BaseModel):
     # 解析與 UI 都自動跟隨，不必改 code。順序即來源順序（Python dict 保序）。
     flex_learning: Dict[str, str] = Field(default_factory=dict)
     extra: Dict[str, str] = Field(default_factory=dict)  # 來源新增的未知標籤欄（label→值）
+    # 逐週進度（由 schedule 解析而得，契約一）。每份 syllabus 各自一份，
+    # **不合併、不投票、不取第一份**——115-1 有 112 個開課實例的不同教師寫了互相衝突的
+    # 進度，挑哪一位是 consumer 的事。
+    weekly_progress: Optional[WeeklyProgress] = None
 
 
 class CourseDetail(BaseModel):

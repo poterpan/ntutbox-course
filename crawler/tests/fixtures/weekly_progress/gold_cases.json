@@ -1,0 +1,119 @@
+[
+  {
+    "name": "traditional Chinese single week",
+    "text": "第1週：課程介紹",
+    "segments": [[1, 1, "課程介紹"]],
+    "states": {"1": "resolved", "2": "missing"}
+  },
+  {
+    "name": "tilde range",
+    "text": "第2~4週：基礎理論",
+    "segments": [[2, 4, "基礎理論"]],
+    "states": {"2": "resolved", "3": "resolved", "4": "resolved", "5": "missing"}
+  },
+  {
+    "name": "spaced dash range",
+    "text": "1-4 週：實驗講解",
+    "segments": [[1, 4, "實驗講解"]],
+    "states": {"1": "resolved", "4": "resolved", "5": "missing"}
+  },
+  {
+    "name": "week unit on both range endpoints",
+    "text": "第4週～第8週：參考進度",
+    "segments": [[4, 8, "參考進度"]],
+    "states": {"4": "resolved", "8": "resolved", "9": "missing"}
+  },
+  {
+    "name": "Chinese numeral range",
+    "text": "第二~八週：(分組輪流進行)",
+    "segments": [[2, 8, "分組輪流進行"]],
+    "states": {"2": "resolved", "8": "resolved", "9": "missing"}
+  },
+  {
+    "name": "punctuation before week unit",
+    "text": "第13-15: 週: Passband Digital Transmission",
+    "segments": [[13, 15, "Passband Digital Transmission"]],
+    "states": {"13": "resolved", "15": "resolved", "16": "missing"}
+  },
+  {
+    "name": "Chinese list marker",
+    "text": "第17、18周：線上師生討論",
+    "segments": [[17, 17, "線上師生討論"], [18, 18, "線上師生討論"]],
+    "states": {"17": "resolved", "18": "resolved"}
+  },
+  {
+    "name": "slash list marker",
+    "text": "第15/16/17/18週：期末專題",
+    "segments": [[15, 15, "期末專題"], [16, 16, "期末專題"], [17, 17, "期末專題"], [18, 18, "期末專題"]],
+    "states": {"15": "resolved", "18": "resolved"}
+  },
+  {
+    "name": "topic before list marker",
+    "text": "一、主題確定（第1, 2週）",
+    "segments": [[1, 1, "一、主題確定"], [2, 2, "一、主題確定"]],
+    "states": {"1": "resolved", "2": "resolved"}
+  },
+  {
+    "name": "English range",
+    "text": "Weeks 2-4: Linear algebra",
+    "segments": [[2, 4, "Linear algebra"]],
+    "states": {"2": "resolved", "4": "resolved", "5": "missing"}
+  },
+  {
+    "name": "English abbreviated range",
+    "text": "W2-W4: Prototype",
+    "segments": [[2, 4, "Prototype"]],
+    "states": {"2": "resolved", "4": "resolved"}
+  },
+  {
+    "name": "narrow segment overrides broad heading",
+    "text": "基礎理論（第1～6週）\n第2週：線性代數",
+    "segments": [[1, 6, "基礎理論"], [2, 2, "線性代數"]],
+    "states": {"1": "resolved", "2": "resolved"},
+    "topics": {"1": "基礎理論", "2": "線性代數"}
+  },
+  {
+    "name": "same-span conflict remains ambiguous",
+    "text": "第2~4週：主題甲\n第2~4週：主題乙",
+    "segments": [[2, 4, "主題甲"], [2, 4, "主題乙"]],
+    "states": {"2": "ambiguous", "3": "ambiguous", "4": "ambiguous"}
+  },
+  {
+    "name": "later prose week mentions are ignored",
+    "text": "Week 2: class time may move to week 3 or 4, to be scheduled in week 1",
+    "segments": [[2, 2, "class time may move to week 3 or 4, to be scheduled in week 1"]],
+    "states": {"1": "missing", "2": "resolved", "3": "missing"}
+  },
+  {
+    "name": "week-relative note is not a teaching row",
+    "text": "第4週後的進度由各組自行規劃",
+    "segments": [],
+    "states": {"4": "missing"}
+  },
+  {
+    "name": "unprefixed Chinese duration is not a week index",
+    "text": "二週：功與能",
+    "segments": [],
+    "states": {"2": "missing"}
+  },
+  {
+    "name": "reversed range rejected",
+    "text": "第4-2週：錯誤範圍",
+    "segments": [],
+    "states": {"2": "missing"},
+    "issue_codes": ["reversed_range"]
+  },
+  {
+    "name": "out of range rejected",
+    "text": "第19週：不存在",
+    "segments": [],
+    "states": {"18": "missing"},
+    "issue_codes": ["week_out_of_range"]
+  },
+  {
+    "name": "date-only stays unmapped",
+    "text": "9/7 課程介紹\n9/14 基礎理論",
+    "segments": [],
+    "states": {"1": "missing"}
+  }
+]

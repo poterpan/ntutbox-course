@@ -1,0 +1,205 @@
+{
+ "term_key": "115-1",
+ "offering_id": "360752",
+ "course_code": "360000",
+ "name": {
+  "zh": "機構學",
+  "en": null
+ },
+ "description": {
+  "zh": "",
+  "en": null
+ },
+ "syllabi": [
+  {
+   "teacher_code": "23602",
+   "teacher_name": "教師甲",
+   "email": null,
+   "office_hours_url": null,
+   "updated_at": null,
+   "outline": null,
+   "schedule": "第1週\t主題1\n第2週\t主題2\n第3週\t主題3\n第4週\t主題4\n第5週\t主題5\n第6週\t主題6\n第7週\t主題7\n第8週\t主題8\n第9週\t主題9\n第10週\t主題10\n第11週\t主題11\n第12週\t主題12\n第13週\t主題13\n第14週\t主題14\n第15週\t主題15\n第16週\t主題16\n第17週\t主題17\n第18週\t主題18",
+   "assessment": null,
+   "materials": null,
+   "consultation": null,
+   "extended_resources": null,
+   "sdgs": null,
+   "ai_usage": null,
+   "notes": null,
+   "flex_learning": {},
+   "extra": {},
+   "weekly_progress": {
+    "status": "resolved",
+    "weeks": [
+     {
+      "week": 1,
+      "topics": [
+       "主題1"
+      ],
+      "source_lines": [
+       "第1週\t主題1"
+      ]
+     },
+     {
+      "week": 2,
+      "topics": [
+       "主題2"
+      ],
+      "source_lines": [
+       "第2週\t主題2"
+      ]
+     },
+     {
+      "week": 3,
+      "topics": [
+       "主題3"
+      ],
+      "source_lines": [
+       "第3週\t主題3"
+      ]
+     },
+     {
+      "week": 4,
+      "topics": [
+       "主題4"
+      ],
+      "source_lines": [
+       "第4週\t主題4"
+      ]
+     },
+     {
+      "week": 5,
+      "topics": [
+       "主題5"
+      ],
+      "source_lines": [
+       "第5週\t主題5"
+      ]
+     },
+     {
+      "week": 6,
+      "topics": [
+       "主題6"
+      ],
+      "source_lines": [
+       "第6週\t主題6"
+      ]
+     },
+     {
+      "week": 7,
+      "topics": [
+       "主題7"
+      ],
+      "source_lines": [
+       "第7週\t主題7"
+      ]
+     },
+     {
+      "week": 8,
+      "topics": [
+       "主題8"
+      ],
+      "source_lines": [
+       "第8週\t主題8"
+      ]
+     },
+     {
+      "week": 9,
+      "topics": [
+       "主題9"
+      ],
+      "source_lines": [
+       "第9週\t主題9"
+      ]
+     },
+     {
+      "week": 10,
+      "topics": [
+       "主題10"
+      ],
+      "source_lines": [
+       "第10週\t主題10"
+      ]
+     },
+     {
+      "week": 11,
+      "topics": [
+       "主題11"
+      ],
+      "source_lines": [
+       "第11週\t主題11"
+      ]
+     },
+     {
+      "week": 12,
+      "topics": [
+       "主題12"
+      ],
+      "source_lines": [
+       "第12週\t主題12"
+      ]
+     },
+     {
+      "week": 13,
+      "topics": [
+       "主題13"
+      ],
+      "source_lines": [
+       "第13週\t主題13"
+      ]
+     },
+     {
+      "week": 14,
+      "topics": [
+       "主題14"
+      ],
+      "source_lines": [
+       "第14週\t主題14"
+      ]
+     },
+     {
+      "week": 15,
+      "topics": [
+       "主題15"
+      ],
+      "source_lines": [
+       "第15週\t主題15"
+      ]
+     },
+     {
+      "week": 16,
+      "topics": [
+       "主題16"
+      ],
+      "source_lines": [
+       "第16週\t主題16"
+      ]
+     },
+     {
+      "week": 17,
+      "topics": [
+       "主題17"
+      ],
+      "source_lines": [
+       "第17週\t主題17"
+      ]
+     },
+     {
+      "week": 18,
+      "topics": [
+       "主題18"
+      ],
+      "source_lines": [
+       "第18週\t主題18"
+      ]
+     }
+    ],
+    "notes": [],
+    "parser_version": "progress/1.0.0",
+    "parsed_at": "2026-09-16T04:00:00+08:00",
+    "source_schedule_sha256": "3c4a996a37ef91e16955971ef2e574ca37b86eb78245550fe34e1f35a2d124fc"
+   }
+  }
+ ],
+ "generated_at": "2026-09-16T04:00:00+08:00"
+}

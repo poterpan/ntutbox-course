@@ -108,6 +108,10 @@ jobs:
           DATE="$(TZ=Asia/Taipei date +%F)"
           git add -- '*/details.ndjson' || true
           git diff --cached --quiet || git commit -m "data(details): $TERMS $DATE"
+          # 逐週進度的三態統計。放 canonical/reports/ 而不是 data/reports/——data branch
+          # 只掛在 canonical 這層，寫在外面等於永遠進不了版控、長期精度追蹤就沒了。
+          git add -- 'reports/*/weekly-progress.json' || true
+          git diff --cached --quiet || git commit -m "data(progress-report): $TERMS $DATE"
           git pull --rebase origin data || true
           git push origin HEAD:data
 

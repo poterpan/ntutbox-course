@@ -1,0 +1,72 @@
+{
+ "schema_version": 1,
+ "timezone": "Asia/Taipei",
+ "range_end_semantics": "inclusive",
+ "generated_at": "2026-09-16T04:00:00+08:00",
+ "source": {
+  "type": "google_calendar_ics",
+  "url": "https://calendar.google.com/calendar/ical/docfuhim9b22fqvp2tk842ak3c%40group.calendar.google.com/public/basic.ics",
+  "content_sha256": "a137fee02af8610d6da48aee610aa1c9eac1387d2feef84ff98741aa6d33f375",
+  "fetched_at": "2026-09-16T04:00:00+08:00",
+  "parser_version": "calendar-events/1.0.0"
+ },
+ "horizon": {
+  "max_start": "2027-07-03",
+  "ok": true,
+  "checked_at": "2026-09-16T04:00:00+08:00"
+ },
+ "events": [
+  {
+   "uid": "nodtend@google.com",
+   "summary": "暑修開始",
+   "all_day": true,
+   "start_date": "2019-05-27",
+   "end_date": "2019-05-27",
+   "start_at": null,
+   "end_at": null,
+   "description": null,
+   "location": null,
+   "sequence": null,
+   "last_modified": null
+  },
+  {
+   "uid": "multi@google.com",
+   "summary": "期中考試",
+   "all_day": true,
+   "start_date": "2026-11-02",
+   "end_date": "2026-11-06",
+   "start_at": null,
+   "end_at": null,
+   "description": null,
+   "location": null,
+   "sequence": 0,
+   "last_modified": "2026-07-15T11:55:23+08:00"
+  },
+  {
+   "uid": "timed@google.com",
+   "summary": "英文期中會考",
+   "all_day": false,
+   "start_date": null,
+   "end_date": null,
+   "start_at": "2026-11-02T09:30:00+08:00",
+   "end_at": "2026-11-02T12:30:00+08:00",
+   "description": null,
+   "location": "綜合科館",
+   "sequence": 2,
+   "last_modified": null
+  },
+  {
+   "uid": "single@google.com",
+   "summary": "寒假開始、寒宿開始",
+   "all_day": true,
+   "start_date": "2027-01-11",
+   "end_date": "2027-01-11",
+   "start_at": null,
+   "end_at": null,
+   "description": null,
+   "location": null,
+   "sequence": 3,
+   "last_modified": "2026-07-15T11:55:23+08:00"
+  }
+ ]
+}

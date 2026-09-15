@@ -1,0 +1,106 @@
+{
+ "term_key": "115-1",
+ "offering_id": "360901",
+ "course_code": "360000",
+ "name": {
+  "zh": "兩位教師進度衝突",
+  "en": null
+ },
+ "description": {
+  "zh": "",
+  "en": null
+ },
+ "syllabi": [
+  {
+   "teacher_code": "23605",
+   "teacher_name": "教師丁",
+   "email": null,
+   "office_hours_url": null,
+   "updated_at": null,
+   "outline": null,
+   "schedule": "第1週 甲版：課程介紹\n第2週 甲版：基礎理論",
+   "assessment": null,
+   "materials": null,
+   "consultation": null,
+   "extended_resources": null,
+   "sdgs": null,
+   "ai_usage": null,
+   "notes": null,
+   "flex_learning": {},
+   "extra": {},
+   "weekly_progress": {
+    "status": "partial",
+    "weeks": [
+     {
+      "week": 1,
+      "topics": [
+       "甲版：課程介紹"
+      ],
+      "source_lines": [
+       "第1週 甲版：課程介紹"
+      ]
+     },
+     {
+      "week": 2,
+      "topics": [
+       "甲版：基礎理論"
+      ],
+      "source_lines": [
+       "第2週 甲版：基礎理論"
+      ]
+     }
+    ],
+    "notes": [],
+    "parser_version": "progress/1.0.0",
+    "parsed_at": "2026-09-16T04:00:00+08:00",
+    "source_schedule_sha256": "ea13d0cb214de187efaaf1dd39fb00ad8ae00082f9a0e6d2c0dae8efdeccfe35"
+   }
+  },
+  {
+   "teacher_code": "23606",
+   "teacher_name": "教師戊",
+   "email": null,
+   "office_hours_url": null,
+   "updated_at": null,
+   "outline": null,
+   "schedule": "第1週 乙版：實驗安全\n第2週 乙版：儀器操作",
+   "assessment": null,
+   "materials": null,
+   "consultation": null,
+   "extended_resources": null,
+   "sdgs": null,
+   "ai_usage": null,
+   "notes": null,
+   "flex_learning": {},
+   "extra": {},
+   "weekly_progress": {
+    "status": "partial",
+    "weeks": [
+     {
+      "week": 1,
+      "topics": [
+       "乙版：實驗安全"
+      ],
+      "source_lines": [
+       "第1週 乙版：實驗安全"
+      ]
+     },
+     {
+      "week": 2,
+      "topics": [
+       "乙版：儀器操作"
+      ],
+      "source_lines": [
+       "第2週 乙版：儀器操作"
+      ]
+     }
+    ],
+    "notes": [],
+    "parser_version": "progress/1.0.0",
+    "parsed_at": "2026-09-16T04:00:00+08:00",
+    "source_schedule_sha256": "432cf200b19bfc78b41d55788b60631eac79e97c8e4dbc47093f48d0eb67399e"
+   }
+  }
+ ],
+ "generated_at": "2026-09-16T04:00:00+08:00"
+}
