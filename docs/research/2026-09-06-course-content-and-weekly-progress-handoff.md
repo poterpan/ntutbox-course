@@ -141,9 +141,16 @@ POC 在 `/Users/poterpan/Documents/Coding/NTUT/ntut-course-progress-poc`（320 �
 | `break_start` | `寒假開始` / `暑假開始` | |
 | `preparation` | 無對應事件 | 推導（第 1 週前一週），provenance 標 `derived` |
 
-**「開學」的 tie-break**：措辭逐年不同（115-1「開學暨註冊截止日、開學典禮」、115-2「開學正式上課、註冊截止日」），
-規則是**在含「開學」的候選中優先取含「正式上課」或「註冊」的那筆**。111～115 每學期都收斂到唯一一筆。
-收斂不到唯一一筆 → **不變量⑧失敗、CI 紅燈，不得靜默猜**。
+**兩條 tie-break（實作時依實測補的，套用順序如下）**：
+
+1. **校級優先於學制專屬**：候選中若有不含「進修部」「日間部」的，只留那些。
+   實測 111-2 的「期末考試」命中兩筆——校級那筆，以及「進修部期末考試(6/17 補行上班，停課一次)」。
+   `calendar.json` 描述的是全校學期行事曆，學制專屬的是例外附註。
+2. **「開學」再取正式那筆**：措辭逐年不同（115-1「開學暨註冊截止日、開學典禮」、
+   115-2「開學正式上課、註冊截止日」），優先取含「正式上課」或「註冊」的。
+
+111～115 每個學期、每個欄位都收斂到唯一一筆。收斂不到 → **不變量⑧失敗，不得靜默猜**。
+`期中考試` / `期末考試` 這兩個 pattern 夠窄，不會誤中「期中撤選」「英文期中會考」。
 
 全天事件在 ics 是 end-exclusive，取 inclusive 迄日時一律 `DTEND − 1 天`（處理方式與契約四同一套，不要各寫一份）。
 
@@ -192,8 +199,13 @@ calendar 與 events 走自己的版本號、從 1 開始 —— 所以 #168 的 
 
 ### 產出範圍
 
-**只產具名事件齊全、推導有把握的學期**（現況：115-1、115-2）。舊學期不回填 —— App 只用得到當前學期，
-而 108～110 的「開學」關鍵字本來就有多筆命中、也沒有 PDF 可對，回填只是多冒險。
+**只產當前學年度的兩個學期**（由今天推算，現況 115-1、115-2），舊學年度不回填。
+App 只用得到當前學期與下學期；而舊學年度沒有 PDF 可對，且實測會踩到真實例外——
+**108-2（COVID 那年）延長學期，期末考 2020-06-29~07-05 落在推導出的學期範圍外，不變量⑤ 擋下**。
+回填只是把這類例外變成維運負擔。
+
+**全有或全無**：兩個學期是同一份來源、同一套規則推出來的，其中一個不對代表規則或來源有問題，
+這時把另一個照發只是把錯誤藏起來 → 一起不寫。
 
 ### 不變量（全過才發布）
 
@@ -210,9 +222,15 @@ calendar 與 events 走自己的版本號、從 1 開始 —— 所以 #168 的 
 
 **⑩ 必須在「發佈時」跑，不能只放在 pytest。** 理由見 §7：**本 repo 目前沒有任何跑測試的 CI**。把這條放進 `quality_gate` 一起跑，等於每次發佈都拿 10 份校方公告答案重驗一次解析規則 —— 成本是把那份 fixture 一起帶進 `crawler/`（8.9 KB，離線、無外部依賴），換到的是「ics 改措辭時當天就被擋下」。ics-only 的安全論證整個押在這條上，不能讓它取決於有沒有人記得跑 pytest。
 
-任一不過 → **保留上一版、CI exit non-zero、log 印出是哪一條不變量、哪個學期**。
-**機制已經現成**：`infra/publish.py:45-51` 的 `quality_gate` 是 pre-flight —— 不過就在任何上傳之前 `return 1`（`:227-237`），
-一個 byte 都沒送出，R2 舊物件原封不動。calendar 的不變量掛進同一個 gate 即可，不要另造 rollback。
+任一不過 → **保留上一版、CI 紅燈、log 印出是哪一條不變量、哪個學期**。
+
+實作上這兩件事是分開達成的（**不阻斷課程目錄的發布，但必須讓人看見**）：
+
+- 推導失敗時 `crawl-calendar` 直接拋錯、**不寫出任何產物**，所以 R2 上的舊 `calendar.json` 原封不動
+  （與 `infra/publish.py:45-51` `quality_gate` 同樣是 pre-flight 語意：擋在上傳之前，不是事後 rollback）。
+- workflow 對該步驟是 `continue-on-error: true`，讓當日的 catalog/enrollment 照常 commit 與發布；
+  **但在 publish 之後有一步專門把它變成紅燈**（`crawl.yml` 的 `Fail if calendar step failed`）。
+  少了這步，「校方改了措辭、週次表停在上一版」會靜默過去——那正是換源要消滅的失效模式。
 
 ### 消滅 App 端的中文關鍵字耦合
 
@@ -230,8 +248,14 @@ calendar 與 events 走自己的版本號、從 1 開始 —— 所以 #168 的 
 ### 發布端接線（已核實）
 
 照 **mprograms** 的形狀做（唯一「逐學期＋進 manifest」的既有樣板）：
-`canonical/{term}/calendar.json` → `crawler/ntut_catalog/artifacts.py:151-154` 旁邊加複製 →
-`artifacts.py:200` 的檔名清單加 `calendar` → `infra/publish.py:78` 的逐學期白名單加 `calendar.json`。
+`canonical/{term}/calendar.json` → `artifacts.py` 的 `build_term_calendars_v1` →
+`artifacts.py` 的 manifest 檔名清單加 `calendar` → `infra/publish.py` 的逐學期白名單加 `calendar.json`。
+
+⚠️ **一個與 mprograms 不同的地方**：週次表**不能**跟著那個「逐學期 catalog 迴圈」跑。
+那個迴圈要求 `canonical/{term}/catalog.ndjson` 存在，但下學期的週次表往往早於課程目錄就能產
+（#168 要的正是提前拿到）。所以 v1 的週次表走自己的一輪掃描，不綁課程目錄是否已爬。
+連帶結果：只有週次表、還沒有 catalog 的學期**不會進 manifest**（`ManifestTerm.catalog` 是必填），
+檔案照常發佈——這與 `names.json`／`standards/` 的既有先例一致。
 **三份名單漏改任何一份都是靜默不發佈。**
 `ManifestTerm`（`crawler/models.py:456-462`）加 optional `calendar: ManifestEntry`，沿用既有 url／sha256／size 契約；
 逐課 detail **不要**進 manifest（2,461 個條目會把短快取的 manifest 撐爆）。

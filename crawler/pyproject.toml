@@ -21,5 +21,10 @@ build-backend = "setuptools.build_meta"
 packages = ["ntut_catalog"]
 py-modules = ["models"]
 
+# 週次表回歸基準（從校方公告 PDF 抽出的 10 個學期答案）。這份在**發佈時**跑，
+# 不是只在 pytest 跑，所以必須隨套件安裝——見交接文件 §4 不變量⑩。
+[tool.setuptools.package-data]
+ntut_catalog = ["reference/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

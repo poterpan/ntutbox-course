@@ -27,7 +27,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "crawler"))
 from ntut_catalog.artifacts import build_v1  # noqa: E402
 
 _SHORT_CACHE = "public, max-age=300"     # manifest / enrollment（常變）
-_LONG_CACHE = "public, max-age=3600"     # catalog / classes / periods（靠 sha + ETag 304）
+_LONG_CACHE = "public, max-age=3600"     # catalog / classes / periods / calendar/events（靠 sha + ETag 304）
+# 週次表一學期最多修訂一兩次，但**不可宣稱 immutable**——開學前會有修正版。
+_CALENDAR_CACHE = "public, max-age=86400, stale-while-revalidate=604800"
 
 
 def r2_key(rel_path: str) -> str:
@@ -39,6 +41,8 @@ def cache_control_for(rel_path: str) -> str:
     name = rel_path.rsplit("/", 1)[-1]
     if name == "manifest.json" or name == "enrollment.json":
         return _SHORT_CACHE
+    if name == "calendar.json":          # terms/{term}/calendar.json（週次表）
+        return _CALENDAR_CACHE
     return _LONG_CACHE
 
 
@@ -75,7 +79,8 @@ def _v1_files_for(out_dir: Path, terms: Optional[List[str]], include_details: bo
         else sorted(p for p in (v1 / "terms").iterdir() if p.is_dir()) if (v1 / "terms").exists() else []
     )
     for td in term_dirs:
-        for name in ["catalog.json", "classes.json", "periods.json", "enrollment.json", "mprograms.json", "names.json"]:
+        for name in ["catalog.json", "classes.json", "periods.json", "enrollment.json",
+                     "mprograms.json", "names.json", "calendar.json"]:
             p = td / name
             if p.exists():
                 files.append(str(p.relative_to(out_dir)))
