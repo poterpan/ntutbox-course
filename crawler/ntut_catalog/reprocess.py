@@ -39,17 +39,17 @@ def recategorize_canonical(out_dir: Path) -> List[dict]:
     return stats
 
 
-def load_term_weeks(out_dir: Path, term_key: str):
-    """讀該學期 canonical/{term}/calendar.json 的 weeks[]（契約三）。沒有就回 None。
+def load_term(out_dir: Path, term_key: str):
+    """讀該學期 canonical/{term}/calendar.json 的 AcademicTerm（契約三）。沒有就回 None。
 
-    規則 (b)(c) 需要它；沒有週次表時那兩條自動跳過，marker 路徑照常運作。
+    逐週進度的日期／錨點規則需要它（weeks[] 用來映射、midterm/final_exam 當錨點）；
+    沒有週次表時那些規則自動跳過，marker 路徑照常運作。
     """
     p = out_dir / "canonical" / term_key / "calendar.json"
     if not p.exists():
         return None
     cal = TermCalendarFile.model_validate_json(p.read_text(encoding="utf-8"))
-    term = cal.terms.get(term_key)
-    return term.weeks if term else None
+    return cal.terms.get(term_key)
 
 
 def reprocess_progress(out_dir: Path, term_keys: List[str], now: str) -> List[dict]:
@@ -63,15 +63,15 @@ def reprocess_progress(out_dir: Path, term_keys: List[str], now: str) -> List[di
         if not nd.exists():
             logger.warning("[%s] 沒有 details.ndjson，跳過", term_key)
             continue
-        term_weeks = load_term_weeks(out_dir, term_key)
+        term = load_term(out_dir, term_key)
         details = [CourseDetail.model_validate_json(line)
                    for line in nd.read_text(encoding="utf-8").splitlines() if line.strip()]
         for d in details:
-            attach_weekly_progress(d.syllabi, term_weeks, now)
+            attach_weekly_progress(d.syllabi, term, now)
         with nd.open("w", encoding="utf-8") as f:
             for d in sorted(details, key=lambda x: x.offering_id):
                 f.write(d.model_dump_json() + "\n")
-        report = progress_report(details, term_key, now, bool(term_weeks))
+        report = progress_report(details, term_key, now, term is not None)
         rp = out_dir / "canonical" / "reports" / term_key
         rp.mkdir(parents=True, exist_ok=True)
         (rp / "weekly-progress.json").write_text(
