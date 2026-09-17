@@ -35,7 +35,7 @@ from ntut_catalog.migrate import migrate_all
 from ntut_catalog.orchestrator import crawl_enrollment, crawl_term, parse_term_key
 from ntut_catalog.rederive import rederive_all
 from ntut_catalog.parse_progress import progress_report
-from ntut_catalog.reprocess import load_term_weeks, reprocess_progress
+from ntut_catalog.reprocess import load_term, reprocess_progress
 
 logger = logging.getLogger("ntut_catalog")
 
@@ -299,18 +299,18 @@ def main(argv: List[str] | None = None) -> int:
                 ]
                 logger.info("[%s] crawl-detail: %d offerings ...", term, len(offerings))
                 # 逐週進度的規則 (b)(c) 要吃契約三的 weeks[]；沒有就只跑 marker 路徑。
-                term_weeks = load_term_weeks(out_dir, term)
-                if term_weeks is None:
+                term_obj = load_term(out_dir, term)
+                if term_obj is None:
                     logger.warning("[%s] 沒有 calendar.json，逐週進度的日期類規則停用", term)
                 try:
                     details = crawl_detail(client, term, offerings, now_iso,
-                                           term_weeks=term_weeks)
+                                           term=term_obj)
                 except Exception:
                     logger.exception("[%s] crawl-detail failed", term)
                     failed.append(term)
                     continue
                 write_details(details, out_dir)
-                report = progress_report(details, term, now_iso, bool(term_weeks))
+                report = progress_report(details, term, now_iso, term_obj is not None)
                 rp_dir = out_dir / "canonical" / "reports" / term
                 rp_dir.mkdir(parents=True, exist_ok=True)
                 (rp_dir / "weekly-progress.json").write_text(

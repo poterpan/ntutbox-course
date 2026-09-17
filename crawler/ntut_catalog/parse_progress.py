@@ -23,7 +23,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional, Sequence, Tuple
 
-from models import TermWeek, WeeklyProgress, WeeklyProgressWeek
+from models import AcademicTerm, TermWeek, WeeklyProgress, WeeklyProgressWeek
 from ntut_catalog.ics import TAIPEI
 
 PARSER_VERSION = "progress/1.0.0"
@@ -188,12 +188,42 @@ def _out_of_range_issues(line: str, line_number: int, week_count: int) -> List[P
     return issues
 
 
+# 規則 (e)：週次標記獨占一行、主題在下一行。來源是表格的儲存格換行變成文字換行，
+# 週次其實明確寫著——這不是「猜」，是我們原本只在同一行找主題而漏抓。
+_MARKER_ONLY_RE = re.compile(
+    r"^\s*(?:第\s*\d{1,2}\s*[週周]|(?i:w|wk|week)\s*\.?\s*\d{1,2})\s*[:：.、]?\s*$")
+_LEADING_DATE_RE = re.compile(r"^\s*\(?\d{1,2}\s*(?:/|月)\s*\d{1,2}\s*日?\)?\s*")
+
+
+def _merge_marker_only_lines(text: str) -> List[Tuple[int, str]]:
+    """把「只有週次標記的行」與下一行併成一行。回傳 [(原行號, 文字)]。
+
+    只在下一行**本身不含任何週次 marker** 時才併——否則 `第1週 ⏎ 第2週 導論` 會被誤併。
+    併進來的主題若以日期開頭（`09/10 課程內容簡介`）把日期剝掉，那是欄位不是主題。
+    """
+    lines = [(i, l.strip()) for i, l in enumerate(text.splitlines(), 1)]
+    lines = [(i, l) for i, l in lines if l]
+    out: List[Tuple[int, str]] = []
+    skip = False
+    for idx, (line_number, line) in enumerate(lines):
+        if skip:
+            skip = False
+            continue
+        if _MARKER_ONLY_RE.match(line) and idx + 1 < len(lines):
+            nxt = lines[idx + 1][1]
+            if not _candidate_markers(nxt):
+                out.append((line_number, f"{line} {_LEADING_DATE_RE.sub('', nxt)}"))
+                skip = True
+                continue
+        out.append((line_number, line))
+    return out
+
+
 def parse_schedule(text: str, week_count: int = DEFAULT_WEEK_COUNT) -> ParseResult:
     """抽出有明確週次 marker 的段落。不臆造缺漏的結構。"""
     result = ParseResult()
     seen: set = set()
-    for line_number, raw_line in enumerate(text.splitlines(), 1):
-        line = raw_line.strip()
+    for line_number, line in _merge_marker_only_lines(text):
         if not line:
             continue
         result.issues.extend(_out_of_range_issues(line, line_number, week_count))
@@ -394,6 +424,61 @@ def _valid_date(year: int, month: int, day: int) -> bool:
         return False
 
 
+# ====================================================== 規則 (d)：行事曆錨點編號清單
+
+_NUMBERED_ROW_RE = re.compile(r"^\s*\(?(\d{1,2})\s*[.)、,\t ]\s*(.+)$")
+_MIDTERM_RE = re.compile(r"(?i)期中(?:考|測驗)|midterm")
+_FINAL_RE = re.compile(r"(?i)期末(?:考|測驗)|final\s*exam")
+
+
+def _week_of(term: AcademicTerm, date_iso: str) -> Optional[int]:
+    return next((w.number for w in term.weeks if w.start <= date_iso <= w.end), None)
+
+
+def parse_anchored_numbered_list(text: str, term: AcademicTerm,
+                                 week_count: int = DEFAULT_WEEK_COUNT
+                                 ) -> Optional[List[Tuple[int, str, str]]]:
+    """規則 (d)：純編號清單，但**期中考／期末考剛好落在行事曆對應的週次** → 首欄即週次。
+
+    我們原本明確拒絕沒有日期佐證的純編號清單（「14 項對不上 18 週，很可能是章節」）。
+    這條開一個**有條件**的例外，條件是行事曆提供了一個原本沒有的獨立證人：
+
+        9    Midterm Exam      ← 行事曆說 115-1 期中考在第 9 週
+        15   期末考             ← 行事曆說期末考在第 15 週
+
+    首欄如果真是章節編號，第 9 列寫「期中考」是巧合；但行事曆來自完全獨立的來源
+    （校方公告），對得上就構成雙證人——與規則 (b)「首欄 1..N 與每列差 7 天互相證明」
+    同一個精神。
+
+    拒絕：
+      - 序列不從 1 開始、非單調 +1、有缺口，或列數 < 12、> week_count
+      - 期中／期末**沒有落在行事曆對應的那一列**（不給 ±1 容差；容差一放，佐證就垮了）
+    """
+    rows: Dict[int, str] = {}
+    for raw in text.splitlines():
+        match = _NUMBERED_ROW_RE.match(raw.strip())
+        if match:
+            rows[int(match.group(1))] = match.group(2).strip()
+    if not (_MIN_TABLE_ROWS <= len(rows) <= week_count):
+        return None
+    if sorted(rows) != list(range(1, len(rows) + 1)):
+        return None
+
+    # **只用期中考當錨點，而且要求剛好對上。** 這是量出來的，不是挑的：
+    # 115-1 全量掃過，期中考落在行事曆對應週的偏移分布在 0 有一個銳利的峰（132 筆），
+    # 尾巴很小；期末考則完全不可靠——峰值在 +1（82 筆）與 +3（53 筆）、剛好只有 16 筆，
+    # 因為期末考期 12/18-12/24 橫跨第 15、16 週，而且很多教師把「期末」寫在最後一列
+    # （第 18 列，彈性學習週）。拿不可靠的錨點當證據，等於把誤判引進來。
+    expected = _week_of(term, term.midterm.start)
+    if expected is None:
+        return None
+    where = [week for week, text in rows.items() if _MIDTERM_RE.search(text)]
+    if where != [expected]:
+        # 沒寫期中考 → 沒有證據；寫了但不在對應那一列 → 首欄很可能是「第幾次上課」
+        # 或章節編號，不是週次。兩種都拒絕。
+        return None
+    return [(week, "", _clean_topic(rows[week])) for week in sorted(rows)]
+
 # ====================================================== 契約一：組出 WeeklyProgress
 
 def _sha256(text: str) -> str:
@@ -418,7 +503,7 @@ def _unparsed(schedule: Optional[str], notes: List[str], now: str) -> WeeklyProg
 def build_weekly_progress(
     schedule: Optional[str],
     week_count: int = DEFAULT_WEEK_COUNT,
-    term_weeks: Optional[Sequence[TermWeek]] = None,
+    term: Optional[AcademicTerm] = None,
     now: Optional[str] = None,
 ) -> WeeklyProgress:
     """`schedule` 自由文字 → 三態的結構化逐週進度。
@@ -463,11 +548,13 @@ def build_weekly_progress(
             ))
     else:
         rows = None
-        if term_weeks:
-            base_year = dt.date.fromisoformat(term_weeks[0].start).year
+        if term is not None and term.weeks:
+            base_year = dt.date.fromisoformat(term.weeks[0].start).year
             rows = parse_numbered_date_table(schedule, base_year, week_count)
             if rows is None:
-                rows = parse_date_list(schedule, term_weeks)
+                rows = parse_date_list(schedule, term.weeks)
+            if rows is None:
+                rows = parse_anchored_numbered_list(schedule, term, week_count)
         if not rows:
             return _unparsed(schedule, notes, now)
         for week, _date, topic in rows:
@@ -482,18 +569,18 @@ def build_weekly_progress(
                           source_schedule_sha256=_sha256(schedule))
 
 
-def attach_weekly_progress(syllabi, term_weeks: Optional[Sequence[TermWeek]] = None,
+def attach_weekly_progress(syllabi, term: Optional[AcademicTerm] = None,
                            now: Optional[str] = None) -> None:
     """就地把 weekly_progress 掛到每份 syllabus 上。
 
     **每份各自一份，不合併、不投票、不取第一份**——115-1 有 112 個開課實例的不同教師
     寫了互相衝突的進度，挑哪一位是 consumer 的事。
     """
-    week_count = len(term_weeks) if term_weeks else DEFAULT_WEEK_COUNT
+    week_count = len(term.weeks) if term is not None and term.weeks else DEFAULT_WEEK_COUNT
     now = now or dt.datetime.now(TAIPEI).isoformat(timespec="seconds")
     for syllabus in syllabi:
         syllabus.weekly_progress = build_weekly_progress(
-            syllabus.schedule, week_count, term_weeks, now)
+            syllabus.schedule, week_count, term, now)
 
 
 def progress_report(details, term_key: str, generated_at: str,
