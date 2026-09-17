@@ -458,7 +458,39 @@ def _valid_date(year: int, month: int, day: int) -> bool:
 # ====================================================== 規則 (d)：行事曆錨點編號清單
 
 _NUMBERED_ROW_RE = re.compile(r"^\s*\(?(\d{1,2})\s*[.)、,\t ]\s*(.+)$")
+# 首欄允許三種寫法：阿拉伯數字、`3-4.` 這種合併列、以及中文數字（表格常見
+# `週次 / 一 / 二 / 三`）。中文數字在這裡是安全的——陷阱 3 擔心的 `一週`＝時長，
+# 但本函式只在有額外證據（列數落在合法授課週數、表頭宣告、期中考錨點）時才被採信。
+_ROW_RE = re.compile(
+    r"^\s*\(?(?P<a>\d{1,2})(?:\s*[-–~]\s*(?P<b>\d{1,2}))?\s*[.)、,\t ]\s*(?P<t>.+)$"
+    r"|^\s*(?P<cn>[一二三四五六七八九十]{1,3})\s*[.)、\t ]\s*(?P<ct>.+)$")
+
+
+def _numbered_rows(text: str) -> Dict[int, str]:
+    """抽出「首欄＝編號」的列。合併列（`3-4. 主題`）展開成多列、共用同一個主題。"""
+    rows: Dict[int, str] = {}
+    for raw in text.splitlines():
+        m = _ROW_RE.match(raw.strip())
+        if not m:
+            continue
+        if m.group("cn") is not None:
+            week = CHINESE_TO_INT.get(m.group("cn"))
+            if week:
+                rows.setdefault(week, m.group("ct").strip())
+            continue
+        start = int(m.group("a"))
+        end = int(m.group("b")) if m.group("b") else start
+        if end < start or end - start > 5:        # 倒置或跨太多週 → 不是合併列
+            continue
+        for week in range(start, end + 1):
+            rows.setdefault(week, m.group("t").strip())
+    return rows
 _MIDTERM_RE = re.compile(r"(?i)期中(?:考|測驗)|midterm")
+# 當作**證據**時要求期中考剛好落在行事曆那一週（偏移 0，峰值 132 筆）；當作**反證**時
+# 放寬到 ±1——實測偏移 -1 有 33 筆，那是教師把期中考辦在官方考試週前一週的正常變異
+# （16 週的課尤其常見，中點就是第 8 週）。差 2 週以上才是「首欄不是週次」的訊號，
+# 實測那份把 Mid Term Exam 寫在第 7 列的（差 2）仍然被擋。
+_MIDTERM_TOLERANCE = 1
 # 表頭行自己宣告首欄是週次（實測 361325「WEEK\tSESSION THEME」、360754「週次 單元主題」）
 _HEADER_DECLARES_WEEK = re.compile(r"(?im)^\s*(?:週\s*次|WEEK|Week)\b.{0,30}$")
 _FINAL_RE = re.compile(r"(?i)期末(?:考|測驗)|final\s*exam")
@@ -487,11 +519,7 @@ def parse_anchored_numbered_list(text: str, term: AcademicTerm,
       - 序列不從 1 開始、非單調 +1、有缺口，或列數 < 12、> week_count
       - 期中／期末**沒有落在行事曆對應的那一列**（不給 ±1 容差；容差一放，佐證就垮了）
     """
-    rows: Dict[int, str] = {}
-    for raw in text.splitlines():
-        match = _NUMBERED_ROW_RE.match(raw.strip())
-        if match:
-            rows[int(match.group(1))] = match.group(2).strip()
+    rows = _numbered_rows(text)
     if not (_MIN_TABLE_ROWS <= len(rows) <= week_count):
         return None
     if sorted(rows) != list(range(1, len(rows) + 1)):
@@ -520,9 +548,11 @@ def parse_anchored_numbered_list(text: str, term: AcademicTerm,
     if expected is None:
         return None
     where = [week for week, cell in rows.items() if _MIDTERM_RE.search(cell)]
-    if where != [expected]:
-        # 沒寫期中考 → 沒有證據；寫了但不在對應那一列 → 首欄很可能是「第幾次上課」
-        # 或章節編號，不是週次。兩種都拒絕。
+    if expected not in where:
+        # 沒寫期中考 → 沒有證據；寫了但行事曆那一週不在命中清單裡 → 首欄很可能是
+        # 「第幾次上課」或章節編號，不是週次。兩種都拒絕。
+        # **不要求「恰好只有一列命中」**——實測 361326 寫了 `9 Midterm` 與
+        # `10 Review of midterm`，後者是正常的後續提及，不是矛盾。
         return None
     return _accept(rows, term)
 
@@ -543,7 +573,7 @@ def _accept(rows: Dict[int, str], term: AcademicTerm) -> Optional[List[Tuple[int
     """
     expected = _week_of(term, term.midterm.start)
     where = [week for week, cell in rows.items() if _MIDTERM_RE.search(cell)]
-    if where and where != [expected]:
+    if where and min(abs(w - expected) for w in where) > _MIDTERM_TOLERANCE:
         return None
     return [(week, "", _clean_topic(rows[week])) for week in sorted(rows)]
 

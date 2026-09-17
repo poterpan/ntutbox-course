@@ -354,8 +354,8 @@ def test_regression_thresholds_never_go_down(corpus, term):
     assert cell_rate >= 0.4725, f"resolved_lookup_cell_rate 下降到 {cell_rate:.4f}"
     # 規則 (a)~(e) 實際把兩個數字推到這裡；掉回門檻附近代表有規則失效了
     # 2026-09-17 一輪：候選疊加、英文 list／序數／WK#／全形／點號、列數與表頭證據
-    assert coverage >= 0.700, f"coverage {coverage:.4f} 低於本輪應達到的水準"
-    assert cell_rate >= 0.628, f"cell_rate {cell_rate:.4f} 低於本輪應達到的水準"
+    assert coverage >= 0.752, f"coverage {coverage:.4f} 低於本輪應達到的水準"
+    assert cell_rate >= 0.676, f"cell_rate {cell_rate:.4f} 低於本輪應達到的水準"
 
 
 # ----------------------------------------------------------------- 產物與離線重產
@@ -583,3 +583,47 @@ def test_pe_courses_get_no_weekly_progress(term):
     other = [Syllabus(schedule="第1週 導論")]
     attach_weekly_progress(other, term, course_name="微積分")
     assert other[0].weekly_progress is not None
+
+
+# ----------------------------------------------------------------- 表格首欄的三種寫法
+
+def test_rows_accept_chinese_numerals(term):
+    """表格常見 `週次 / 一 / 二 / 三`（360924、361168、361488）。中文數字在這裡安全——
+    陷阱 3 擔心的 `一週`＝時長，但這條只在有額外證據時才被採信。"""
+    text = "週次\t單元主題\n" + "\n".join(
+        f"{c}\t主題{i}" for i, c in enumerate("一 二 三 四 五 六 七 八 九 十 十一 十二 十三 十四 十五 十六".split(), 1))
+    wp = build_weekly_progress(text, 18, term)
+    assert wp.status == "resolved" and len(wp.weeks) == 16
+
+
+def test_rows_expand_merged_ranges(term):
+    """`3-4. 主題` 是一列涵蓋兩週。不展開的話序列不連續，整份會被拒（360754）。"""
+    text = "週次   單元主題\n1. 導論\n2. 基礎\n3-4. 機器學習\n5-7. 演算法\n8. 期中考\n9-13. 深度學習\n14-15. NLP\n16. 期末考"
+    wp = build_weekly_progress(text, 18, term)
+    assert [w.week for w in wp.weeks] == list(range(1, 17))
+    assert wp.weeks[2].topics == wp.weeks[3].topics == ["機器學習"]
+
+
+def test_reversed_or_overlong_merged_range_is_skipped(term):
+    from ntut_catalog.parse_progress import _numbered_rows
+    assert 9 not in _numbered_rows("9-3. 倒置")
+    assert _numbered_rows("1-9. 跨太多週") == {}
+
+
+def test_midterm_tolerance_is_asymmetric(term):
+    """當**證據**時要求剛好對上；當**反證**時放寬 ±1——實測偏移 -1 有 33 筆，
+    那是教師把期中考辦在官方考試週前一週的正常變異（16 週的課中點就是第 8 週）。"""
+    # 差 1：其他證據（列數 16）成立，不否決
+    ok = "\n".join(f"{i}. {'期中考' if i == 8 else f'主題{i}'}" for i in range(1, 17))
+    assert build_weekly_progress(ok, 18, term).status == "resolved"
+    # 差 2：否決（實測那份把 Mid Term Exam 寫在第 7 列的）
+    bad = "\n".join(f"{i}. {'期中考' if i == 7 else f'主題{i}'}" for i in range(1, 19))
+    assert build_weekly_progress(bad, 18, term).status == "unparsed"
+
+
+def test_followup_mention_of_midterm_is_not_a_contradiction(term):
+    """361326 寫了 `9 Midterm` 與 `10 Review of midterm`，後者是正常的後續提及。
+    否決條件不可要求「恰好只有一列命中」。"""
+    text = "\n".join(f"{i}\t{ {9:'Midterm', 10:'Review of midterm'}.get(i, f'Topic {i}') }"
+                    for i in range(1, 17))
+    assert build_weekly_progress(text, 18, term).status == "resolved"
