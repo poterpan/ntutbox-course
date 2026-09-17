@@ -1,0 +1,48 @@
+# 跑測試的 CI。2026-09-16 新增——在此之前本 repo 沒有任何自動閘門會跑 pytest 或
+# packages/schema 的型別生成（6 支 workflow 全是爬蟲/發佈），寫好的測試等於文件。
+name: test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install crawler
+        run: pip install -e './crawler[dev]'
+
+      - name: Run tests
+        working-directory: crawler
+        run: pytest -q
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # models.py 是 schema 真相；型別產物必須跟著走，否則 web/iOS 兩端的契約會悄悄落後。
+      # index.d.ts 才是 apps/web 真正 import 的東西，一起釘住。
+      - name: Schema artifacts are up to date
+        working-directory: packages/schema
+        run: |
+          set -euo pipefail
+          python generate.py
+          npx --yes json-schema-to-typescript@15 --input schema.json --output index.d.ts
+          if ! git diff --quiet -- schema.json index.d.ts; then
+            echo "::error::packages/schema 產物與 crawler/models.py 不同步。"
+            echo "請在本機跑 pnpm --filter @ntutbox/schema generate 後把產物一併提交。"
+            git --no-pager diff --stat -- schema.json index.d.ts
+            exit 1
+          fi

@@ -1,0 +1,3 @@
+# 真實 ics 是 CRLF（RFC 5545）。測試 fixture 要保持與真實輸入相同的行尾，
+# 否則 git 正規化成 LF 之後，parser 的行摺疊/行尾處理就沒被測到真實形態。
+*.ics -text

@@ -184,6 +184,30 @@ export type GroupId = string | null;
 export type Notes1 = string;
 export type Courses2 = StandardCourse[];
 export type Programs1 = ProgramStandard[];
+export type SchemaVersion8 = number;
+export type Timezone1 = string;
+export type RangeEndSemantics = "inclusive";
+export type GeneratedAt3 = string | null;
+export type Type = string;
+export type Url1 = string;
+export type ContentSha256 = string;
+export type FetchedAt = string;
+export type ParserVersion = string;
+export type MaxStart = string;
+export type Ok = boolean;
+export type CheckedAt = string;
+export type Uid = string;
+export type Summary = string;
+export type AllDay = boolean;
+export type StartDate = string | null;
+export type EndDate = string | null;
+export type StartAt = string | null;
+export type EndAt = string | null;
+export type Description = string | null;
+export type Location = string | null;
+export type Sequence = number | null;
+export type LastModified = string | null;
+export type Events = CalendarEvent[];
 
 export interface NtutboxCourseV1 {
   TermCatalog?: TermCatalog;
@@ -194,6 +218,7 @@ export interface NtutboxCourseV1 {
   CourseDetail?: CourseDetail;
   MicroProgramDirectory?: MicroProgramDirectory;
   StandardDirectory?: StandardDirectory;
+  CalendarEventsFeed?: CalendarEventsFeed;
   [k: string]: unknown;
 }
 /**
@@ -520,5 +545,57 @@ export interface StandardCourse {
   stage?: Stage1;
   group_id?: GroupId;
   notes?: Notes1;
+  [k: string]: unknown;
+}
+/**
+ * v1/calendar/events.json：全量單檔（gzip 後約 25-35 KB）。
+ */
+export interface CalendarEventsFeed {
+  schema_version?: SchemaVersion8;
+  timezone?: Timezone1;
+  range_end_semantics?: RangeEndSemantics;
+  generated_at?: GeneratedAt3;
+  source: CalendarSource;
+  horizon: CalendarHorizon;
+  events?: Events;
+  [k: string]: unknown;
+}
+export interface CalendarSource {
+  type?: Type;
+  url: Url1;
+  content_sha256: ContentSha256;
+  fetched_at: FetchedAt;
+  parser_version: ParserVersion;
+  [k: string]: unknown;
+}
+/**
+ * feed 涵蓋到多遠。判準是 max(DTSTART) >= 次年 6 月，不是「有沒有新學年的事件」——
+ * 112 學年度的下學期拖到 2024-02 才進來，看到新學年不等於整學年到位。
+ */
+export interface CalendarHorizon {
+  max_start: MaxStart;
+  ok: Ok;
+  checked_at: CheckedAt;
+  [k: string]: unknown;
+}
+/**
+ * 一筆行事曆事件。日期語意固定 inclusive，全天與有時刻用不同欄位、不混用。
+ *
+ * 來源是校網公開的 Google Calendar ics。**summary 逐字保留、不做任何正規化**
+ * （不 trim、不 pangu、不改標點）——App 端有三處靠中文關鍵字反推語意，
+ * 發布端再加一層改寫會讓它們靜默失效。
+ */
+export interface CalendarEvent {
+  uid: Uid;
+  summary: Summary;
+  all_day: AllDay;
+  start_date?: StartDate;
+  end_date?: EndDate;
+  start_at?: StartAt;
+  end_at?: EndAt;
+  description?: Description;
+  location?: Location;
+  sequence?: Sequence;
+  last_modified?: LastModified;
   [k: string]: unknown;
 }
