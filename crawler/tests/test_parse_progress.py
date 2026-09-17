@@ -14,7 +14,7 @@ from ntut_catalog.parse_progress import (
     DEFAULT_WEEK_COUNT,
     WeekSegment,
     build_weekly_progress,
-    pair_bilingual,
+    order_candidates,
     parse_anchored_numbered_list,
     parse_date_list,
     parse_numbered_date_table,
@@ -118,37 +118,43 @@ def _seg(topic):
     return WeekSegment(3, 3, topic, "line", 1, "第3週", "single")
 
 
-def test_rule_a_merges_language_variants():
-    paired = pair_bilingual([_seg("機構之運動"), _seg("Kinematics of Mechanisms")])
-    assert [s.topic for s in paired] == ["機構之運動", "Kinematics of Mechanisms"]  # CJK 在前
+def test_rule_a_stacks_all_candidates_cjk_first():
+    """同一週多個候選 → 全部疊加，CJK 佔比高的排前面（App 取 topics[0] 就是中文）。"""
+    ordered = order_candidates([_seg("Kinematics of Mechanisms"), _seg("機構之運動")])
+    assert [s.topic for s in ordered] == ["機構之運動", "Kinematics of Mechanisms"]
 
 
-def test_rule_a_merges_regardless_of_input_order():
-    a = pair_bilingual([_seg("機構之運動"), _seg("Kinematics of Mechanisms")])
-    b = pair_bilingual([_seg("Kinematics of Mechanisms"), _seg("機構之運動")])
+def test_rule_a_order_is_independent_of_input_order():
+    a = order_candidates([_seg("機構之運動"), _seg("Kinematics")])
+    b = order_candidates([_seg("Kinematics"), _seg("機構之運動")])
     assert [s.topic for s in a] == [s.topic for s in b]
 
 
-@pytest.mark.parametrize("topics,why", [
-    (["機構之運動", "剛體運動學"], "兩者同語系"),
-    (["Kinematics", "Dynamics"], "兩者同語系"),
-    (["機構之運動", ""], "任一 topic 為空"),
-    (["機構之運動", "Kinematics", "第三個"], "候選 ≥ 3"),
-    (["機構之運動", "Ch.3 機構"], "拉丁那筆含 CJK，不是純語言變體"),
-])
-def test_rule_a_rejects(topics, why):
-    assert pair_bilingual([_seg(t) for t in topics]) is None, why
+def test_rule_a_keeps_same_language_candidates_too():
+    """2026-09-17 改：原本同語系會被整週丟棄，現在照收。
+    實測 361535 第 12 週教師真的寫了兩次（第11/12週、第12/13週），丟掉等於漏一週。"""
+    assert len(order_candidates([_seg("主題A"), _seg("主題B"), _seg("Topic C")])) == 3
 
 
-def test_rule_a_does_not_downgrade_status(term):
-    """使用者實測第 2 門課中英各寫一遍、18 週全部 ambiguous —— 這條就能全數救回。"""
+def test_rule_a_drops_empty_topics():
+    assert [s.topic for s in order_candidates([_seg("機構之運動"), _seg("")])] == ["機構之運動"]
+
+
+def test_ambiguity_no_longer_downgrades_status(term):
+    """沒有東西被丟掉了，partial 只應代表「有週次沒資料」。"""
     text = "\n".join(f"第{i}週 主題{i}\nWeek {i}: Topic {i}" for i in range(1, 19))
     wp = build_weekly_progress(text, 18, term)
     assert wp.status == "resolved"
-    assert len(wp.weeks) == 18
     assert wp.weeks[2].topics == ["主題3", "Topic 3"]
     assert wp.notes == []
 
+
+def test_many_candidates_are_noted_but_kept(term):
+    """超過 3 個候選時記一行 notes，讓 App 自己決定要不要截——但不丟。"""
+    text = "第5週 A\n第5週 B\n第5週 C\n第5週 D\n" + "\n".join(f"第{i}週 主題{i}" for i in range(1, 19) if i != 5)
+    wp = build_weekly_progress(text, 18, term)
+    assert len(wp.weeks[4].topics) == 4
+    assert any("4 個候選" in n for n in wp.notes)
 
 # ----------------------------------------------------------------- 規則 (b) 編號＋日期表
 
@@ -184,11 +190,18 @@ def test_rule_b_rejects(text, base, why):
     assert parse_numbered_date_table(text, base) is None, why
 
 
-def test_rule_b_rejects_bare_numbered_list(term):
-    """明確拒絕：沒有日期欄佐證的純編號清單。實測第 3 門是 `1.`…`14.`，很可能是章節。
-    **連「項數恰等於 week_count」也拒絕**——那只是巧合，一個證據不足以判定。"""
-    text = "\n".join(f"{i}. 章節{i}" for i in range(1, 19))
-    assert build_weekly_progress(text, 18, term).status == "unparsed"
+def test_bare_numbered_list_with_a_plausible_row_count_is_now_accepted(term):
+    """2026-09-17 政策改變。原規格寫「項數恰等於 week_count 只是巧合」——那是逐筆的直覺，
+    看母體就站不住：115-1 全量掃過，連續編號清單的列數在 6~15 列各只有 ≤19 筆，
+    16 列跳到 77、18 列跳到 110。章節清單不會剛好在兩個合法授課週數疊出兩根柱子。"""
+    assert build_weekly_progress("\n".join(f"{i}. 章節{i}" for i in range(1, 19)),
+                                 18, term).status == "resolved"
+
+
+def test_bare_numbered_list_with_an_implausible_row_count_is_still_rejected(term):
+    """14 列落在背景雜訊區間，沒有任何證據支持它是週次——仍然拒絕。"""
+    assert build_weekly_progress("\n".join(f"{i}. 章節{i}" for i in range(1, 15)),
+                                 18, term).status == "unparsed"
 
 
 # ----------------------------------------------------------------- 規則 (c) 純日期清單
@@ -265,13 +278,13 @@ def test_sha256_changes_with_source(term):
     assert a != b
 
 
-def test_ambiguous_week_is_skipped_with_a_note(term):
-    """其餘 ambiguous **不寫進 weeks**，在 notes 留一行、該週視為 missing、status 降 partial。
-    App 的版位是一行「本週：主題」，多候選在那裡沒有正確的呈現方式。"""
+def test_ambiguous_week_is_kept_by_stacking(term):
+    """2026-09-17 改：原本多候選整週丟棄 + 留 note + 降 partial，現在疊加保留。
+    status 仍是 partial，但原因是第 2、4~18 週沒資料，不是第 3 週有歧義。"""
     wp = build_weekly_progress("第1週 導論\n第3週 主題A\n第3週 主題B", 18, term)
-    assert wp.status == "partial"
-    assert [w.week for w in wp.weeks] == [1]
-    assert wp.notes == ["第 3 週有 2 個無法判定的候選，已略過"]
+    assert [w.week for w in wp.weeks] == [1, 3]
+    assert wp.weeks[1].topics == ["主題A", "主題B"]
+    assert wp.notes == []
 
 
 def test_no_candidates_field_is_exposed(term):
@@ -320,7 +333,9 @@ def test_marker_parser_never_regresses_below_poc(corpus):
             ambiguous += state == "ambiguous"
     assert with_segments >= POC_REPORT["schedules_with_segments"]   # POC 1255
     assert resolved >= 18735          # POC: resolved lookup cells；規則 (e) 推到 19063
-    assert ambiguous <= 800           # POC 734；規則 (e) 讓少數週多出候選，不得失控
+    # ambiguous 的絕對數已不重要——2026-09-17 起多候選一律疊加、不再丟棄整週。
+    # 這裡只確認它沒有爆炸式成長（代表 marker 規則把不相干的東西也收進來了）。
+    assert ambiguous <= 1200          # POC 734
 
 
 def test_regression_thresholds_never_go_down(corpus, term):
@@ -338,8 +353,12 @@ def test_regression_thresholds_never_go_down(corpus, term):
     assert coverage >= 0.5697, f"schedule_parse_coverage 下降到 {coverage:.4f}"
     assert cell_rate >= 0.4725, f"resolved_lookup_cell_rate 下降到 {cell_rate:.4f}"
     # 規則 (a)~(e) 實際把兩個數字推到這裡；掉回門檻附近代表有規則失效了
-    assert coverage >= 0.628, f"coverage {coverage:.4f} 低於規則 (a)~(e) 應達到的水準"
-    assert cell_rate >= 0.555, f"cell_rate {cell_rate:.4f} 低於規則 (a)~(e) 應達到的水準"
+    # 2026-09-17~18 這幾輪：候選疊加、各種 marker／首欄變體、列數與表頭證據、取最完整結果。
+    # ⚠️ 2026-09-18 的「時長偵測」**刻意讓數字下降**（2 筆從 partial 變 unparsed）——
+    # 那兩筆原本輸出的是錯的週次（`9週迎新活動` 被當成第 9 週）。拿掉錯誤資訊會讓
+    # coverage 變差但產品變好，所以門檻跟著調低，不是回歸。
+    assert coverage >= 0.778, f"coverage {coverage:.4f} 低於本輪應達到的水準"
+    assert cell_rate >= 0.704, f"cell_rate {cell_rate:.4f} 低於本輪應達到的水準"
 
 
 # ----------------------------------------------------------------- 產物與離線重產
@@ -464,7 +483,7 @@ def test_rule_d_accepts_a_16_week_plan(term):
 
 @pytest.mark.parametrize("text,why", [
     (_numbered(midterm_at=7), "期中考寫在第 7 列，與行事曆的第 9 週對不上"),
-    (_numbered(midterm_at=None), "通篇沒有期中考，沒有證據"),
+    (_numbered(rows=14, midterm_at=None), "14 列、無期中考——列數落在背景區間，沒有證據"),
     (_numbered(rows=8, midterm_at=None), "列數不足"),
     ("\n".join(f"{i}. 單元{i}（2 months）" for i in range(1, 7)), "月份不是週次，且列數不足"),
 ])
@@ -482,7 +501,9 @@ def test_rule_d_only_uses_midterm_not_final(term):
     """期末考錨點**不可靠**：115-1 全量掃過，期末考落在行事曆對應週的偏移分布，
     峰值在 +1（82 筆）與 +3（53 筆）、剛好只有 16 筆——因為考期橫跨第 15、16 週，
     而且很多教師把「期末」寫在最後一列。所以只有期末考對上不足以採信。"""
-    assert parse_anchored_numbered_list(_numbered(midterm_at=None, final_at=15), term) is None
+    # 用 14 列（列數證據不成立）隔離出「只有期末考對上」這個情境
+    assert parse_anchored_numbered_list(
+        _numbered(rows=14, midterm_at=None, final_at=15), term) is None
 
 
 def test_rule_d_requires_a_contiguous_sequence_from_one(term):
@@ -526,3 +547,177 @@ def test_rule_e_does_not_change_the_fixture_baselines():
     for case in GOLD:
         assert [[s.start_week, s.end_week, s.topic] for s in parse_schedule(case["text"]).segments] \
             == [list(x) for x in case["segments"]], case["name"]
+
+
+# ----------------------------------------------------------------- 彈性週寬限／體育排除
+
+def test_flexible_weeks_may_be_missing_and_still_resolved(term):
+    """115-1 的第 17、18 週是彈性學習週，教師常不排課或放進彈休區域。1~16 週齊全就算完整。"""
+    assert build_weekly_progress("\n".join(f"第{i}週 主題{i}" for i in range(1, 17)),
+                                 18, term).status == "resolved"
+    assert build_weekly_progress("\n".join(f"第{i}週 主題{i}" for i in range(1, 18)),
+                                 18, term).status == "resolved"
+
+
+def test_missing_a_teaching_week_is_still_partial(term):
+    text = "\n".join(f"第{i}週 主題{i}" for i in range(1, 17) if i != 15)
+    assert build_weekly_progress(text, 18, term).status == "partial"
+
+
+def test_grace_requires_the_term_to_actually_have_flexible_weeks(term):
+    """**閘門綁資料，不寫死 {17,18}**：沒有行事曆就沒有寬限——115 以前第 17、18 週是
+    正常上課週，套寬限等於把「教師漏排兩週」誤判成完整。"""
+    text = "\n".join(f"第{i}週 主題{i}" for i in range(1, 17))
+    assert build_weekly_progress(text, 18, None).status == "partial"
+    no_flex = term.model_copy(update={"flexible_learning": None})
+    assert build_weekly_progress(text, 18, no_flex).status == "partial"
+
+
+def test_pe_courses_get_no_weekly_progress(term):
+    """體育不產逐週進度：進度欄常是「一堂課塞很多活動」，沒有正確答案可抽。
+    用 None（我們沒產）而不是 unparsed（教師未提供）——後者是不實陳述。"""
+    from models import Syllabus
+    from ntut_catalog.parse_progress import attach_weekly_progress, is_progress_excluded
+    syllabi = [Syllabus(schedule="\n".join(f"第{i}週 主題{i}" for i in range(1, 19)))]
+    attach_weekly_progress(syllabi, term, course_name="體育")
+    assert syllabi[0].weekly_progress is None
+    assert is_progress_excluded("體育") and not is_progress_excluded("體育行政")
+
+    other = [Syllabus(schedule="第1週 導論")]
+    attach_weekly_progress(other, term, course_name="微積分")
+    assert other[0].weekly_progress is not None
+
+
+# ----------------------------------------------------------------- 表格首欄的三種寫法
+
+def test_rows_accept_chinese_numerals(term):
+    """表格常見 `週次 / 一 / 二 / 三`（360924、361168、361488）。中文數字在這裡安全——
+    陷阱 3 擔心的 `一週`＝時長，但這條只在有額外證據時才被採信。"""
+    text = "週次\t單元主題\n" + "\n".join(
+        f"{c}\t主題{i}" for i, c in enumerate("一 二 三 四 五 六 七 八 九 十 十一 十二 十三 十四 十五 十六".split(), 1))
+    wp = build_weekly_progress(text, 18, term)
+    assert wp.status == "resolved" and len(wp.weeks) == 16
+
+
+def test_rows_expand_merged_ranges(term):
+    """`3-4. 主題` 是一列涵蓋兩週。不展開的話序列不連續，整份會被拒（360754）。"""
+    text = "週次   單元主題\n1. 導論\n2. 基礎\n3-4. 機器學習\n5-7. 演算法\n8. 期中考\n9-13. 深度學習\n14-15. NLP\n16. 期末考"
+    wp = build_weekly_progress(text, 18, term)
+    assert [w.week for w in wp.weeks] == list(range(1, 17))
+    assert wp.weeks[2].topics == wp.weeks[3].topics == ["機器學習"]
+
+
+def test_reversed_or_overlong_merged_range_is_skipped(term):
+    from ntut_catalog.parse_progress import _numbered_rows
+    assert 9 not in _numbered_rows("9-3. 倒置")
+    assert _numbered_rows("1-9. 跨太多週") == {}
+
+
+def test_midterm_tolerance_is_asymmetric(term):
+    """當**證據**時要求剛好對上；當**反證**時放寬 ±1——實測偏移 -1 有 33 筆，
+    那是教師把期中考辦在官方考試週前一週的正常變異（16 週的課中點就是第 8 週）。"""
+    # 差 1：其他證據（列數 16）成立，不否決
+    ok = "\n".join(f"{i}. {'期中考' if i == 8 else f'主題{i}'}" for i in range(1, 17))
+    assert build_weekly_progress(ok, 18, term).status == "resolved"
+    # 差 2：否決（實測那份把 Mid Term Exam 寫在第 7 列的）
+    bad = "\n".join(f"{i}. {'期中考' if i == 7 else f'主題{i}'}" for i in range(1, 19))
+    assert build_weekly_progress(bad, 18, term).status == "unparsed"
+
+
+def test_followup_mention_of_midterm_is_not_a_contradiction(term):
+    """361326 寫了 `9 Midterm` 與 `10 Review of midterm`，後者是正常的後續提及。
+    否決條件不可要求「恰好只有一列命中」。"""
+    text = "\n".join(f"{i}\t{ {9:'Midterm', 10:'Review of midterm'}.get(i, f'Topic {i}') }"
+                    for i in range(1, 17))
+    assert build_weekly_progress(text, 18, term).status == "resolved"
+
+
+# ----------------------------------------------------------------- 2026-09-18 第二批實測
+
+def test_teacher_disclaimer_no_longer_kills_the_whole_schedule(term):
+    """文末一句「教師可視情況做出調整」曾讓 18 週全解析的進度表整份被判 unparsed
+    （366876／366838／366828），單週備註「專題演講 (待定)」也一樣（364705）。
+    那些是免責註記，不是「這門課沒有進度」。"""
+    text = "\n".join(f"第{i}週 主題{i}" for i in range(1, 19)) + "\n※進度與活動將視情況調整。"
+    assert build_weekly_progress(text, 18, term).status == "resolved"
+
+
+@pytest.mark.parametrize("text,why", [
+    ("", "空字串"), ("   ", "只有空白"), ("TBA", "短到不可能有內容"),
+])
+def test_still_unparsed_when_there_is_genuinely_nothing(term, text, why):
+    assert build_weekly_progress(text, 18, term).status == "unparsed", why
+
+
+def test_row_prefix_variants(term):
+    from ntut_catalog.parse_progress import _numbered_rows
+    assert _numbered_rows("1: 課程介紹")[1] == "課程介紹"              # 冒號（361781）
+    assert _numbered_rows("001(09/10)\t課程介紹")[1] == "課程介紹"      # 前導零＋括號日期（361761）
+    assert _numbered_rows("一~四\t硬體架構")[4] == "硬體架構"            # 中文 range（361557）
+
+
+def test_marker_variants(term):
+    """`WK-1`（366869）與 `週 01.`（361439）——週字在數字之前。"""
+    assert [s.start_week for s in parse_schedule("WK-1 創業管理課程說明").segments] == [1]
+    assert parse_schedule("週 02.\t設計實務").segments[0].topic == "設計實務"
+    # `Week 1-4` 不受連字號分隔符影響，仍是 range
+    segs = parse_schedule("Week 1-4 Introduction").segments
+    assert (segs[0].start_week, segs[0].end_week) == (1, 4)
+
+
+def test_declared_header_outranks_the_midterm_position(term):
+    """表頭寫了「週次」就等於教師說明了首欄是什麼，比期中考位置更直接。
+    361557 表頭有「週次」、1~18 齊全，只因為教師把期中考辦在第 7 週而整份被丟。"""
+    rows = "\n".join(f"{i}\t{'期中考' if i == 7 else f'主題{i}'}" for i in range(1, 19))
+    assert build_weekly_progress("週次\t名稱\n" + rows, 18, term).status == "resolved"
+    # 沒有表頭宣告時，差 2 週仍然否決
+    assert build_weekly_progress(rows, 18, term).status == "unparsed"
+
+
+# ----------------------------------------------------------------- 取最完整的結果
+
+def test_a_stray_week_mention_no_longer_blocks_the_row_rules(term):
+    """362282 第 1 列的主題寫著「請明確第二週實驗順序」，那個「第二週」被當成 marker，
+    舊版只要 marker 路徑抓到任何一週就不再試其他規則 → 16 週的編號表整個沒用上。"""
+    text = ("週次\t實驗進度\n1\t分組(每組每週做不同實驗，請明確第二週實驗順序)\n"
+            + "\n".join(f"{i}\t實驗{i}" for i in range(2, 17)))
+    wp = build_weekly_progress(text, 18, term)
+    assert wp.status == "resolved" and len(wp.weeks) == 16
+
+
+def test_best_rule_wins_not_the_first_one(term):
+    """規則之間也是取最完整的。362890 規則 (c) 先命中只回 15 週、(d) 回得了 18 週；
+    364517 規則 (b) 因日期與主題同格把主題吃成空字串，實際只剩 10 週。"""
+    from ntut_catalog.parse_progress import _weeks_from_row_rules
+    rows = "\n".join(f"{i}. {(term.weeks[i-1].start[5:].replace('-','/'))}，主題{i}"
+                     for i in range(1, 19))
+    assert len(_weeks_from_row_rules(rows, term, 18)) == 18
+
+
+def test_underscore_after_the_week_number(term):
+    """`Week 1_Syllabus`（364628）——底線算單字字元，結尾的 \\b 不成立，整批被漏掉。"""
+    segs = parse_schedule("Week 1_Syllabus and Overview").segments
+    assert (segs[0].start_week, segs[0].topic) == (1, "Syllabus and Overview")
+    assert [s.start_week for s in parse_schedule("Week 12 Final").segments] == [12]
+
+
+def test_durations_are_not_mistaken_for_week_numbers(term):
+    """`9週迎新／1週圖書館／2週工程倫理／6週專題` = 依序分配的時長，9+1+2+6=18。
+    舊版輸出「第 9 週＝迎新活動」，那是錯的（實際是第 1~9 週）。363304 實例。"""
+    text = "9週學校安排迎新活動\n1週圖書館導覽\n2週工程倫理報告\n6週專題演講"
+    assert build_weekly_progress(text, 18, term).status == "unparsed"
+
+
+def test_real_week_numbers_that_happen_to_sum_to_18_are_kept(term):
+    """`第2週 星期二`／`第2週 星期三` 這種同一週分兩天的寫法，起始週加總也會湊到 18，
+    但那是巧合。有「第」就是明確序數，不得因加總而拒絕。"""
+    text = "\n".join(f"第{w}週 星期{d} 主題" for w, d in
+                     [(2,'二'),(2,'三'),(3,'二'),(3,'三'),(4,'二'),(4,'三')])
+    wp = build_weekly_progress(text, 18, term)
+    assert wp.status == "partial" and [w.week for w in wp.weeks] == [2, 3, 4]
+
+
+def test_ascending_from_one_is_never_treated_as_durations(term):
+    """順序從 1 開始遞增就是週次表，即使加總剛好落在授課週數。"""
+    text = "1週導論\n2週基礎\n3週進階\n4週實作\n8週專題"
+    assert build_weekly_progress(text, 18, term).status == "partial"

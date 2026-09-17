@@ -52,7 +52,7 @@ def crawl_detail(
                 logger.warning("[%s] syllabus (%s,%s) failed: %s", off.offering_id, snum, tc, e)
 
         # 契約一：逐週進度是 schedule 的結構化衍生欄位，原文一律保留、不覆寫。
-        attach_weekly_progress(syllabi, term, now_iso)
+        attach_weekly_progress(syllabi, term, now_iso, course_name=off.name.zh)
 
         details.append(
             CourseDetail(
