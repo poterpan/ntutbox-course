@@ -47,13 +47,15 @@ CHINESE_SINGLE_RE = re.compile(                             # 陷阱 2：排除�
 # week 字與數字之間允許 . : # ＃（實測 `WK#01`，361223 設施規劃）
 # 分隔符包含連字號（`WK-1`，366869）。`Week 1-4` 不受影響——range 分支照樣吃得到。
 _EN_WEEK = r"(?:weeks?|wks?|wk|w)\s*[.:#＃-]?\s*"
+# 結尾用 (?!\w) 而不是 \b：底線算單字字元，`Week 1_Syllabus`（364628）在 `1` 與 `_`
+# 之間沒有 \b，整批 `Week N_` 都會被漏掉。(?!\w) 同時擋掉 `Week 12` 被讀成 `Week 1`。
 ENGLISH_WEEK_RE = re.compile(
     rf"(?i)\b{_EN_WEEK}(?P<start>{ARABIC_NUMBER})"
-    rf"(?:\s*(?:~|–|-|to)\s*(?:{_EN_WEEK})?(?P<end>{ARABIC_NUMBER}))?\b")
+    rf"(?:\s*(?:~|–|-|to)\s*(?:{_EN_WEEK})?(?P<end>{ARABIC_NUMBER}))?(?!\d)")
 # 英文的 list 形式。中文的 `第15/16/17/18週` 早就解成 list，英文的 `Week 15/16/17/18`
 # 卻只吃到 15、`/16/17/18` 變成主題文字——這個不對稱正是 361535 第 15 週漏掉的原因。
 ENGLISH_LIST_RE = re.compile(
-    rf"(?i)\b{_EN_WEEK}(?P<items>{ARABIC_NUMBER}(?:\s*[,/、]\s*{ARABIC_NUMBER})+)\b")
+    rf"(?i)\b{_EN_WEEK}(?P<items>{ARABIC_NUMBER}(?:\s*[,/、]\s*{ARABIC_NUMBER})+)(?!\d)")
 # 序數寫法 `1st week` / `10th week`（實測 360934 單元操作）——數字在 week 之前，
 # 與上面兩條的順序相反，所以要獨立一條。
 ENGLISH_ORDINAL_RE = re.compile(
@@ -186,7 +188,7 @@ def _candidate_markers(line: str) -> List[_Marker]:
 
 
 def _clean_topic(value: str) -> str:
-    value = re.sub(r"^[\s\t:：;；,，、.。\[\]【】\-–—]+", "", value)
+    value = re.sub(r"^[\s\t:：;；,，、.。\[\]【】\-–—_＿]+", "", value)
     value = re.sub(r"[\s\t:：;；,，、.。\[\]【】\-–—]+$", "", value).strip()
     if value in {"(", ")", "（", "）"}:
         return ""
@@ -652,40 +654,21 @@ def build_weekly_progress(
     if _is_unparseable_text(schedule):
         return _unparsed(schedule, [], now)
 
-    notes: List[str] = []
-    weeks: List[WeeklyProgressWeek] = []
+    marker_weeks, notes = _weeks_from_markers(schedule, week_count)
+    rule_weeks = _weeks_from_row_rules(schedule, term, week_count)
 
-    result = parse_schedule(schedule, week_count)
-    resolved_any = any(resolve_week(result, w, week_count)["status"] != "missing"
-                       for w in range(1, week_count + 1))
-
-    if resolved_any:
-        for week in range(1, week_count + 1):
-            state = resolve_week(result, week, week_count)
-            if state["status"] == "missing":
-                continue
-            candidates = order_candidates(state["candidates"])
-            if len(candidates) > _MANY_CANDIDATES:
-                notes.append(f"第 {week} 週有 {len(candidates)} 個候選，已全數保留")
-            weeks.append(WeeklyProgressWeek(
-                week=week,
-                topics=[c.topic for c in candidates],
-                source_lines=list(dict.fromkeys(c.source_line for c in candidates)),
-            ))
-    else:
-        rows = None
-        if term is not None and term.weeks:
-            base_year = dt.date.fromisoformat(term.weeks[0].start).year
-            rows = parse_numbered_date_table(schedule, base_year, week_count)
-            if rows is None:
-                rows = parse_date_list(schedule, term.weeks)
-            if rows is None:
-                rows = parse_anchored_numbered_list(schedule, term, week_count)
-        if not rows:
-            return _unparsed(schedule, notes, now)
-        for week, _date, topic in rows:
-            if topic:
-                weeks.append(WeeklyProgressWeek(week=week, topics=[topic], source_lines=[]))
+    # **取解出最多週的那個結果，不是先命中的那個。**
+    # 2026-09-18 改：原本是「marker 路徑只要抓到任何一週就不再試其他規則」，
+    # 而其他三條規則之間也是先到先贏。四條規則各有自己的證據門檻把關，多條同時成立時
+    # 它們都可信，沒有理由不挑最完整的。實測踩到的：
+    #   362282 主題文字裡的「第二週」被當成 marker → 抓到 1 週，就擋掉 1~16 齊全的編號列
+    #   362890 規則 (c) 先命中只回 15 週，規則 (d) 其實回得了 18 週
+    #   364517 規則 (b) 先命中，但日期與主題同格時主題被吃成空字串，實際只剩 10 週
+    # 順帶解掉「假 marker」：它只會產出 1 週，必然輸給完整的編號列，
+    # 不需要另外做很難做對的「偵測假 marker」。
+    weeks = max(marker_weeks, rule_weeks, key=len)
+    if weeks is not marker_weeks:
+        notes = []               # notes 是 marker 路徑產的，換路徑就不適用
 
     if not weeks:
         return _unparsed(schedule, notes, now)
@@ -711,6 +694,50 @@ PROGRESS_EXCLUDED_COURSE_NAMES = frozenset({"體育"})
 def is_progress_excluded(course_name: Optional[str]) -> bool:
     return (course_name or "").strip() in PROGRESS_EXCLUDED_COURSE_NAMES
 
+
+
+def _weeks_from_markers(schedule: str, week_count: int
+                        ) -> Tuple[List[WeeklyProgressWeek], List[str]]:
+    """marker 路徑（`第3週`、`Week 3` 等明確週次標記）。"""
+    result = parse_schedule(schedule, week_count)
+    weeks: List[WeeklyProgressWeek] = []
+    notes: List[str] = []
+    for week in range(1, week_count + 1):
+        state = resolve_week(result, week, week_count)
+        if state["status"] == "missing":
+            continue
+        candidates = order_candidates(state["candidates"])
+        if len(candidates) > _MANY_CANDIDATES:
+            notes.append(f"第 {week} 週有 {len(candidates)} 個候選，已全數保留")
+        weeks.append(WeeklyProgressWeek(
+            week=week,
+            topics=[c.topic for c in candidates],
+            source_lines=list(dict.fromkeys(c.source_line for c in candidates)),
+        ))
+    return weeks, notes
+
+
+def _weeks_from_row_rules(schedule: str, term: Optional[AcademicTerm],
+                          week_count: int) -> List[WeeklyProgressWeek]:
+    """規則 (b) 編號＋日期表／(c) 純日期清單／(d) 行事曆錨點編號清單。
+
+    三條都跑、取最完整的——它們各自的門檻已經把關過，誰先命中不代表誰比較對。
+    沒有行事曆（term）時三條都不適用。
+    """
+    if term is None or not term.weeks:
+        return []
+    base_year = dt.date.fromisoformat(term.weeks[0].start).year
+    best: List[WeeklyProgressWeek] = []
+    for rows in (parse_numbered_date_table(schedule, base_year, week_count),
+                 parse_date_list(schedule, term.weeks),
+                 parse_anchored_numbered_list(schedule, term, week_count)):
+        if not rows:
+            continue
+        weeks = [WeeklyProgressWeek(week=w, topics=[topic], source_lines=[])
+                 for w, _date, topic in rows if topic]
+        if len(weeks) > len(best):
+            best = weeks
+    return best
 
 def attach_weekly_progress(syllabi, term: Optional[AcademicTerm] = None,
                            now: Optional[str] = None,

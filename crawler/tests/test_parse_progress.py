@@ -354,8 +354,8 @@ def test_regression_thresholds_never_go_down(corpus, term):
     assert cell_rate >= 0.4725, f"resolved_lookup_cell_rate 下降到 {cell_rate:.4f}"
     # 規則 (a)~(e) 實際把兩個數字推到這裡；掉回門檻附近代表有規則失效了
     # 2026-09-17 一輪：候選疊加、英文 list／序數／WK#／全形／點號、列數與表頭證據
-    assert coverage >= 0.776, f"coverage {coverage:.4f} 低於本輪應達到的水準"
-    assert cell_rate >= 0.697, f"cell_rate {cell_rate:.4f} 低於本輪應達到的水準"
+    assert coverage >= 0.779, f"coverage {coverage:.4f} 低於本輪應達到的水準"
+    assert cell_rate >= 0.705, f"cell_rate {cell_rate:.4f} 低於本輪應達到的水準"
 
 
 # ----------------------------------------------------------------- 產物與離線重產
@@ -669,3 +669,30 @@ def test_declared_header_outranks_the_midterm_position(term):
     assert build_weekly_progress("週次\t名稱\n" + rows, 18, term).status == "resolved"
     # 沒有表頭宣告時，差 2 週仍然否決
     assert build_weekly_progress(rows, 18, term).status == "unparsed"
+
+
+# ----------------------------------------------------------------- 取最完整的結果
+
+def test_a_stray_week_mention_no_longer_blocks_the_row_rules(term):
+    """362282 第 1 列的主題寫著「請明確第二週實驗順序」，那個「第二週」被當成 marker，
+    舊版只要 marker 路徑抓到任何一週就不再試其他規則 → 16 週的編號表整個沒用上。"""
+    text = ("週次\t實驗進度\n1\t分組(每組每週做不同實驗，請明確第二週實驗順序)\n"
+            + "\n".join(f"{i}\t實驗{i}" for i in range(2, 17)))
+    wp = build_weekly_progress(text, 18, term)
+    assert wp.status == "resolved" and len(wp.weeks) == 16
+
+
+def test_best_rule_wins_not_the_first_one(term):
+    """規則之間也是取最完整的。362890 規則 (c) 先命中只回 15 週、(d) 回得了 18 週；
+    364517 規則 (b) 因日期與主題同格把主題吃成空字串，實際只剩 10 週。"""
+    from ntut_catalog.parse_progress import _weeks_from_row_rules
+    rows = "\n".join(f"{i}. {(term.weeks[i-1].start[5:].replace('-','/'))}，主題{i}"
+                     for i in range(1, 19))
+    assert len(_weeks_from_row_rules(rows, term, 18)) == 18
+
+
+def test_underscore_after_the_week_number(term):
+    """`Week 1_Syllabus`（364628）——底線算單字字元，結尾的 \\b 不成立，整批被漏掉。"""
+    segs = parse_schedule("Week 1_Syllabus and Overview").segments
+    assert (segs[0].start_week, segs[0].topic) == (1, "Syllabus and Overview")
+    assert [s.start_week for s in parse_schedule("Week 12 Final").segments] == [12]
