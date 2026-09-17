@@ -696,10 +696,40 @@ def is_progress_excluded(course_name: Optional[str]) -> bool:
 
 
 
+def _looks_like_durations(result: ParseResult, week_count: int) -> bool:
+    """判斷 `9週…／1週…／2週…／6週…` 這種寫法是**時長**而不是週次。
+
+    這是 POC 陷阱 3 的阿拉伯數字版。當年只擋了中文數字（`一週`＝要花一到兩週），
+    阿拉伯數字刻意放行，因為 `1-4週` 是來源的主流表格格式。但實測 363304 是
+    `9週學校安排迎新活動／1週圖書館導覽／2週工程倫理報告／6週專題演講`——
+    9+1+2+6 = 18，那是依序分配的時長，我們卻輸出「第 9 週＝迎新活動」，錯的。
+
+    三個條件缺一不可（全量掃過，這組合有 2 筆命中、0 筆誤判）：
+      ① 所有 marker 都沒有「第」——有第就是明確的序數，`第2週 星期二`／`第2週 星期三`
+         這種同一週分兩天的寫法加總也會湊到 18，那是巧合，不能收
+      ② 原始行序不是從 1 開始遞增——週次表通常從第 1 週往下排
+      ③ 起始週加總落在該學期的合法授課週數——依序分配的時長會剛好用完整個學期
+
+    命中就**整份拒絕**，不臆造區間。把 9 解讀成「第 1~9 週」看起來合理，但只有
+    2 個樣本、沒有東西可以驗證那個解讀，誤把時長攤成區間一樣是使用者看得見的錯誤。
+    """
+    segments = sorted(result.segments, key=lambda x: (x.line_number, x.start_week))
+    if len(segments) < 3:
+        return False
+    if any(s.marker.lstrip().startswith("第") for s in segments):
+        return False
+    order = [s.start_week for s in segments]
+    if order[0] == 1 and all(a <= b for a, b in zip(order, order[1:])):
+        return False
+    return week_count - 2 <= sum(order) <= week_count
+
+
 def _weeks_from_markers(schedule: str, week_count: int
                         ) -> Tuple[List[WeeklyProgressWeek], List[str]]:
     """marker 路徑（`第3週`、`Week 3` 等明確週次標記）。"""
     result = parse_schedule(schedule, week_count)
+    if _looks_like_durations(result, week_count):
+        return [], []
     weeks: List[WeeklyProgressWeek] = []
     notes: List[str] = []
     for week in range(1, week_count + 1):

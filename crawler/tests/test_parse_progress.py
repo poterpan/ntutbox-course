@@ -353,9 +353,12 @@ def test_regression_thresholds_never_go_down(corpus, term):
     assert coverage >= 0.5697, f"schedule_parse_coverage 下降到 {coverage:.4f}"
     assert cell_rate >= 0.4725, f"resolved_lookup_cell_rate 下降到 {cell_rate:.4f}"
     # 規則 (a)~(e) 實際把兩個數字推到這裡；掉回門檻附近代表有規則失效了
-    # 2026-09-17 一輪：候選疊加、英文 list／序數／WK#／全形／點號、列數與表頭證據
-    assert coverage >= 0.779, f"coverage {coverage:.4f} 低於本輪應達到的水準"
-    assert cell_rate >= 0.705, f"cell_rate {cell_rate:.4f} 低於本輪應達到的水準"
+    # 2026-09-17~18 這幾輪：候選疊加、各種 marker／首欄變體、列數與表頭證據、取最完整結果。
+    # ⚠️ 2026-09-18 的「時長偵測」**刻意讓數字下降**（2 筆從 partial 變 unparsed）——
+    # 那兩筆原本輸出的是錯的週次（`9週迎新活動` 被當成第 9 週）。拿掉錯誤資訊會讓
+    # coverage 變差但產品變好，所以門檻跟著調低，不是回歸。
+    assert coverage >= 0.778, f"coverage {coverage:.4f} 低於本輪應達到的水準"
+    assert cell_rate >= 0.704, f"cell_rate {cell_rate:.4f} 低於本輪應達到的水準"
 
 
 # ----------------------------------------------------------------- 產物與離線重產
@@ -696,3 +699,25 @@ def test_underscore_after_the_week_number(term):
     segs = parse_schedule("Week 1_Syllabus and Overview").segments
     assert (segs[0].start_week, segs[0].topic) == (1, "Syllabus and Overview")
     assert [s.start_week for s in parse_schedule("Week 12 Final").segments] == [12]
+
+
+def test_durations_are_not_mistaken_for_week_numbers(term):
+    """`9週迎新／1週圖書館／2週工程倫理／6週專題` = 依序分配的時長，9+1+2+6=18。
+    舊版輸出「第 9 週＝迎新活動」，那是錯的（實際是第 1~9 週）。363304 實例。"""
+    text = "9週學校安排迎新活動\n1週圖書館導覽\n2週工程倫理報告\n6週專題演講"
+    assert build_weekly_progress(text, 18, term).status == "unparsed"
+
+
+def test_real_week_numbers_that_happen_to_sum_to_18_are_kept(term):
+    """`第2週 星期二`／`第2週 星期三` 這種同一週分兩天的寫法，起始週加總也會湊到 18，
+    但那是巧合。有「第」就是明確序數，不得因加總而拒絕。"""
+    text = "\n".join(f"第{w}週 星期{d} 主題" for w, d in
+                     [(2,'二'),(2,'三'),(3,'二'),(3,'三'),(4,'二'),(4,'三')])
+    wp = build_weekly_progress(text, 18, term)
+    assert wp.status == "partial" and [w.week for w in wp.weeks] == [2, 3, 4]
+
+
+def test_ascending_from_one_is_never_treated_as_durations(term):
+    """順序從 1 開始遞增就是週次表，即使加總剛好落在授課週數。"""
+    text = "1週導論\n2週基礎\n3週進階\n4週實作\n8週專題"
+    assert build_weekly_progress(text, 18, term).status == "partial"
