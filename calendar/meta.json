@@ -1,0 +1,14 @@
+{
+ "source": {
+  "type": "google_calendar_ics",
+  "url": "https://calendar.google.com/calendar/ical/docfuhim9b22fqvp2tk842ak3c%40group.calendar.google.com/public/basic.ics",
+  "content_sha256": "18896a2b24240b1c4b63b96af19f6c97ef2c705a79903f6495febad46632dbb3",
+  "fetched_at": "2026-09-18T06:04:53+08:00",
+  "parser_version": "calendar-events/1.0.0"
+ },
+ "horizon": {
+  "max_start": "2027-07-03",
+  "ok": true,
+  "checked_at": "2026-09-18T06:04:53+08:00"
+ }
+}
