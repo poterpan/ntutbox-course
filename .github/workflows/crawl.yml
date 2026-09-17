@@ -122,6 +122,7 @@ jobs:
       # 失敗不得阻斷每日 catalog/enrollment 的 commit 與 publish（當日 calendar 維持 stale）。
       # 內容沒變時 crawl-calendar 不重寫 canonical，所以不會製造噪音 commit。
       - name: Crawl academic calendar (ics)
+        id: calendar
         continue-on-error: true
         run: |
           set -euo pipefail
@@ -163,7 +164,7 @@ jobs:
           # 行事曆是跨學期的 top-level 目錄，不吃上面那些 '*/xxx' 的逐學期 glob，要指名。
           # 內容沒變時 crawl-calendar 不重寫檔案 → 這裡自然無 diff、不會產生空 commit，
           # 所以 data branch 上每一個 data(calendar) commit 都代表學校真的改了行事曆。
-          git add -- 'calendar/events.ndjson' 'calendar/meta.json' || true
+          git add -- 'calendar/events.ndjson' 'calendar/meta.json' '*/calendar.json' || true
           git diff --cached --quiet || git commit -m "data(calendar): $DATE"
           git pull --rebase origin data || true
           git push origin HEAD:data
@@ -180,3 +181,12 @@ jobs:
             --min-ratio "$MIN_RATIO" \
             --previous-counts "$PREV_COUNTS" \
             --generated-at "$(date -u +%FT%TZ)"
+
+      # 行事曆失敗不擋 catalog/enrollment 的發布（上面 continue-on-error），但**必須讓 job 紅**，
+      # 否則「校方改了事件措辭、週次表停在上一版」會靜默過去——這正是換源要消滅的失效模式。
+      # 放在 publish 之後：舊版 calendar 已隨本次發布保留，這裡只負責叫人。
+      - name: Fail if calendar step failed
+        if: steps.calendar.outcome == 'failure'
+        run: |
+          echo "::error title=行事曆抓取或週次表推導失敗::本次沿用上一版 calendar；catalog/enrollment 已照常發布。常見原因：校方改了事件標題措辭（不變量⑧）或週次表與校方公告不符（不變量⑩）。"
+          exit 1

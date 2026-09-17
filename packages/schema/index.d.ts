@@ -208,6 +208,26 @@ export type Location = string | null;
 export type Sequence = number | null;
 export type LastModified = string | null;
 export type Events = CalendarEvent[];
+export type SchemaVersion9 = number;
+export type Timezone2 = string;
+export type WeekStartsOn = "sunday";
+export type RangeEndSemantics1 = "inclusive";
+export type GeneratedAt4 = string | null;
+export type Type1 = string;
+export type Url2 = string;
+export type ContentSha2561 = string;
+export type ParsedAt = string;
+export type ParserVersion1 = string;
+export type DerivedFields = string[];
+export type AdministrativeStart = string | null;
+export type Start = string;
+export type End = string;
+export type InstructionStart = string;
+export type Number = number;
+export type Start1 = string;
+export type End1 = string;
+export type Weeks = TermWeek[];
+export type BreakStart = string;
 
 export interface NtutboxCourseV1 {
   TermCatalog?: TermCatalog;
@@ -219,6 +239,7 @@ export interface NtutboxCourseV1 {
   MicroProgramDirectory?: MicroProgramDirectory;
   StandardDirectory?: StandardDirectory;
   CalendarEventsFeed?: CalendarEventsFeed;
+  TermCalendarFile?: TermCalendarFile;
   [k: string]: unknown;
 }
 /**
@@ -428,6 +449,7 @@ export interface ManifestTerm {
   classes?: ManifestEntry | null;
   periods?: ManifestEntry | null;
   mprograms?: ManifestEntry | null;
+  calendar?: ManifestEntry | null;
   dataset_version?: DatasetVersion;
   [k: string]: unknown;
 }
@@ -597,5 +619,70 @@ export interface CalendarEvent {
   location?: Location;
   sequence?: Sequence;
   last_modified?: LastModified;
+  [k: string]: unknown;
+}
+/**
+ * terms/{term}/calendar.json：逐學期一檔。
+ *
+ * 檔案是逐學期的，裡面卻仍保留單鍵的 `terms` map——這是為了讓 App 現行 decoder
+ * （NTUTBox/Services/TermCalendarProvider.swift:119-163）一行都不用改。
+ * 代價是多一層巢狀，換到的是換來源時 App 端零改動。
+ */
+export interface TermCalendarFile {
+  schema_version?: SchemaVersion9;
+  timezone?: Timezone2;
+  week_starts_on?: WeekStartsOn;
+  range_end_semantics?: RangeEndSemantics1;
+  generated_at?: GeneratedAt4;
+  source: TermCalendarSource;
+  terms?: Terms1;
+  [k: string]: unknown;
+}
+export interface TermCalendarSource {
+  type?: Type1;
+  url: Url2;
+  content_sha256: ContentSha2561;
+  parsed_at: ParsedAt;
+  parser_version: ParserVersion1;
+  derived_fields?: DerivedFields;
+  [k: string]: unknown;
+}
+export interface Terms1 {
+  [k: string]: AcademicTerm;
+}
+/**
+ * 單一學期的行事曆。
+ *
+ * 四個 required 欄位不是隨意訂的：App 現在有三處靠中文事件標題反推語意
+ * （VacationQuietLogic、detectSemesterRange、TermCalendarCrossCheck），
+ * 要它們改讀結構化欄位，發布端就必須保證這些欄位一定在（不變量⑨）。
+ */
+export interface AcademicTerm {
+  administrative_start?: AdministrativeStart;
+  preparation?: DateRange1 | null;
+  instruction_start: InstructionStart;
+  weeks?: Weeks;
+  midterm: DateRange1;
+  final_exam: DateRange1;
+  flexible_learning?: DateRange1 | null;
+  break_start: BreakStart;
+  [k: string]: unknown;
+}
+/**
+ * inclusive 區間。ics 的全天事件是 end-exclusive，轉進來時已減一天。
+ */
+export interface DateRange1 {
+  start: Start;
+  end: End;
+  [k: string]: unknown;
+}
+/**
+ * 週次表單列。App 用 `number`，**不要改叫 index**
+ * （NTUTBox/Models/AcademicTermCalendar.swift:22-64）。
+ */
+export interface TermWeek {
+  number: Number;
+  start: Start1;
+  end: End1;
   [k: string]: unknown;
 }

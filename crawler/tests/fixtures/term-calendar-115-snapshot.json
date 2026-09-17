@@ -1,0 +1,238 @@
+{
+ "schema_version": 1,
+ "academic_year": 115,
+ "timezone": "Asia/Taipei",
+ "week_starts_on": "sunday",
+ "range_end_semantics": "inclusive",
+ "source": {
+  "type": "official_pdf",
+  "url": "https://oaa.ntut.edu.tw/var/file/8/1008/img/2878/115Calendar.pdf",
+  "checked_at": "2026-09-01"
+ },
+ "terms": {
+  "115-1": {
+   "administrative_start": "2026-08-01",
+   "preparation": {
+    "start": "2026-08-30",
+    "end": "2026-09-05"
+   },
+   "instruction_start": "2026-09-07",
+   "weeks": [
+    {
+     "number": 1,
+     "start": "2026-09-06",
+     "end": "2026-09-12"
+    },
+    {
+     "number": 2,
+     "start": "2026-09-13",
+     "end": "2026-09-19"
+    },
+    {
+     "number": 3,
+     "start": "2026-09-20",
+     "end": "2026-09-26"
+    },
+    {
+     "number": 4,
+     "start": "2026-09-27",
+     "end": "2026-10-03"
+    },
+    {
+     "number": 5,
+     "start": "2026-10-04",
+     "end": "2026-10-10"
+    },
+    {
+     "number": 6,
+     "start": "2026-10-11",
+     "end": "2026-10-17"
+    },
+    {
+     "number": 7,
+     "start": "2026-10-18",
+     "end": "2026-10-24"
+    },
+    {
+     "number": 8,
+     "start": "2026-10-25",
+     "end": "2026-10-31"
+    },
+    {
+     "number": 9,
+     "start": "2026-11-01",
+     "end": "2026-11-07"
+    },
+    {
+     "number": 10,
+     "start": "2026-11-08",
+     "end": "2026-11-14"
+    },
+    {
+     "number": 11,
+     "start": "2026-11-15",
+     "end": "2026-11-21"
+    },
+    {
+     "number": 12,
+     "start": "2026-11-22",
+     "end": "2026-11-28"
+    },
+    {
+     "number": 13,
+     "start": "2026-11-29",
+     "end": "2026-12-05"
+    },
+    {
+     "number": 14,
+     "start": "2026-12-06",
+     "end": "2026-12-12"
+    },
+    {
+     "number": 15,
+     "start": "2026-12-13",
+     "end": "2026-12-19"
+    },
+    {
+     "number": 16,
+     "start": "2026-12-20",
+     "end": "2026-12-26"
+    },
+    {
+     "number": 17,
+     "start": "2026-12-27",
+     "end": "2027-01-02"
+    },
+    {
+     "number": 18,
+     "start": "2027-01-03",
+     "end": "2027-01-09"
+    }
+   ],
+   "final_exam": {
+    "start": "2026-12-18",
+    "end": "2026-12-24"
+   },
+   "flexible_learning": {
+    "start": "2026-12-28",
+    "end": "2027-01-08"
+   },
+   "break_start": "2027-01-11"
+  },
+  "115-2": {
+   "administrative_start": "2027-02-01",
+   "preparation": {
+    "start": "2027-02-14",
+    "end": "2027-02-20"
+   },
+   "instruction_start": "2027-02-22",
+   "weeks": [
+    {
+     "number": 1,
+     "start": "2027-02-21",
+     "end": "2027-02-27"
+    },
+    {
+     "number": 2,
+     "start": "2027-02-28",
+     "end": "2027-03-06"
+    },
+    {
+     "number": 3,
+     "start": "2027-03-07",
+     "end": "2027-03-13"
+    },
+    {
+     "number": 4,
+     "start": "2027-03-14",
+     "end": "2027-03-20"
+    },
+    {
+     "number": 5,
+     "start": "2027-03-21",
+     "end": "2027-03-27"
+    },
+    {
+     "number": 6,
+     "start": "2027-03-28",
+     "end": "2027-04-03"
+    },
+    {
+     "number": 7,
+     "start": "2027-04-04",
+     "end": "2027-04-10"
+    },
+    {
+     "number": 8,
+     "start": "2027-04-11",
+     "end": "2027-04-17"
+    },
+    {
+     "number": 9,
+     "start": "2027-04-18",
+     "end": "2027-04-24"
+    },
+    {
+     "number": 10,
+     "start": "2027-04-25",
+     "end": "2027-05-01"
+    },
+    {
+     "number": 11,
+     "start": "2027-05-02",
+     "end": "2027-05-08"
+    },
+    {
+     "number": 12,
+     "start": "2027-05-09",
+     "end": "2027-05-15"
+    },
+    {
+     "number": 13,
+     "start": "2027-05-16",
+     "end": "2027-05-22"
+    },
+    {
+     "number": 14,
+     "start": "2027-05-23",
+     "end": "2027-05-29"
+    },
+    {
+     "number": 15,
+     "start": "2027-05-30",
+     "end": "2027-06-05"
+    },
+    {
+     "number": 16,
+     "start": "2027-06-06",
+     "end": "2027-06-12"
+    },
+    {
+     "number": 17,
+     "start": "2027-06-13",
+     "end": "2027-06-19"
+    },
+    {
+     "number": 18,
+     "start": "2027-06-20",
+     "end": "2027-06-26"
+    }
+   ],
+   "final_exam": {
+    "start": "2027-06-07",
+    "end": "2027-06-11"
+   },
+   "flexible_learning": {
+    "start": "2027-06-14",
+    "end": "2027-06-25"
+   },
+   "break_start": "2027-06-28"
+  }
+ },
+ "_provenance": {
+  "note": "從 NTUT_Tools/docs/research/snapshots/term-calendar-115.json 複製，作為 115 學年度週次表的人工核對基準。",
+  "why_here": "原檔在私有 sibling repo，CI runner 取不到；測試需要離線可用的基準。",
+  "known_gap": "這份快照漏收 midterm（官方 PDF 有、ics 也有），所以比對時 midterm 視為我方新增、不算差異。",
+  "copied_at": "2026-09-16"
+ }
+}
