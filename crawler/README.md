@@ -61,6 +61,9 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 - `../.github/workflows/test.yml` — push/PR 跑 pytest + 檢查 `packages/schema` 產物與 `models.py` 同步。**在此之前 repo 沒有任何跑測試的 CI。**
 - `../.github/workflows/crawl-details.yml` — 每週日 cron 爬當前學期課綱詳情（+ pua-scan）→ commit `data` branch → 發佈 R2（含 `--include-details`）。
 - `../.github/workflows/crawl-enrollment.yml` — 選課季每小時人數刷新（`ENROLLMENT_FAST_UNTIL` 窗口閘）。
+- `../.github/workflows/reprocess-progress.yml` — **手動：不重爬、只重算逐週進度**（parser 升版後用）。
+  讀 data branch 既有的 `details.ndjson` 重跑 parser → commit → 發佈（帶 `--include-details`）。
+  實測全學期約 5 秒；對照 `crawl-details.yml` 要重爬 ~5k 請求、timeout 180 分且只在週日跑。
 - `../.github/workflows/publish-v1.yml` — 手動：從 data branch 重建 v1 + 發佈 R2（可 `--include-details` 補發大綱）。
 - `../infra/publish.py`（build-v1 + quality gate + 原子發佈 + `--include-details`）、`redline_scan.py`（free-text 跳過 student-id 啟發）、`calendar_horizon_alert.py`（行事曆涵蓋不足→開 issue，補上→自動關；告警不阻斷發布）、`SETUP.md`。
 
