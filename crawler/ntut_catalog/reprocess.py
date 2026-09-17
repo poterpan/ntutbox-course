@@ -67,7 +67,7 @@ def reprocess_progress(out_dir: Path, term_keys: List[str], now: str) -> List[di
         details = [CourseDetail.model_validate_json(line)
                    for line in nd.read_text(encoding="utf-8").splitlines() if line.strip()]
         for d in details:
-            attach_weekly_progress(d.syllabi, term, now)
+            attach_weekly_progress(d.syllabi, term, now, course_name=d.name.zh)
         with nd.open("w", encoding="utf-8") as f:
             for d in sorted(details, key=lambda x: x.offering_id):
                 f.write(d.model_dump_json() + "\n")
