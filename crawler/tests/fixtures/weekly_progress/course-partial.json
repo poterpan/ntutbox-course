@@ -1,0 +1,88 @@
+{
+ "term_key": "115-1",
+ "offering_id": "360986",
+ "course_code": "360000",
+ "name": {
+  "zh": "部分提供",
+  "en": null
+ },
+ "description": {
+  "zh": "",
+  "en": null
+ },
+ "syllabi": [
+  {
+   "teacher_code": "23603",
+   "teacher_name": "教師乙",
+   "email": null,
+   "office_hours_url": null,
+   "updated_at": null,
+   "outline": null,
+   "schedule": "* 第4週後的進度需由各組自行規劃，以下僅作參考。\n第4週～第8週：重現參考文獻中單一單元之模擬數據。",
+   "assessment": null,
+   "materials": null,
+   "consultation": null,
+   "extended_resources": null,
+   "sdgs": null,
+   "ai_usage": null,
+   "notes": null,
+   "flex_learning": {},
+   "extra": {},
+   "weekly_progress": {
+    "status": "partial",
+    "weeks": [
+     {
+      "week": 4,
+      "topics": [
+       "重現參考文獻中單一單元之模擬數據"
+      ],
+      "source_lines": [
+       "第4週～第8週：重現參考文獻中單一單元之模擬數據。"
+      ]
+     },
+     {
+      "week": 5,
+      "topics": [
+       "重現參考文獻中單一單元之模擬數據"
+      ],
+      "source_lines": [
+       "第4週～第8週：重現參考文獻中單一單元之模擬數據。"
+      ]
+     },
+     {
+      "week": 6,
+      "topics": [
+       "重現參考文獻中單一單元之模擬數據"
+      ],
+      "source_lines": [
+       "第4週～第8週：重現參考文獻中單一單元之模擬數據。"
+      ]
+     },
+     {
+      "week": 7,
+      "topics": [
+       "重現參考文獻中單一單元之模擬數據"
+      ],
+      "source_lines": [
+       "第4週～第8週：重現參考文獻中單一單元之模擬數據。"
+      ]
+     },
+     {
+      "week": 8,
+      "topics": [
+       "重現參考文獻中單一單元之模擬數據"
+      ],
+      "source_lines": [
+       "第4週～第8週：重現參考文獻中單一單元之模擬數據。"
+      ]
+     }
+    ],
+    "notes": [],
+    "parser_version": "progress/1.0.0",
+    "parsed_at": "2026-09-16T04:00:00+08:00",
+    "source_schedule_sha256": "fd8b3685e411a21c7393f317b2b41876f1696eb415db4e8f36ec57cfa37cc52b"
+   }
+  }
+ ],
+ "generated_at": "2026-09-16T04:00:00+08:00"
+}

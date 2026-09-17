@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
-from models import CourseDetail, CourseOffering, LocalizedText
+from models import CourseDetail, CourseOffering, LocalizedText, TermWeek
 from ntut_catalog.parse_detail import parse_curr, parse_syllabus
+from ntut_catalog.parse_progress import attach_weekly_progress
 from ntut_catalog.pua import normalize_pua
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,9 @@ def crawl_detail(
     offerings: List[CourseOffering],
     now_iso: str,
     curr_cache: Optional[Dict[str, dict]] = None,
+    term_weeks: Optional[Sequence[TermWeek]] = None,
 ) -> List[CourseDetail]:
+    """term_weeks（契約三的 weeks[]）只給逐週進度的規則 (b)(c) 用；沒有就跳過那兩條。"""
     curr_cache = {} if curr_cache is None else curr_cache
     details: List[CourseDetail] = []
     for off in offerings:
@@ -47,6 +50,9 @@ def crawl_detail(
                 syllabi.append(parse_syllabus(client.syllabus(snum, tc), tc))
             except Exception as e:  # noqa: BLE001
                 logger.warning("[%s] syllabus (%s,%s) failed: %s", off.offering_id, snum, tc, e)
+
+        # 契約一：逐週進度是 schedule 的結構化衍生欄位，原文一律保留、不覆寫。
+        attach_weekly_progress(syllabi, term_weeks, now_iso)
 
         details.append(
             CourseDetail(
