@@ -45,7 +45,8 @@ CHINESE_RANGE_RE = re.compile(                              # 陷阱 6：整段�
 CHINESE_SINGLE_RE = re.compile(                             # 陷阱 2：排除「第N週後/前/開始」
     rf"(?:第\s*)?(?P<week>{NUMBER})\s*[週周](?!\s*(?:後|前|以後|以前|開始))")
 # week 字與數字之間允許 . : # ＃（實測 `WK#01`，361223 設施規劃）
-_EN_WEEK = r"(?:weeks?|wks?|wk|w)\s*[.:#＃]?\s*"
+# 分隔符包含連字號（`WK-1`，366869）。`Week 1-4` 不受影響——range 分支照樣吃得到。
+_EN_WEEK = r"(?:weeks?|wks?|wk|w)\s*[.:#＃-]?\s*"
 ENGLISH_WEEK_RE = re.compile(
     rf"(?i)\b{_EN_WEEK}(?P<start>{ARABIC_NUMBER})"
     rf"(?:\s*(?:~|–|-|to)\s*(?:{_EN_WEEK})?(?P<end>{ARABIC_NUMBER}))?\b")
@@ -58,6 +59,10 @@ ENGLISH_LIST_RE = re.compile(
 ENGLISH_ORDINAL_RE = re.compile(
     rf"(?i)\b(?P<week>{ARABIC_NUMBER})\s*(?:st|nd|rd|th)\s*weeks?\b")
 
+# `週 01.` 這種「週在數字之前」的寫法（361439）。中文的主流是 `第1週`，但這個變體
+# 實測存在，且同樣明確——有「週」字打頭、後面直接接數字，不會與時長混淆。
+CHINESE_PREFIX_WEEK_RE = re.compile(rf"[週周]\s*(?P<week>{ARABIC_NUMBER})(?!\s*[-–~～]?\s*\d)")
+
 ANY_CHINESE_WEEK_RE = re.compile(
     r"(?:第\s*)?(?P<start>\d{1,3})\s*(?:(?:~|～|-|－|–|—|至|到)\s*"
     r"(?:第\s*)?(?P<end>\d{1,3})\s*)?[:：]?\s*[週周]")
@@ -69,7 +74,6 @@ CHINESE_TO_INT = {c: i + 1 for i, c in enumerate(
     "一 二 三 四 五 六 七 八 九 十".split())}
 CHINESE_TO_INT.update({f"十{c}": 10 + i + 1 for i, c in enumerate("一 二 三 四 五 六 七 八".split())})
 
-_UNPARSEABLE_MARKERS = ("tba", "t.b.a", "待定", "依課堂狀況調整", "另行公布", "視情況")
 
 
 @dataclass(frozen=True)
@@ -154,6 +158,9 @@ def _candidate_markers(line: str) -> List[_Marker]:
             continue
         candidates.append(_Marker(match.start(), match.end(),
                                   (_number(match.group("week")),), match.group(), "single"))
+    for match in CHINESE_PREFIX_WEEK_RE.finditer(line):
+        candidates.append(_Marker(match.start(), match.end(),
+                                  (int(match.group("week")),), match.group(), "single"))
     for match in ENGLISH_LIST_RE.finditer(line):
         weeks = tuple(int(x) for x in re.split(r"\s*[,/、]\s*", match.group("items")))
         candidates.append(_Marker(match.start(), match.end(), weeks, match.group(), "list"))
@@ -461,9 +468,18 @@ _NUMBERED_ROW_RE = re.compile(r"^\s*\(?(\d{1,2})\s*[.)、,\t ]\s*(.+)$")
 # 首欄允許三種寫法：阿拉伯數字、`3-4.` 這種合併列、以及中文數字（表格常見
 # `週次 / 一 / 二 / 三`）。中文數字在這裡是安全的——陷阱 3 擔心的 `一週`＝時長，
 # 但本函式只在有額外證據（列數落在合法授課週數、表頭宣告、期中考錨點）時才被採信。
+_CN_NUM = r"[一二三四五六七八九十]{1,3}"
+_RANGE = r"[-–—~～]"
+# 首欄容許的變化，全部來自實測：
+#   前導零／三位數  `001(09/10) 課程介紹`（361761）
+#   括號日期        同上——數字後面直接接 (M/D)，不是分隔符
+#   冒號分隔        `1: 課程介紹`（361781）
+#   中文數字 range  `一~四 微處理器硬體架構`（361557）
 _ROW_RE = re.compile(
-    r"^\s*\(?(?P<a>\d{1,2})(?:\s*[-–~]\s*(?P<b>\d{1,2}))?\s*[.)、,\t ]\s*(?P<t>.+)$"
-    r"|^\s*(?P<cn>[一二三四五六七八九十]{1,3})\s*[.)、\t ]\s*(?P<ct>.+)$")
+    r"^\s*\(?0*(?P<a>\d{1,2})(?:\s*" + _RANGE + r"\s*0*(?P<b>\d{1,2}))?"
+    r"(?:\s*\([^)]{1,14}\))?\s*[.):：、,\t ]\s*(?P<t>.+)$"
+    r"|^\s*(?P<cn>" + _CN_NUM + r")(?:\s*" + _RANGE + r"\s*(?P<cn2>" + _CN_NUM + r"))?"
+    r"\s*[.):：、\t ]\s*(?P<ct>.+)$")
 
 
 def _numbered_rows(text: str) -> Dict[int, str]:
@@ -474,16 +490,19 @@ def _numbered_rows(text: str) -> Dict[int, str]:
         if not m:
             continue
         if m.group("cn") is not None:
-            week = CHINESE_TO_INT.get(m.group("cn"))
-            if week:
-                rows.setdefault(week, m.group("ct").strip())
-            continue
-        start = int(m.group("a"))
-        end = int(m.group("b")) if m.group("b") else start
+            start = CHINESE_TO_INT.get(m.group("cn"))
+            end = CHINESE_TO_INT.get(m.group("cn2")) if m.group("cn2") else start
+            if not start or not end:
+                continue
+            topic = m.group("ct").strip()
+        else:
+            start = int(m.group("a"))
+            end = int(m.group("b")) if m.group("b") else start
+            topic = m.group("t").strip()
         if end < start or end - start > 5:        # 倒置或跨太多週 → 不是合併列
             continue
         for week in range(start, end + 1):
-            rows.setdefault(week, m.group("t").strip())
+            rows.setdefault(week, topic)
     return rows
 _MIDTERM_RE = re.compile(r"(?i)期中(?:考|測驗)|midterm")
 # 當作**證據**時要求期中考剛好落在行事曆那一週（偏移 0，峰值 132 筆）；當作**反證**時
@@ -532,12 +551,13 @@ def parse_anchored_numbered_list(text: str, term: AcademicTerm,
     # 的列數分布在 6~15 列各只有 ≤19 筆，**16 列跳到 77、18 列跳到 110**。章節清單的列數
     # 不會剛好在兩個合法授課週數（全 18 週、扣掉彈性學習週的 16 週）疊出兩根柱子。
     # 合法值由行事曆推導，不寫死：week_count 到 week_count − 彈性學習週數。
+    declared = bool(_HEADER_DECLARES_WEEK.search(text))
     lo = week_count - len(_flexible_week_numbers(term))
     if lo <= len(rows) <= week_count:
-        return _accept(rows, term)
+        return _accept(rows, term, declared=declared)
     # 證據三：**表頭自己宣告「週次」/「WEEK」**——教師直接說了首欄是什麼，不是我們推的。
     if _HEADER_DECLARES_WEEK.search(text) and len(rows) >= _MIN_TABLE_ROWS:
-        return _accept(rows, term)
+        return _accept(rows, term, declared=True)
 
     # 證據一：**只用期中考當錨點，而且要求剛好對上。** 這是量出來的，不是挑的：
     # 115-1 全量掃過，期中考落在行事曆對應週的偏移分布在 0 有一個銳利的峰（132 筆），
@@ -565,12 +585,19 @@ def _flexible_week_numbers(term: AcademicTerm) -> List[int]:
             if not (w.end < term.flexible_learning.start or w.start > term.flexible_learning.end)]
 
 
-def _accept(rows: Dict[int, str], term: AcademicTerm) -> Optional[List[Tuple[int, str, str]]]:
+def _accept(rows: Dict[int, str], term: AcademicTerm,
+            declared: bool = False) -> Optional[List[Tuple[int, str, str]]]:
     """共用的否決關卡：**期中考寫了但位置不對 → 整份拒絕**，不論是哪種證據收進來的。
 
     首欄若真是週次，期中考就該落在行事曆說的那一週。對不上代表首欄很可能是
     「第幾次上課」或章節編號。實測有一份把 Mid Term Exam 寫在第 7 列（行事曆說第 9 週）。
     """
+    if declared:
+        # 表頭自己寫了「週次／WEEK」——教師已經說明首欄是什麼，這是比期中考位置更直接的
+        # 證據。否決條件的用途是排除「首欄其實是第幾次上課」，明確宣告就把那個疑問解掉了。
+        # 實測 361557 表頭寫「週次」、1~18 列齊全，只因為教師把期中考辦在第 7 週（行事曆
+        # 第 9 週）而整份被丟。
+        return [(week, "", _clean_topic(rows[week])) for week in sorted(rows)]
     expected = _week_of(term, term.midterm.start)
     where = [week for week, cell in rows.items() if _MIDTERM_RE.search(cell)]
     if where and min(abs(w - expected) for w in where) > _MIDTERM_TOLERANCE:
@@ -584,10 +611,17 @@ def _sha256(text: str) -> str:
 
 
 def _is_unparseable_text(schedule: Optional[str]) -> bool:
-    if not schedule or not schedule.strip():
-        return True
-    body = schedule.strip().casefold()
-    return len(body) < 4 or any(m in body for m in _UNPARSEABLE_MARKERS)
+    """只擋「空的或短到不可能有內容」。
+
+    2026-09-18 移除 TBA 類字串的全文掃描：那會把整份完整的進度表丟掉。實測
+    366876／366838／366828 的 18 週全都解得出來，卻因為文末一句
+    「教師可視情況做出調整」整份被判 unparsed；364705 是第 5 週寫了「專題演講 (待定)」。
+    那些是教師的免責註記，不是「這門課沒有進度」。
+
+    而且這個早退本來就多餘：真的只寫 TBA 的話，marker 路徑與規則 (b)(c)(d) 都找不到
+    東西，自然會走到最後的 _unparsed()。
+    """
+    return not schedule or len(schedule.strip()) < 4
 
 
 def _unparsed(schedule: Optional[str], notes: List[str], now: str) -> WeeklyProgress:

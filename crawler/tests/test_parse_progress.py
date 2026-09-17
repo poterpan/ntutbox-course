@@ -354,8 +354,8 @@ def test_regression_thresholds_never_go_down(corpus, term):
     assert cell_rate >= 0.4725, f"resolved_lookup_cell_rate 下降到 {cell_rate:.4f}"
     # 規則 (a)~(e) 實際把兩個數字推到這裡；掉回門檻附近代表有規則失效了
     # 2026-09-17 一輪：候選疊加、英文 list／序數／WK#／全形／點號、列數與表頭證據
-    assert coverage >= 0.752, f"coverage {coverage:.4f} 低於本輪應達到的水準"
-    assert cell_rate >= 0.676, f"cell_rate {cell_rate:.4f} 低於本輪應達到的水準"
+    assert coverage >= 0.776, f"coverage {coverage:.4f} 低於本輪應達到的水準"
+    assert cell_rate >= 0.697, f"cell_rate {cell_rate:.4f} 低於本輪應達到的水準"
 
 
 # ----------------------------------------------------------------- 產物與離線重產
@@ -627,3 +627,45 @@ def test_followup_mention_of_midterm_is_not_a_contradiction(term):
     text = "\n".join(f"{i}\t{ {9:'Midterm', 10:'Review of midterm'}.get(i, f'Topic {i}') }"
                     for i in range(1, 17))
     assert build_weekly_progress(text, 18, term).status == "resolved"
+
+
+# ----------------------------------------------------------------- 2026-09-18 第二批實測
+
+def test_teacher_disclaimer_no_longer_kills_the_whole_schedule(term):
+    """文末一句「教師可視情況做出調整」曾讓 18 週全解析的進度表整份被判 unparsed
+    （366876／366838／366828），單週備註「專題演講 (待定)」也一樣（364705）。
+    那些是免責註記，不是「這門課沒有進度」。"""
+    text = "\n".join(f"第{i}週 主題{i}" for i in range(1, 19)) + "\n※進度與活動將視情況調整。"
+    assert build_weekly_progress(text, 18, term).status == "resolved"
+
+
+@pytest.mark.parametrize("text,why", [
+    ("", "空字串"), ("   ", "只有空白"), ("TBA", "短到不可能有內容"),
+])
+def test_still_unparsed_when_there_is_genuinely_nothing(term, text, why):
+    assert build_weekly_progress(text, 18, term).status == "unparsed", why
+
+
+def test_row_prefix_variants(term):
+    from ntut_catalog.parse_progress import _numbered_rows
+    assert _numbered_rows("1: 課程介紹")[1] == "課程介紹"              # 冒號（361781）
+    assert _numbered_rows("001(09/10)\t課程介紹")[1] == "課程介紹"      # 前導零＋括號日期（361761）
+    assert _numbered_rows("一~四\t硬體架構")[4] == "硬體架構"            # 中文 range（361557）
+
+
+def test_marker_variants(term):
+    """`WK-1`（366869）與 `週 01.`（361439）——週字在數字之前。"""
+    assert [s.start_week for s in parse_schedule("WK-1 創業管理課程說明").segments] == [1]
+    assert parse_schedule("週 02.\t設計實務").segments[0].topic == "設計實務"
+    # `Week 1-4` 不受連字號分隔符影響，仍是 range
+    segs = parse_schedule("Week 1-4 Introduction").segments
+    assert (segs[0].start_week, segs[0].end_week) == (1, 4)
+
+
+def test_declared_header_outranks_the_midterm_position(term):
+    """表頭寫了「週次」就等於教師說明了首欄是什麼，比期中考位置更直接。
+    361557 表頭有「週次」、1~18 齊全，只因為教師把期中考辦在第 7 週而整份被丟。"""
+    rows = "\n".join(f"{i}\t{'期中考' if i == 7 else f'主題{i}'}" for i in range(1, 19))
+    assert build_weekly_progress("週次\t名稱\n" + rows, 18, term).status == "resolved"
+    # 沒有表頭宣告時，差 2 週仍然否決
+    assert build_weekly_progress(rows, 18, term).status == "unparsed"
