@@ -18,7 +18,6 @@ on:
 
 permissions:
   contents: write
-  issues: write      # 行事曆 horizon 告警開/關 issue
 
 concurrency:
   group: data-pipeline   # 與 crawl-enrollment.yml 共用 → 序列化，不撞 data branch / R2
@@ -118,23 +117,6 @@ jobs:
           set -euo pipefail
           python -m ntut_catalog crawl-mprograms --terms "$TERMS" --out data
 
-      # 行事曆事件 feed（契約四）。來源是校網的 Google Calendar，與課程目錄無關：
-      # 失敗不得阻斷每日 catalog/enrollment 的 commit 與 publish（當日 calendar 維持 stale）。
-      # 內容沒變時 crawl-calendar 不重寫 canonical，所以不會製造噪音 commit。
-      - name: Crawl academic calendar (ics)
-        id: calendar
-        continue-on-error: true
-        run: |
-          set -euo pipefail
-          python -m ntut_catalog crawl-calendar --out data
-
-      # horizon 監測：涵蓋不到下一學年度 → 開 issue；補上了 → 自動關。告警不阻斷發布。
-      - name: Calendar horizon alert
-        continue-on-error: true
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: python infra/calendar_horizon_alert.py data
-
       # 新造字監測：發現 PUA_MAP 未收錄碼位 → fail-loud 紅標但不擋每日管線（commit/publish 照常）。
       # 處置：照 docs/research/2026-07-20-pua-glyph-verification.md 的 GServer 流程考證補 PUA_MAP。
       - name: PUA scan (新造字監測)
@@ -161,11 +143,6 @@ jobs:
           git diff --cached --quiet || git commit -m "data(catalog): $TERMS $DATE"
           git add -- '*/enrollment/*.ndjson' || true
           git diff --cached --quiet || git commit -m "data(enrollment): $TERMS $DATE"
-          # 行事曆是跨學期的 top-level 目錄，不吃上面那些 '*/xxx' 的逐學期 glob，要指名。
-          # 內容沒變時 crawl-calendar 不重寫檔案 → 這裡自然無 diff、不會產生空 commit，
-          # 所以 data branch 上每一個 data(calendar) commit 都代表學校真的改了行事曆。
-          git add -- 'calendar/events.ndjson' 'calendar/meta.json' '*/calendar.json' || true
-          git diff --cached --quiet || git commit -m "data(calendar): $DATE"
           git pull --rebase origin data || true
           git push origin HEAD:data
 
@@ -181,12 +158,3 @@ jobs:
             --min-ratio "$MIN_RATIO" \
             --previous-counts "$PREV_COUNTS" \
             --generated-at "$(date -u +%FT%TZ)"
-
-      # 行事曆失敗不擋 catalog/enrollment 的發布（上面 continue-on-error），但**必須讓 job 紅**，
-      # 否則「校方改了事件措辭、週次表停在上一版」會靜默過去——這正是換源要消滅的失效模式。
-      # 放在 publish 之後：舊版 calendar 已隨本次發布保留，這裡只負責叫人。
-      - name: Fail if calendar step failed
-        if: steps.calendar.outcome == 'failure'
-        run: |
-          echo "::error title=行事曆抓取或週次表推導失敗::本次沿用上一版 calendar；catalog/enrollment 已照常發布。常見原因：校方改了事件標題措辭（不變量⑧）或週次表與校方公告不符（不變量⑩）。"
-          exit 1
