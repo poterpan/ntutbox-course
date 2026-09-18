@@ -164,7 +164,9 @@ def test_build_v1_round_trips_into_a_valid_feed(tmp_path, sample_ics):
     assert build_calendar_v1(tmp_path, "2026-09-16T02:00:00+08:00") is True
     out = CalendarEventsFeed.model_validate_json(
         (tmp_path / "v1" / "calendar" / "events.json").read_text(encoding="utf-8"))
-    assert out.generated_at == "2026-09-16T02:00:00+08:00"
+    # 刻意不帶建置時間戳——帶了檔案每天都不同，App 就永遠拿不到 304
+    assert out.generated_at is None
+    assert out.source.fetched_at == feed.source.fetched_at
     assert out.source.content_sha256 == feed.source.content_sha256
     assert [e.model_dump() for e in out.events] == [e.model_dump() for e in feed.events]
 
@@ -240,7 +242,7 @@ def test_cli_crawl_calendar_writes_canonical_and_v1(tmp_path, monkeypatch):
     out = CalendarEventsFeed.model_validate_json(
         (tmp_path / "v1" / "calendar" / "events.json").read_text(encoding="utf-8"))
     assert len(out.events) == 661
-    assert out.generated_at is not None
+    assert out.generated_at is None
 
 
 def test_cli_fails_loudly_when_term_calendar_cannot_be_derived(tmp_path, monkeypatch, sample_ics):
@@ -256,3 +258,18 @@ def test_cli_fails_loudly_when_term_calendar_cannot_be_derived(tmp_path, monkeyp
     with pytest.raises(CalendarDerivationError):
         cli.main(["crawl-calendar", "--out", str(tmp_path), "--terms", "115-1"])
     assert not (tmp_path / "v1" / "terms" / "115-1" / "calendar.json").exists()
+
+
+def test_v1_bytes_are_stable_when_content_did_not_change(tmp_path, sample_ics):
+    """行事曆沒改的日子，v1 產物必須 **byte-identical** —— 否則 ETag 每天都變，
+    App 每天重抓 193 KB。換源的理由之一就是 ics 自己沒有 ETag、直抓每次都是全量，
+    我們轉出來的 CDN 版本要是也天天換，那就白轉了。"""
+    from ntut_catalog.artifacts import build_calendar_v1, write_calendar_events
+    feed = parse_calendar_events(sample_ics, today=dt.date(2026, 9, 16))
+    write_calendar_events(feed, tmp_path)
+    out = tmp_path / "v1" / "calendar" / "events.json"
+
+    build_calendar_v1(tmp_path, "2026-09-16T02:00:00+08:00")
+    first = out.read_bytes()
+    build_calendar_v1(tmp_path, "2026-09-17T02:00:00+08:00")   # 隔天再建置一次
+    assert out.read_bytes() == first
