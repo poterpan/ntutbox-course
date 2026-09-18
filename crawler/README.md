@@ -57,7 +57,10 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 - `ntut_catalog/term_calendar.py` — 學年度週次表：從 ics 具名事件推導（第 1 週＝開學日所在週、週日起算；末週＝假期起日前一個週六所在週）+ 10 條不變量。**不解析 PDF**；`reference/pdf-week-tables-111-115.json` 是從校方公告 PDF 抽出的 10 學期回歸基準，在**發佈時**跑
 
 ### 自動化 / 發佈
-- `../.github/workflows/crawl.yml` — 每日 cron（自動偵測當前學期）→ catalog/enrollment + 微學程 + **行事曆 ics** + pua-scan 新造字監測 → commit `data` branch → 發佈 R2。
+- `../.github/workflows/crawl.yml` — 每日 cron 04:00（自動偵測當前學期）→ catalog/enrollment + 微學程 + pua-scan 新造字監測 → commit `data` branch → 發佈 R2。
+- `../.github/workflows/crawl-calendar.yml` — 每日 cron 03:00：校網 Google Calendar ics → 事件 feed + 週次表 + horizon 告警。
+  **刻意獨立一支**：它完全不碰學校系統，掛在 crawl.yml 裡會被 `Resolve terms`（要打 aps.ntut.edu.tw）拖累——
+  學校一不通，跟學校無關的行事曆也跟著停更（2026-09-18 實際發生）。錯開一小時避免與 crawl.yml 互等。
 - `../.github/workflows/test.yml` — push/PR 跑 pytest + 檢查 `packages/schema` 產物與 `models.py` 同步。**在此之前 repo 沒有任何跑測試的 CI。**
 - `../.github/workflows/crawl-details.yml` — 每週日 cron 爬當前學期課綱詳情（+ pua-scan）→ commit `data` branch → 發佈 R2（含 `--include-details`）。
 - `../.github/workflows/crawl-enrollment.yml` — 選課季每小時人數刷新（`ENROLLMENT_FAST_UNTIL` 窗口閘）。
