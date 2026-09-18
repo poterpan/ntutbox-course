@@ -191,8 +191,12 @@ def build_calendar_v1(out_dir: Path, generated_at: str) -> bool:
     if not (nd.exists() and meta_path.exists()):
         return False
     meta = json.loads(meta_path.read_text(encoding="utf-8"))
+    # **刻意不帶 generated_at**（比照 catalog.json，見 structural_catalog）。
+    # 帶建置時間戳會讓檔案每天都不同 → ETag 每天都變 → App 每天重抓 193 KB 拿不到 304。
+    # 那正好抵消換源的理由之一（ics 自己沒有 ETag、直抓每次都是全量）。
+    # 誠實的時間戳是 source.fetched_at（內容最後變動時間），它已經在 payload 裡，
+    # 而且只在內容真的變動時才更新。
     feed = CalendarEventsFeed(
-        generated_at=generated_at,
         source=meta["source"],
         horizon=meta["horizon"],
         events=[json.loads(line) for line in nd.read_text(encoding="utf-8").splitlines() if line.strip()],
@@ -212,7 +216,7 @@ def build_term_calendars_v1(out_dir: Path, generated_at: str) -> List[str]:
         if not src.exists():
             continue
         cal = TermCalendarFile.model_validate_json(src.read_text(encoding="utf-8"))
-        cal.generated_at = generated_at
+        cal.generated_at = None          # 同上：時間戳用 source.parsed_at，不用建置時間
         dst = out_dir / "v1" / "terms" / term_dir.name
         dst.mkdir(parents=True, exist_ok=True)
         _write_v1_json(dst / "calendar.json", cal.model_dump_json())

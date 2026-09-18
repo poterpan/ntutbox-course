@@ -282,7 +282,7 @@ def test_canonical_then_v1_round_trip(tmp_path, events):
     assert build_term_calendars_v1(tmp_path, "2026-09-16T04:00:00+08:00") == ["115-1"]
     out = TermCalendarFile.model_validate_json(
         (tmp_path / "v1" / "terms" / "115-1" / "calendar.json").read_text(encoding="utf-8"))
-    assert out.generated_at == "2026-09-16T04:00:00+08:00"
+    assert out.generated_at is None        # 同 events.json：時間戳用 source.parsed_at
     assert out.terms["115-1"].model_dump() == cal.terms["115-1"].model_dump()
 
 
@@ -330,3 +330,14 @@ def test_cli_crawl_calendar_also_writes_term_calendars(tmp_path, monkeypatch):
         assert (tmp_path / "canonical" / term_key / "calendar.json").exists()
         assert (tmp_path / "v1" / "terms" / term_key / "calendar.json").exists()
     assert (tmp_path / "v1" / "calendar" / "events.json").exists()
+
+
+def test_term_calendar_bytes_are_stable_across_builds(tmp_path, events):
+    """同 events.json：週次表一學期最多改一兩次，沒改的日子不該換 ETag。"""
+    from ntut_catalog.artifacts import build_term_calendars_v1
+    _write_one(tmp_path, events)
+    out = tmp_path / "v1" / "terms" / "115-1" / "calendar.json"
+    build_term_calendars_v1(tmp_path, "2026-09-16T04:00:00+08:00")
+    first = out.read_bytes()
+    build_term_calendars_v1(tmp_path, "2026-09-17T04:00:00+08:00")
+    assert out.read_bytes() == first
