@@ -13,10 +13,13 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from typing import List
+from typing import Dict, List, Optional
+
+import datetime as dt
 
 from models import (
     CALENDAR_SCHEMA_VERSION,
+    CalendarManifestEntry,
     SCHEMA_VERSION,
     CalendarEventsFeed,
     TermCalendarFile,
@@ -32,7 +35,9 @@ from models import (
 )
 from ntut_catalog.orchestrator import TermResult
 from ntut_catalog.periods import build_period_table
+from ntut_catalog.ics import TAIPEI
 from ntut_catalog.pua import normalize_pua
+from ntut_catalog.term_calendar import current_academic_year
 
 # normalize.py 寫入 raw_fields 的 volatile 鍵（人數/撤選），結構檔需剔除以免每日 churn
 _VOLATILE_RAW_KEYS = ("enrolled", "withdrawn")
@@ -283,7 +288,45 @@ def _entry(path: Path, rel_url: str, schema_version: int = SCHEMA_VERSION) -> Ma
                          size=len(data), schema_version=schema_version)
 
 
-def write_manifest(out_dir: Path, generated_at: str) -> Manifest:
+def _calendar_entries(out_dir: Path,
+                      today: Optional[dt.date] = None) -> Dict[str, CalendarManifestEntry]:
+    """週次表的發現清單，限**當前與前一學年度**。
+
+    為什麼要留前一學年度而不是只留當前：每年 8/1 之後有一段期間新學年度的 ics 還沒匯入
+    （112 學年度下學期拖到隔年 2 月），只留當前的話清單會是空的，App 連剛結束那學期的
+    週次表都拿不到。留前一年剛好填住這個洞，而且總數封頂在 4 筆、不會隨年份長大。
+
+    範圍由建置日期推算，不需要任何人手動設定。舊的 calendar.json **檔案照舊留在 CDN**，
+    只是不列進清單——與孤兒課程檔同一原則：曾經存在是事實，但不該被發現。
+    """
+    today = today or dt.datetime.now(TAIPEI).date()
+    current = current_academic_year(today)
+    keep = {current, current - 1}
+    terms_dir = out_dir / "v1" / "terms"
+    out: Dict[str, CalendarManifestEntry] = {}
+    for path in sorted(terms_dir.glob("*/calendar.json")) if terms_dir.exists() else []:
+        term_key = path.parent.name
+        try:
+            academic_year = int(term_key.split("-")[0])
+        except ValueError:
+            continue
+        if academic_year not in keep:
+            continue
+        weeks = (TermCalendarFile.model_validate_json(path.read_text(encoding="utf-8"))
+                 .terms.get(term_key, None))
+        if weeks is None or not weeks.weeks:
+            continue
+        base = _entry(path, f"terms/{term_key}/calendar.json", CALENDAR_SCHEMA_VERSION)
+        out[term_key] = CalendarManifestEntry(
+            **base.model_dump(),
+            first_week_start=weeks.weeks[0].start,
+            last_week_end=weeks.weeks[-1].end,
+        )
+    return out
+
+
+def write_manifest(out_dir: Path, generated_at: str,
+                   today: Optional[dt.date] = None) -> Manifest:
     terms_dir = out_dir / "v1" / "terms"
     terms = {}
     for term_dir in sorted(terms_dir.iterdir()) if terms_dir.exists() else []:
@@ -312,6 +355,7 @@ def write_manifest(out_dir: Path, generated_at: str) -> Manifest:
             calendar=files.get("calendar"),
             dataset_version=files["catalog"].sha256,
         )
-    manifest = Manifest(generated_at=generated_at, terms=terms)
+    manifest = Manifest(generated_at=generated_at, terms=terms,
+                        calendars=_calendar_entries(out_dir, today))
     (out_dir / "v1" / "manifest.json").write_text(manifest.model_dump_json(), encoding="utf-8")
     return manifest

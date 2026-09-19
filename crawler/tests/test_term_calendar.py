@@ -372,3 +372,79 @@ def test_manifest_calendar_entry_uses_the_independent_schema_version(tmp_path, e
         (tmp_path / "v1" / "terms" / "115-1" / "calendar.json").read_text(encoding="utf-8"))
     assert term.calendar.schema_version == CALENDAR_SCHEMA_VERSION == published.schema_version
     assert term.catalog.schema_version == SCHEMA_VERSION      # 其餘仍走全域版本
+
+
+# ----------------------------------------------------------------- manifest.calendars
+
+def _publish_calendar(tmp_path, term_key, first_week, weeks=18):
+    """直接寫一份 v1 週次表，不經推導——這裡測的是 manifest 的列法，不是推導。"""
+    import json
+    d = tmp_path / "v1" / "terms" / term_key
+    d.mkdir(parents=True, exist_ok=True)
+    start = D(first_week)
+    (d / "calendar.json").write_text(json.dumps({
+        "schema_version": 1, "timezone": "Asia/Taipei", "week_starts_on": "sunday",
+        "range_end_semantics": "inclusive",
+        "source": {"type": "google_calendar_ics", "url": "u", "content_sha256": "s",
+                   "parsed_at": "p", "parser_version": "calendar/1.0.0"},
+        "terms": {term_key: {
+            "instruction_start": first_week, "break_start": "2027-01-11",
+            "midterm": {"start": "2026-11-02", "end": "2026-11-06"},
+            "final_exam": {"start": "2026-12-18", "end": "2026-12-24"},
+            "weeks": [{"number": i + 1,
+                       "start": (start + dt.timedelta(days=7 * i)).isoformat(),
+                       "end": (start + dt.timedelta(days=7 * i + 6)).isoformat()}
+                      for i in range(weeks)]}}}), encoding="utf-8")
+
+
+def test_calendars_list_carries_the_coverage_range(tmp_path):
+    """App 只讀 manifest 就能挑出該抓哪一份——不必把 8/1 界線複製進需要送審的那一側。"""
+    from ntut_catalog.artifacts import _calendar_entries
+    _publish_calendar(tmp_path, "115-1", "2026-09-06")
+    got = _calendar_entries(tmp_path, today=D("2026-09-19"))
+    entry = got["115-1"]
+    assert entry.url == "terms/115-1/calendar.json"
+    assert (entry.first_week_start, entry.last_week_end) == ("2026-09-06", "2027-01-09")
+    assert entry.schema_version == 1        # 獨立版本，與檔案自己宣告的一致
+
+
+def test_calendars_list_keeps_current_and_previous_academic_year(tmp_path):
+    from ntut_catalog.artifacts import _calendar_entries
+    for term, first in [("113-1", "2024-09-08"), ("114-1", "2025-09-07"),
+                        ("115-1", "2026-09-06"), ("115-2", "2027-02-21")]:
+        _publish_calendar(tmp_path, term, first)
+    got = _calendar_entries(tmp_path, today=D("2026-09-19"))     # 學年度 115
+    assert sorted(got) == ["114-1", "115-1", "115-2"]            # 113 被排除
+    assert "113-1" in [p.parent.name for p in
+                       (tmp_path / "v1" / "terms").glob("*/calendar.json")]  # 檔案仍在
+
+
+def test_previous_year_fills_the_august_hole(tmp_path):
+    """每年 8 月新學年度的 ics 還沒匯入。只留當前學年度的話清單會是空的，
+    App 連剛結束那學期的週次表都拿不到。"""
+    from ntut_catalog.artifacts import _calendar_entries
+    _publish_calendar(tmp_path, "115-1", "2026-09-06")
+    _publish_calendar(tmp_path, "115-2", "2027-02-21")
+    got = _calendar_entries(tmp_path, today=D("2027-08-15"))     # 已是學年度 116
+    assert sorted(got) == ["115-1", "115-2"]
+
+
+def test_calendars_list_is_bounded(tmp_path):
+    """每年 +2 但清單封頂 4 筆——清單是發現機制，不是歷史檔案館。"""
+    from ntut_catalog.artifacts import _calendar_entries
+    for ay in range(110, 121):
+        for sem in (1, 2):
+            _publish_calendar(tmp_path, f"{ay}-{sem}", "2026-09-06")
+    assert len(_calendar_entries(tmp_path, today=D("2026-09-19"))) == 4
+
+
+def test_manifest_lists_a_calendar_even_without_a_catalog(tmp_path, events, sample_result):
+    """115-2 沒有課程目錄、進不了 manifest.terms（catalog 必填），
+    但必須出現在 calendars 裡，否則 App 無從發現它——實測 404 的根因。"""
+    from ntut_catalog.artifacts import build_v1, write_canonical
+    write_canonical(sample_result, tmp_path)
+    _write_one(tmp_path, events, "115-1")
+    _write_one(tmp_path, events, "115-2")
+    manifest = build_v1(tmp_path, "2026-09-19T04:00:00+08:00")
+    assert "115-2" not in manifest.terms          # 沒有 catalog
+    assert sorted(manifest.calendars) == ["115-1", "115-2"]

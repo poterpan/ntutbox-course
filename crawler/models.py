@@ -595,6 +595,20 @@ class ManifestEntry(BaseModel):
     schema_version: int = SCHEMA_VERSION
 
 
+class CalendarManifestEntry(ManifestEntry):
+    """`manifest.calendars` 的條目：ManifestEntry 加上「這份週次表涵蓋哪段日期」。
+
+    帶範圍是為了讓 App **只讀 manifest 就能挑出該抓哪一份**，不必把「8/1 學年度界線」
+    或學期編號慣例複製進 App——那一側要送審才能改（App 端 2026-09-19 指出）。
+    App 的規則因此只剩通用的日期比對：找範圍涵蓋今天的那一筆。
+
+    範圍是**授課週**（第 1 週起日 ~ 末週迄日），不含準備週與假期。所以學期之間
+    （例如 1/11~1/31）不會有任何一筆涵蓋今天——那是真實的空窗，不是資料缺漏。
+    """
+    first_week_start: str
+    last_week_end: str
+
+
 class ManifestTerm(BaseModel):
     catalog: ManifestEntry
     enrollment: Optional[ManifestEntry] = None
@@ -611,6 +625,12 @@ class Manifest(BaseModel):
     generated_at: Optional[str] = None
     min_app_version: Optional[str] = None
     terms: Dict[str, ManifestTerm] = Field(default_factory=dict)  # term_key -> ManifestTerm
+    # 週次表的發現清單。**與 terms 分開**是因為 ManifestTerm.catalog 是必填，
+    # 而「只有週次表、還沒有課程目錄」的下學期進不了 terms（實測 115-2 因此 404 不可發現）。
+    # 純新增、不動既有結構，所以不必 bump schema_version。
+    # 內容限**當前與前一學年度**（最多 4 筆、永遠不會長大）：清單是發現機制不是歷史檔案館。
+    # 舊的 calendar.json 檔案照舊留在 CDN、不刪，只是不列出來——與孤兒課程檔同一原則。
+    calendars: Dict[str, CalendarManifestEntry] = Field(default_factory=dict)
 
 
 # ============================================================== 排課 → App handoff
