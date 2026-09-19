@@ -251,7 +251,10 @@ def main(argv: List[str] | None = None) -> int:
             feed.events, term_keys, feed.source.url, feed.source.content_sha256)
         for term_key, cal in calendars.items():
             write_term_calendar(cal, term_key, out_dir)
-        logger.info("term calendars: %s", ", ".join(sorted(calendars)))
+        if calendars:
+            logger.info("term calendars: %s", ", ".join(sorted(calendars)))
+        else:
+            logger.warning("本次未產出任何週次表（新學年度尚未匯入）——既有的保留不動")
         build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
         logger.info("crawl-calendar done. events: %d, canonical changed: %s, horizon %s (max %s)",
                     len(feed.events), changed,

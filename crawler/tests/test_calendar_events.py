@@ -273,3 +273,17 @@ def test_v1_bytes_are_stable_when_content_did_not_change(tmp_path, sample_ics):
     first = out.read_bytes()
     build_calendar_v1(tmp_path, "2026-09-17T02:00:00+08:00")   # 隔天再建置一次
     assert out.read_bytes() == first
+
+
+def test_app_contract_fixtures_are_valid(tmp_path):
+    """App 端拿這三份做雙邊契約測試（events 切片／週次表／manifest）。"""
+    from models import Manifest, TermCalendarFile
+    fix = Path(__file__).parent / "fixtures" / "calendar"
+    feed = CalendarEventsFeed.model_validate_json((fix / "events-sample.json").read_text(encoding="utf-8"))
+    assert len(feed.events) == 4 and feed.range_end_semantics == "inclusive"
+    cal = TermCalendarFile.model_validate_json((fix / "calendar-115-1.json").read_text(encoding="utf-8"))
+    assert len(cal.terms["115-1"].weeks) == 18
+    man = Manifest.model_validate_json((fix / "manifest.json").read_text(encoding="utf-8"))
+    entry = man.terms["115-1"].calendar
+    assert entry is not None and entry.url == "terms/115-1/calendar.json"
+    assert entry.schema_version == cal.schema_version     # manifest 與檔案宣告一致

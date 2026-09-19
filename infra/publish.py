@@ -80,7 +80,7 @@ def _v1_files_for(out_dir: Path, terms: Optional[List[str]], include_details: bo
     )
     for td in term_dirs:
         for name in ["catalog.json", "classes.json", "periods.json", "enrollment.json",
-                     "mprograms.json", "names.json", "calendar.json"]:
+                     "mprograms.json", "names.json"]:
             p = td / name
             if p.exists():
                 files.append(str(p.relative_to(out_dir)))
@@ -92,6 +92,16 @@ def _v1_files_for(out_dir: Path, terms: Optional[List[str]], include_details: bo
     if std_dir.exists():
         for sf in sorted(std_dir.glob("*.json")):
             files.append(str(sf.relative_to(out_dir)))
+    # 週次表**不吃 --terms**：它只需要行事曆，不需要課程目錄，所以下學期的週次表
+    # 往往早於課程目錄就能產（#168 要的正是提前拿到）。綁 --terms 的話，115-2 的
+    # 週次表會一直停在本機、永遠不上線——App 端 2026-09-19 實測 404 就是這個原因。
+    # 有產出就發佈，範圍由 crawl-calendar 的推導決定，不需要任何人手動設定。
+    all_terms_dir = v1 / "terms"
+    if all_terms_dir.exists():
+        for cal in sorted(all_terms_dir.glob("*/calendar.json")):
+            rel = str(cal.relative_to(out_dir))
+            if rel not in files:
+                files.append(rel)
     # 行事曆事件 feed（跨學期，top-level）。Cache-Control 走預設 _LONG_CACHE(3600)：
     # 每日重抓，颱風假／補課這種臨時異動要快到使用者手上，不宜比 1 小時更久。
     cal_dir = v1 / "calendar"

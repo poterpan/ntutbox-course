@@ -1,0 +1,52 @@
+{
+ "schema_version": 2,
+ "generated_at": "2026-09-19T04:00:00+08:00",
+ "min_app_version": null,
+ "terms": {
+  "115-1": {
+   "catalog": {
+    "url": "terms/115-1/catalog.json",
+    "sha256": "478cfc2b0e943cc8de35f73a5310f0453de3e0724516584741b18b941436dcae",
+    "size": 3108081,
+    "content_encoding": null,
+    "schema_version": 2
+   },
+   "enrollment": {
+    "url": "terms/115-1/enrollment.json",
+    "sha256": "9d4fdf9334140dff3568119cbf2dc1f31d226aa669b6088345baa977fcc63c34",
+    "size": 264396,
+    "content_encoding": null,
+    "schema_version": 2
+   },
+   "classes": {
+    "url": "terms/115-1/classes.json",
+    "sha256": "1c7e8b11690fbb74546a77eede55494ac78e6829e0647390941060e4316da582",
+    "size": 23690,
+    "content_encoding": null,
+    "schema_version": 2
+   },
+   "periods": {
+    "url": "terms/115-1/periods.json",
+    "sha256": "480956a5cda6ecb548b611bd6332e5a4a676f602dff60a45bc8d443546f5af49",
+    "size": 1069,
+    "content_encoding": null,
+    "schema_version": 2
+   },
+   "mprograms": {
+    "url": "terms/115-1/mprograms.json",
+    "sha256": "24b90e4a40be54101c6f051bd7afdede91d591585cb301fbc59bb0e58e879e81",
+    "size": 9217,
+    "content_encoding": null,
+    "schema_version": 2
+   },
+   "calendar": {
+    "url": "terms/115-1/calendar.json",
+    "sha256": "6f9c1814319f8e2d9f96e855c1f99732156d1784f97bd913428fc08b3895702e",
+    "size": 1823,
+    "content_encoding": null,
+    "schema_version": 1
+   },
+   "dataset_version": "478cfc2b0e943cc8de35f73a5310f0453de3e0724516584741b18b941436dcae"
+  }
+ }
+}

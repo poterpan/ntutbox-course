@@ -56,6 +56,19 @@ class CalendarDerivationError(ValueError):
     """推導失敗。一律 fail loud——寧可停下來讓人看，也不要發布猜出來的週次表。"""
 
 
+class TermNotPublishedYet(CalendarDerivationError):
+    """該學期的事件還沒進 ics。**這是常態，不是錯誤。**
+
+    新學年度的行事曆由教務處分批匯入，時間沒有固定節奏——112 學年度上學期拖到
+    2023-08（開學當月）、下學期更拖到 2024-02。所以每年 8 月 1 日之後的一段期間，
+    `default_terms()` 要的新學年度學期在 ics 裡是完全空的。
+
+    這與「有事件但湊不出週次表」必須分開處理：後者代表規則或來源壞了（措辭改了、
+    週數不對），要硬錯把人叫來；前者只要安靜跳過，否則每天都失敗，連帶讓
+    `crawl-calendar` 非零退出、事件 feed 也一起停更（App 端 2026-09-19 指出）。
+    """
+
+
 def term_window(term_key: str) -> Tuple[dt.date, dt.date]:
     """學期的事件搜尋窗口。學年度 Y 的區間是 Y-08 ~ (Y+1)-07。"""
     year_s, sem_s = term_key.split("-")
@@ -140,7 +153,8 @@ def derive_term(events: Sequence[CalendarEvent], term_key: str) -> AcademicTerm:
     lo, hi = term_window(term_key)
     window = _in_window(events, lo, hi)
     if not window:
-        raise CalendarDerivationError(f"{term_key}: 該學期窗口 {lo}~{hi} 內沒有任何事件")
+        raise TermNotPublishedYet(
+            f"{term_key}: 該學期窗口 {lo}~{hi} 內沒有任何事件——新學年度尚未匯入")
 
     instruction = pick_event(window, term_key, _INSTRUCTION)
     brk = pick_event(window, term_key, _BREAK)
@@ -280,7 +294,20 @@ def build_all_term_calendars(
     if regression:
         raise CalendarDerivationError(
             "週次表回歸未通過（保留上一版、不發布）:\n  " + "\n  ".join(regression))
-    terms = {k: derive_term(events, k) for k in term_keys}
+    terms: Dict[str, AcademicTerm] = {}
+    for key in term_keys:
+        try:
+            terms[key] = derive_term(events, key)
+        except TermNotPublishedYet as e:
+            logger.info("跳過 %s：%s", key, e)      # 常態，不是錯誤
+    if not terms:
+        # **全部都還沒匯入也是常態**，每年 8 月必然發生一段時間：舊學年度已結束、
+        # 新學年度的 ics 還沒進來。回空字典、不拋錯——canonical 與 CDN 上的舊週次表
+        # 原封不動保留，事件 feed 照常更新。「哪個學期該有卻沒有」由
+        # infra/calendar_coverage_check.py 負責盯，不是靠讓整條管線死掉來通知。
+        logger.warning("要求的學期 %s 在 ics 裡全都沒有事件——保留既有週次表不動",
+                       list(term_keys))
+        return {}
     violations: List[str] = []
     for k, term in terms.items():
         sibling = next(((k2, t2) for k2, t2 in terms.items()
