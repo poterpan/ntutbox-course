@@ -134,6 +134,13 @@ export type Size = number;
 export type ContentEncoding = string | null;
 export type SchemaVersion5 = number;
 export type DatasetVersion = string | null;
+export type Url1 = string;
+export type Sha2561 = string;
+export type Size1 = number;
+export type ContentEncoding1 = string | null;
+export type SchemaVersion6 = number;
+export type FirstWeekStart = string;
+export type LastWeekEnd = string;
 export type TermKey3 = string;
 export type OfferingId1 = string;
 export type CourseCode1 = string | null;
@@ -162,7 +169,7 @@ export type ParsedAt = string;
 export type SourceScheduleSha256 = string;
 export type Syllabi = Syllabus1[];
 export type GeneratedAt2 = string | null;
-export type SchemaVersion6 = number;
+export type SchemaVersion7 = number;
 export type TermKey4 = string;
 export type Code3 = string;
 export type Name2 = string;
@@ -176,7 +183,7 @@ export type Online = boolean;
 export type Courses1 = MicroProgramCourse[];
 export type RulesText = string | null;
 export type Programs = MicroProgram[];
-export type SchemaVersion7 = number;
+export type SchemaVersion8 = number;
 export type EntryYear = number;
 export type EntryYear1 = number;
 export type Matric = string;
@@ -193,12 +200,12 @@ export type GroupId = string | null;
 export type Notes2 = string;
 export type Courses2 = StandardCourse[];
 export type Programs1 = ProgramStandard[];
-export type SchemaVersion8 = number;
+export type SchemaVersion9 = number;
 export type Timezone1 = string;
 export type RangeEndSemantics = "inclusive";
 export type GeneratedAt3 = string | null;
 export type Type = string;
-export type Url1 = string;
+export type Url2 = string;
 export type ContentSha256 = string;
 export type FetchedAt = string;
 export type ParserVersion1 = string;
@@ -217,13 +224,13 @@ export type Location = string | null;
 export type Sequence = number | null;
 export type LastModified = string | null;
 export type Events = CalendarEvent[];
-export type SchemaVersion9 = number;
+export type SchemaVersion10 = number;
 export type Timezone2 = string;
 export type WeekStartsOn = "sunday";
 export type RangeEndSemantics1 = "inclusive";
 export type GeneratedAt4 = string | null;
 export type Type1 = string;
-export type Url2 = string;
+export type Url3 = string;
 export type ContentSha2561 = string;
 export type ParsedAt1 = string;
 export type ParserVersion2 = string;
@@ -447,6 +454,7 @@ export interface Manifest {
   generated_at?: GeneratedAt1;
   min_app_version?: MinAppVersion;
   terms?: Terms;
+  calendars?: Calendars;
   [k: string]: unknown;
 }
 export interface Terms {
@@ -468,6 +476,29 @@ export interface ManifestEntry {
   size: Size;
   content_encoding?: ContentEncoding;
   schema_version?: SchemaVersion5;
+  [k: string]: unknown;
+}
+export interface Calendars {
+  [k: string]: CalendarManifestEntry;
+}
+/**
+ * `manifest.calendars` 的條目：ManifestEntry 加上「這份週次表涵蓋哪段日期」。
+ *
+ * 帶範圍是為了讓 App **只讀 manifest 就能挑出該抓哪一份**，不必把「8/1 學年度界線」
+ * 或學期編號慣例複製進 App——那一側要送審才能改（App 端 2026-09-19 指出）。
+ * App 的規則因此只剩通用的日期比對：找範圍涵蓋今天的那一筆。
+ *
+ * 範圍是**授課週**（第 1 週起日 ~ 末週迄日），不含準備週與假期。所以學期之間
+ * （例如 1/11~1/31）不會有任何一筆涵蓋今天——那是真實的空窗，不是資料缺漏。
+ */
+export interface CalendarManifestEntry {
+  url: Url1;
+  sha256: Sha2561;
+  size: Size1;
+  content_encoding?: ContentEncoding1;
+  schema_version?: SchemaVersion6;
+  first_week_start: FirstWeekStart;
+  last_week_end: LastWeekEnd;
   [k: string]: unknown;
 }
 /**
@@ -542,7 +573,7 @@ export interface WeeklyProgressWeek {
  * mprograms.json：逐學期微學程清單 + 各學程開課課號。
  */
 export interface MicroProgramDirectory {
-  schema_version?: SchemaVersion6;
+  schema_version?: SchemaVersion7;
   term_key: TermKey4;
   programs?: Programs;
   [k: string]: unknown;
@@ -574,7 +605,7 @@ export interface MicroProgramCourse {
  * standards/{entry_year}.json：某入學年所有 program 的課程標準。
  */
 export interface StandardDirectory {
-  schema_version?: SchemaVersion7;
+  schema_version?: SchemaVersion8;
   entry_year: EntryYear;
   programs?: Programs1;
   [k: string]: unknown;
@@ -610,7 +641,7 @@ export interface StandardCourse {
  * v1/calendar/events.json：全量單檔（gzip 後約 25-35 KB）。
  */
 export interface CalendarEventsFeed {
-  schema_version?: SchemaVersion8;
+  schema_version?: SchemaVersion9;
   timezone?: Timezone1;
   range_end_semantics?: RangeEndSemantics;
   generated_at?: GeneratedAt3;
@@ -621,7 +652,7 @@ export interface CalendarEventsFeed {
 }
 export interface CalendarSource {
   type?: Type;
-  url: Url1;
+  url: Url2;
   content_sha256: ContentSha256;
   fetched_at: FetchedAt;
   parser_version: ParserVersion1;
@@ -666,7 +697,7 @@ export interface CalendarEvent {
  * 代價是多一層巢狀，換到的是換來源時 App 端零改動。
  */
 export interface TermCalendarFile {
-  schema_version?: SchemaVersion9;
+  schema_version?: SchemaVersion10;
   timezone?: Timezone2;
   week_starts_on?: WeekStartsOn;
   range_end_semantics?: RangeEndSemantics1;
@@ -677,7 +708,7 @@ export interface TermCalendarFile {
 }
 export interface TermCalendarSource {
   type?: Type1;
-  url: Url2;
+  url: Url3;
   content_sha256: ContentSha2561;
   parsed_at: ParsedAt1;
   parser_version: ParserVersion2;

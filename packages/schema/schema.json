@@ -956,6 +956,57 @@
       "title": "EnrollmentLatest",
       "type": "object"
     },
+    "CalendarManifestEntry": {
+      "description": "`manifest.calendars` 的條目：ManifestEntry 加上「這份週次表涵蓋哪段日期」。\n\n帶範圍是為了讓 App **只讀 manifest 就能挑出該抓哪一份**，不必把「8/1 學年度界線」\n或學期編號慣例複製進 App——那一側要送審才能改（App 端 2026-09-19 指出）。\nApp 的規則因此只剩通用的日期比對：找範圍涵蓋今天的那一筆。\n\n範圍是**授課週**（第 1 週起日 ~ 末週迄日），不含準備週與假期。所以學期之間\n（例如 1/11~1/31）不會有任何一筆涵蓋今天——那是真實的空窗，不是資料缺漏。",
+      "properties": {
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "title": "Size",
+          "type": "integer"
+        },
+        "content_encoding": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Encoding"
+        },
+        "schema_version": {
+          "default": 2,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "first_week_start": {
+          "title": "First Week Start",
+          "type": "string"
+        },
+        "last_week_end": {
+          "title": "Last Week End",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "sha256",
+        "size",
+        "first_week_start",
+        "last_week_end"
+      ],
+      "title": "CalendarManifestEntry",
+      "type": "object"
+    },
     "ManifestEntry": {
       "properties": {
         "url": {
@@ -1112,6 +1163,13 @@
             "$ref": "#/$defs/ManifestTerm"
           },
           "title": "Terms",
+          "type": "object"
+        },
+        "calendars": {
+          "additionalProperties": {
+            "$ref": "#/$defs/CalendarManifestEntry"
+          },
+          "title": "Calendars",
           "type": "object"
         }
       },

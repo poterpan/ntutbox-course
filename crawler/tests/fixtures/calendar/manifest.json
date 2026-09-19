@@ -48,5 +48,25 @@
    },
    "dataset_version": "478cfc2b0e943cc8de35f73a5310f0453de3e0724516584741b18b941436dcae"
   }
+ },
+ "calendars": {
+  "115-1": {
+   "url": "terms/115-1/calendar.json",
+   "sha256": "6f9c1814319f8e2d9f96e855c1f99732156d1784f97bd913428fc08b3895702e",
+   "size": 1823,
+   "content_encoding": null,
+   "schema_version": 1,
+   "first_week_start": "2026-09-06",
+   "last_week_end": "2027-01-09"
+  },
+  "115-2": {
+   "url": "terms/115-2/calendar.json",
+   "sha256": "61602d889de6154b417c56db907447fd9675279e8d1eecc8f38efca26ff8ea3d",
+   "size": 1823,
+   "content_encoding": null,
+   "schema_version": 1,
+   "first_week_start": "2027-02-21",
+   "last_week_end": "2027-06-26"
+  }
  }
 }
