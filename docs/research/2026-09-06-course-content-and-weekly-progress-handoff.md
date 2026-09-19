@@ -312,7 +312,17 @@ calendar 與 events 走自己的版本號、從 1 開始 —— 所以 #168 的 
 | `weeks[].number` / `.start` / `.end` | 同名直取（App 用 `number`，**不要改叫 `index`**） |
 | `instructionStart` / `midterm` / `finalExam` / `flexibleLearning` / `breakStart` | `instruction_start` / `midterm` / `final_exam` / `flexible_learning` / `break_start` |
 
-### 產出範圍
+### 產出範圍（2026-09-19 修訂）
+
+**新學年度尚未匯入不是錯誤。** 教務處分批匯入行事曆、沒有固定節奏（112 學年度下學期拖到
+2024-02），所以每年 8 月之後有一段期間 `default_terms()` 要的學期在 ics 裡是空的。那種學期
+**安靜跳過**（`TermNotPublishedYet`）；全部都空就回空字典、保留既有週次表不動。
+**不可以讓它非零退出**——`crawl-calendar` 會連事件 feed 一起停更（實測 2027-08-01 必然觸發）。
+
+「有事件但湊不出合法週次表」仍然是硬錯、仍然全有全無——那代表規則或來源壞了。
+
+**上傳不吃 `--terms`**：週次表只需要行事曆、不需要課程目錄，下學期的往往早於課程目錄就能產
+（#168 要的正是提前拿到）。綁 `--terms` 會讓它停在本機永遠不上線。
 
 **只產當前學年度的兩個學期**（由今天推算，現況 115-1、115-2），舊學年度不回填。
 App 只用得到當前學期與下學期；而舊學年度沒有 PDF 可對，且實測會踩到真實例外——
@@ -372,7 +382,9 @@ App 只用得到當前學期與下學期；而舊學年度沒有 PDF 可對，�
 連帶結果：只有週次表、還沒有 catalog 的學期**不會進 manifest**（`ManifestTerm.catalog` 是必填），
 檔案照常發佈——這與 `names.json`／`standards/` 的既有先例一致。
 **三份名單漏改任何一份都是靜默不發佈。**
-`ManifestTerm`（`crawler/models.py:456-462`）加 optional `calendar: ManifestEntry`，沿用既有 url／sha256／size 契約；
+`ManifestTerm` 已加 optional `calendar: ManifestEntry`，沿用既有 url／sha256／size 契約。
+⚠️ **該 entry 的 `schema_version` 走獨立的 `CALENDAR_SCHEMA_VERSION`（1），不是全域的 2**——
+不區分的話 manifest 會說 2 而檔案本身寫 1，App decoder 對版本不符是整份拒收、且是靜默失效。
 逐課 detail **不要**進 manifest（2,461 個條目會把短快取的 manifest 撐爆）。
 
 ## 5. 契約四：行事曆事件 feed（**2026-09-16 新增**）
