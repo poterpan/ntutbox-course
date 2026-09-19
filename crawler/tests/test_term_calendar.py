@@ -217,11 +217,26 @@ def test_default_terms_covers_current_year_only():
     assert default_terms(D("2026-09-16")) == ["115-1", "115-2"]
 
 
-def test_build_all_is_all_or_nothing(events):
-    """其中一個學期不對代表規則或來源有問題，這時把另一個學期照發只是把錯誤藏起來。
-    105-1 早於 feed 起點（2019-05），窗口內零事件。"""
-    with pytest.raises(CalendarDerivationError, match="沒有任何事件"):
-        build_all_term_calendars(events, ["115-1", "105-1"], "u", "sha")
+def test_invariant_failure_is_still_all_or_nothing(events):
+    """**有事件但湊不出合法週次表** → 規則或來源壞了，把另一個學期照發只是把錯誤藏起來。
+    108-2（COVID 那年）延長學期，期末考落在推導範圍外、不變量⑤ 擋下。"""
+    with pytest.raises(CalendarDerivationError, match="不變量未通過"):
+        build_all_term_calendars(events, ["115-1", "108-2"], "u", "sha")
+
+
+def test_term_not_in_the_feed_yet_is_skipped_not_an_error(events):
+    """新學年度的行事曆分批匯入（112 學年度下學期拖到 2024-02），所以每年 8 月之後
+    有一段時間 default_terms() 要的學期在 ics 裡是空的。那是常態——安靜跳過，
+    不能讓整個 crawl-calendar 非零退出、連事件 feed 一起停更。"""
+    got = build_all_term_calendars(events, ["115-1", "105-1"], "u", "sha")
+    assert sorted(got) == ["115-1"]
+
+
+def test_all_terms_missing_returns_empty_without_raising(events):
+    """2027-08-01 的實際情境：舊學年度已結束、新學年度還沒匯入，兩個都是空的。
+    回空字典、保留既有週次表不動——由 calendar_coverage_check 負責盯，
+    不是靠讓管線死掉來通知。"""
+    assert build_all_term_calendars(events, ["116-1", "116-2"], "u", "sha") == {}
 
 
 def test_old_terms_are_not_guaranteed_derivable(events):
@@ -341,3 +356,19 @@ def test_term_calendar_bytes_are_stable_across_builds(tmp_path, events):
     first = out.read_bytes()
     build_term_calendars_v1(tmp_path, "2026-09-17T04:00:00+08:00")
     assert out.read_bytes() == first
+
+
+def test_manifest_calendar_entry_uses_the_independent_schema_version(tmp_path, events, sample_result):
+    """manifest 說的版本必須與檔案自己宣告的一致。calendar.json 寫 schema_version=1
+    （獨立於全域的 2），manifest entry 若沿用全域值，App 對版本不符是整份拒收——
+    而且是靜默失效。"""
+    from models import CALENDAR_SCHEMA_VERSION, SCHEMA_VERSION, TermCalendarFile
+    from ntut_catalog.artifacts import build_v1, write_canonical
+    write_canonical(sample_result, tmp_path)
+    _write_one(tmp_path, events)
+    manifest = build_v1(tmp_path, "2026-09-19T04:00:00+08:00")
+    term = manifest.terms["115-1"]
+    published = TermCalendarFile.model_validate_json(
+        (tmp_path / "v1" / "terms" / "115-1" / "calendar.json").read_text(encoding="utf-8"))
+    assert term.calendar.schema_version == CALENDAR_SCHEMA_VERSION == published.schema_version
+    assert term.catalog.schema_version == SCHEMA_VERSION      # 其餘仍走全域版本

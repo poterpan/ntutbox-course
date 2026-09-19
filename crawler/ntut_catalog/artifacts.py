@@ -16,6 +16,8 @@ from pathlib import Path
 from typing import List
 
 from models import (
+    CALENDAR_SCHEMA_VERSION,
+    SCHEMA_VERSION,
     CalendarEventsFeed,
     TermCalendarFile,
     CourseOffering,
@@ -275,9 +277,10 @@ def read_calendar_event_count(out_dir: Path) -> int:
     return sum(1 for line in nd.read_text(encoding="utf-8").splitlines() if line.strip())
 
 
-def _entry(path: Path, rel_url: str) -> ManifestEntry:
+def _entry(path: Path, rel_url: str, schema_version: int = SCHEMA_VERSION) -> ManifestEntry:
     data = path.read_bytes()
-    return ManifestEntry(url=rel_url, sha256=hashlib.sha256(data).hexdigest(), size=len(data))
+    return ManifestEntry(url=rel_url, sha256=hashlib.sha256(data).hexdigest(),
+                         size=len(data), schema_version=schema_version)
 
 
 def write_manifest(out_dir: Path, generated_at: str) -> Manifest:
@@ -291,7 +294,12 @@ def write_manifest(out_dir: Path, generated_at: str) -> Manifest:
         for name in ["catalog", "classes", "periods", "enrollment", "mprograms", "calendar"]:
             p = term_dir / f"{name}.json"
             if p.exists():
-                files[name] = _entry(p, f"terms/{term}/{name}.json")
+                # calendar.json 走**獨立的** CALENDAR_SCHEMA_VERSION，不是全域那個。
+                # 不區分的話 manifest 會說 schema_version=2 而檔案本身寫 1，
+                # App decoder 對版本不符是整份拒收——會是靜默失效。
+                files[name] = _entry(
+                    p, f"terms/{term}/{name}.json",
+                    CALENDAR_SCHEMA_VERSION if name == "calendar" else SCHEMA_VERSION)
         if "catalog" not in files:
             continue
         # dataset_version = catalog.json 的結構 sha256（catalog 純結構→byte 穩定→版本穩定）

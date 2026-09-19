@@ -126,3 +126,10 @@ jobs:
             --terms "$TERMS" \
             --out data \
             --generated-at "$(date -u +%FT%TZ)"
+
+      # 盯「已發布的週次表涵蓋哪些學期」。horizon 只量 ics 來源的日期範圍，兩者可以
+      # 同時成立卻都沒發現問題——2026-09-19 就是 horizon.ok 與 115-2 的 404 並存。
+      # 只告警不阻斷：8 月新學年度尚未匯入時缺學期是常態。
+      - name: Calendar coverage check
+        continue-on-error: true
+        run: python infra/calendar_coverage_check.py data
