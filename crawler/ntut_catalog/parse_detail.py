@@ -9,7 +9,7 @@ from typing import Dict, Optional
 
 from bs4 import BeautifulSoup
 
-from models import Syllabus
+from models import LabeledValue, Syllabus
 
 # ShowSyllabus 標籤 → Syllabus 欄位
 _SYLLABUS_LABELS = {
@@ -107,8 +107,9 @@ def parse_syllabus(html: str, teacher_code: Optional[str] = None) -> Syllabus:
         return syl
 
     # 「彈性學習(17-18週)」是嵌套的 <table class="flex-learn-table">，先單獨解出來。
-    # 欄位名原樣保存（泛型 key-value，不比對預期欄位）——學校改名或增減欄位時
-    # 自動跟隨，不必改 code。見 models.Syllabus.flex_learning 的註解。
+    # 欄位名原樣保存（泛型 label/value，不比對預期欄位）——學校改名或增減欄位時
+    # 自動跟隨，不必改 code。依來源列序 append：順序與重複標籤都是契約的一部分，
+    # 見 models.LabeledValue 的註解。
     flex_table = table.find("table", class_="flex-learn-table")
     if flex_table is not None:
         for ftr in flex_table.find_all("tr"):
@@ -119,7 +120,7 @@ def parse_syllabus(html: str, teacher_code: Optional[str] = None) -> Syllabus:
             fta = fcells[1].find("textarea")
             fv = _clean(fta.get_text()) if fta else _clean(fcells[1].get_text())
             if fk and fv:
-                syl.flex_learning[fk] = fv
+                syl.flex_learning.append(LabeledValue(label=fk, value=fv))
 
     for tr in table.find_all("tr"):
         # 巢狀表格（如上面的 flex-learn-table）的列會被 find_all("tr") 一併撈出，
@@ -150,5 +151,5 @@ def parse_syllabus(html: str, teacher_code: Optional[str] = None) -> Syllabus:
             # 已由 flex-learn-table 結構化解出，不重複塞進 extra
             pass
         elif label and label not in ("教師姓名",) and value:
-            syl.extra[label] = value
+            syl.extra.append(LabeledValue(label=label, value=value))
     return syl

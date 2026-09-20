@@ -26,8 +26,8 @@
    "sdgs": null,
    "ai_usage": null,
    "notes": null,
-   "flex_learning": {},
-   "extra": {},
+   "flex_learning": [],
+   "extra": [],
    "weekly_progress": {
     "status": "resolved",
     "weeks": [

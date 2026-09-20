@@ -212,7 +212,9 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 ```
 
 **微學程 artifact（`mprograms.json` v2）**：
-- `mprograms.json` v2（SCHEMA_VERSION=2）：每學程除 `offering_ids` 外新增
+- `mprograms.json` v2（發佈檔的 `schema_version` 跟著全域 `SCHEMA_VERSION` 走，2026-09-20 起 = 3；
+  **這個數字是全 repo 8 個 artifact 共用的單一常數**，別的檔案改形狀也會把它推上去，
+  不代表 mprograms 自己的內容變了；要不要拆成 per-artifact 版本見 issue #98）：每學程除 `offering_ids` 外新增
   `courses[]`（course_code/name_zh/credits/category(基礎|核心|總整|進階|應用|null)/category_raw/online，
   來源 Cprog -4 matric=H，notes 欄正規化；`online`＝notes 含 e 注記＝**線上課程**（ewant 平台，不走選課系統，
   catalog 11 學期查無開班；2026-07-19 經教務處 AVF 課程規劃書＋創新學院微學程清單確證，**非 EMI**）→

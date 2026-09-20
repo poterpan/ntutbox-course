@@ -780,7 +780,7 @@
       "description": "catalog.json：Web v1 主檔（前端建索引）。重文字(描述/課綱)拆 course/{id}.json 隨點隨取。",
       "properties": {
         "schema_version": {
-          "default": 2,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -872,7 +872,7 @@
     "PeriodTable": {
       "properties": {
         "schema_version": {
-          "default": 2,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -896,7 +896,7 @@
       "description": "classes.json：逐學期；Web 身分選擇器（系所/年級/班）+ 本班判斷；班級碼可預填 cwish cunum。",
       "properties": {
         "schema_version": {
-          "default": 2,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -922,7 +922,7 @@
       "description": "enrollment.json：volatile overlay；選課季可高頻更新，疊在已快取 catalog 上。",
       "properties": {
         "schema_version": {
-          "default": 2,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -984,7 +984,7 @@
           "title": "Content Encoding"
         },
         "schema_version": {
-          "default": 2,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -1034,7 +1034,7 @@
           "title": "Content Encoding"
         },
         "schema_version": {
-          "default": 2,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         }
@@ -1130,7 +1130,7 @@
       "description": "manifest.json：client 先抓（極小），比對 sha256 決定要不要重抓。",
       "properties": {
         "schema_version": {
-          "default": 2,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -1174,6 +1174,26 @@
         }
       },
       "title": "Manifest",
+      "type": "object"
+    },
+    "LabeledValue": {
+      "additionalProperties": false,
+      "description": "「上游決定欄位」的 pass-through 單元：原樣搬來源的標籤與值。\n\n刻意是**有序陣列的元素**而不是 dict entry：\n  - 順序即來源表格列序，是契約的一部分（消費端照序渲染，不必知道欄位名）。\n    dict 給不了這個保證——Swift 的 Dictionary 本質無序，JSONDecoder 一解完\n    來源順序就沒了。\n  - 重複標籤兩列都留，不會後者覆蓋前者（來源表格改版時最常見的靜默掉資料）。\n標籤**不映射、不正規化**，改名或新增欄位時解析與 UI 都自動跟隨。",
+      "properties": {
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "value": {
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "value"
+      ],
+      "title": "LabeledValue",
       "type": "object"
     },
     "Syllabus": {
@@ -1341,18 +1361,18 @@
           "title": "Notes"
         },
         "flex_learning": {
-          "additionalProperties": {
-            "type": "string"
+          "items": {
+            "$ref": "#/$defs/LabeledValue"
           },
           "title": "Flex Learning",
-          "type": "object"
+          "type": "array"
         },
         "extra": {
-          "additionalProperties": {
-            "type": "string"
+          "items": {
+            "$ref": "#/$defs/LabeledValue"
           },
           "title": "Extra",
-          "type": "object"
+          "type": "array"
         },
         "weekly_progress": {
           "anyOf": [
@@ -1619,7 +1639,7 @@
       "description": "mprograms.json：逐學期微學程清單 + 各學程開課課號。",
       "properties": {
         "schema_version": {
-          "default": 2,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },
@@ -1785,7 +1805,7 @@
       "description": "standards/{entry_year}.json：某入學年所有 program 的課程標準。",
       "properties": {
         "schema_version": {
-          "default": 2,
+          "default": 3,
           "title": "Schema Version",
           "type": "integer"
         },

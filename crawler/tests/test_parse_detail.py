@@ -5,6 +5,15 @@ from ntut_catalog.parse_detail import parse_curr, parse_syllabus
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+def _pairs(rows):
+    """[(label, value)]——順序是契約的一部分，所以一律比對序列而非 dict。"""
+    return [(r.label, r.value) for r in rows]
+
+
+def _labels(rows):
+    return [r.label for r in rows]
+
+
 def test_parse_curr():
     html = (FIXTURES / "curr_2B04001.html").read_text(encoding="utf-8")
     info = parse_curr(html)
@@ -40,10 +49,11 @@ def test_parse_syllabus():
 
 
 def test_parse_syllabus_unknown_labels_go_to_extra():
-    # 來源若新增未知標籤，進 extra 不丟失
+    # 來源若新增未知標籤，進 extra 不丟失（與 flex_learning 同形的有序陣列）
     html = (FIXTURES / "syllabus_360748.html").read_text(encoding="utf-8")
     s = parse_syllabus(html, teacher_code="12567")
-    assert isinstance(s.extra, dict)
+    assert isinstance(s.extra, list)
+    assert all(r.label for r in s.extra)
 
 
 def test_parse_syllabus_tolerates_label_suffix():
@@ -53,7 +63,7 @@ def test_parse_syllabus_tolerates_label_suffix():
     html = (FIXTURES / "syllabus_360748_live.html").read_text(encoding="utf-8")
     s = parse_syllabus(html, teacher_code="12567")
     assert s.schedule, "課程進度(1-16週) 應對映到 schedule，不該是 None"
-    assert "課程進度(1-16週)" not in s.extra, "已識別的欄位不該同時留在 extra"
+    assert "課程進度(1-16週)" not in _labels(s.extra), "已識別的欄位不該同時留在 extra"
 
 
 def test_parse_syllabus_nested_flex_table_not_mistaken_for_labels():
@@ -63,7 +73,7 @@ def test_parse_syllabus_nested_flex_table_not_mistaken_for_labels():
     html = (FIXTURES / "syllabus_360748_live.html").read_text(encoding="utf-8")
     s = parse_syllabus(html, teacher_code="12567")
     for junk in ("類別", "內容", "時數(小時)", "學習成果", "評量比例"):
-        assert junk not in s.extra, f"嵌套表格的 {junk} 不該成為 extra 的 key"
+        assert junk not in _labels(s.extra), f"嵌套表格的 {junk} 不該成為 extra 的欄位"
 
 
 def test_parse_syllabus_extracts_flex_learning_table():
@@ -72,17 +82,17 @@ def test_parse_syllabus_extracts_flex_learning_table():
     導致這些欄位在資料層遺失（線上只剩「內容」那一欄跑進 extra）。"""
     html = (FIXTURES / "syllabus_360748_live.html").read_text(encoding="utf-8")
     s = parse_syllabus(html, teacher_code="12567")
-    assert s.flex_learning, "flex-learn-table 應被解析成 key-value"
+    assert s.flex_learning, "flex-learn-table 應被解析成 label/value 陣列"
     # 欄位名跟隨來源，不寫死——只驗「有抓到多個欄位」與內容非空
     assert len(s.flex_learning) >= 2
-    assert all(k and v for k, v in s.flex_learning.items())
+    assert all(r.label and r.value for r in s.flex_learning)
     # 不該同時留在 extra（已被識別的區塊）
-    assert "彈性學習(17-18週)" not in s.extra
+    assert "彈性學習(17-18週)" not in _labels(s.extra)
 
 
-def test_flex_learning_is_generic_key_value_not_fixed_schema():
+def test_flex_learning_is_generic_pass_through_not_fixed_schema():
     """寬容性（選 D 的核心理由）：學校改欄位名／增減欄位時不該漏抓或噴錯。
-    解析器把 (th, td) 原樣存成 dict，不比對預期欄位名。"""
+    解析器把 (th, td) 原樣 append 成 label/value，不比對預期欄位名。"""
     html = """
     <table><tr><th>教師姓名</th><td>王小明</td></tr>
     <tr><th>彈性學習(17-18週)</th><td>
@@ -94,14 +104,60 @@ def test_flex_learning_is_generic_key_value_not_fixed_schema():
     </td></tr></table>
     """
     s = parse_syllabus(html, teacher_code="x")
-    assert s.flex_learning == {
-        "類別": "線上數位教材學習",
-        "時數": "4",                      # 改名（原「時數(小時)」）照樣抓到
-        "學校未來新增的欄位": "某個新值",      # 新欄位自動吸收
-    }
+    assert _pairs(s.flex_learning) == [
+        ("類別", "線上數位教材學習"),
+        ("時數", "4"),                      # 改名（原「時數(小時)」）照樣抓到
+        ("學校未來新增的欄位", "某個新值"),      # 新欄位自動吸收
+    ]
 
 
 def test_flex_learning_absent_when_no_such_table():
     html = (FIXTURES / "syllabus_360748.html").read_text(encoding="utf-8")  # 舊 fixture 無此表
     s = parse_syllabus(html, teacher_code="12567")
     assert not s.flex_learning
+
+
+def test_flex_learning_preserves_source_row_order():
+    """順序是契約的一部分（類別 → 內容 → 時數 → 成果 → 比例）：消費端照陣列順序
+    渲染，不必知道欄位名。dict 給不了這個保證——Swift 的 Dictionary 本質無序，
+    JSONDecoder 解完來源順序就沒了。"""
+    html = (FIXTURES / "syllabus_360748_live.html").read_text(encoding="utf-8")
+    s = parse_syllabus(html, teacher_code="12567")
+    assert _labels(s.flex_learning) == ["類別", "內容", "時數(小時)", "學習成果", "評量比例"]
+
+
+def test_flex_learning_keeps_duplicate_labels():
+    """dict 遇到重複的 th 會後者覆蓋前者、靜默掉資料。彈性學習是政策第一年、
+    表格還會改（例如「內容」拆成 17/18 兩列），重複 label 必須兩列都在。"""
+    html = """
+    <table><tr><th>教師姓名</th><td>王小明</td></tr>
+    <tr><th>彈性學習(17-18週)</th><td>
+      <table class="flex-learn-table">
+        <tr><th>內容</th><td>第17週：課程口試</td></tr>
+        <tr><th>內容</th><td>第18週：反思報告</td></tr>
+      </table>
+    </td></tr></table>
+    """
+    s = parse_syllabus(html, teacher_code="x")
+    assert _pairs(s.flex_learning) == [
+        ("內容", "第17週：課程口試"),
+        ("內容", "第18週：反思報告"),
+    ]
+
+
+def test_extra_keeps_duplicate_labels_and_source_order():
+    """extra 與 flex_learning 同型：都是「上游決定欄位」的 pass-through 袋子，
+    一樣要保序、一樣不能讓重複標籤互相覆蓋。"""
+    html = """
+    <table><tr><th>教師姓名</th><td>王小明</td></tr>
+    <tr><th>校方新欄位</th><td>甲</td></tr>
+    <tr><th>校方新欄位</th><td>乙</td></tr>
+    <tr><th>另一個新欄位</th><td>丙</td></tr>
+    </table>
+    """
+    s = parse_syllabus(html, teacher_code="x")
+    assert _pairs(s.extra) == [
+        ("校方新欄位", "甲"),
+        ("校方新欄位", "乙"),
+        ("另一個新欄位", "丙"),
+    ]

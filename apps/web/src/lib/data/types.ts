@@ -18,6 +18,7 @@ export type {
   MicroProgram,
   MicroProgramCourse,
   MicroProgramDirectory,
+  LabeledValue,
 } from "../../../../../packages/schema/index";
 
 // App-side bundle of one term's files.

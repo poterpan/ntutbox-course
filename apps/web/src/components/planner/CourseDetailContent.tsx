@@ -16,7 +16,7 @@ import { unitSlug } from "@/lib/hub/units";
 import { useLatestTerm } from "@/lib/planner/use-latest-term";
 import { shareOrCopy } from "@/lib/share/share-course";
 import { useToast } from "@/components/ui/toast";
-import type { CourseDetail } from "@/lib/data/types";
+import type { CourseDetail, LabeledValue } from "@/lib/data/types";
 import { resolveMatric } from "@/lib/planner/matric";
 import { cn } from "@/lib/utils";
 
@@ -330,17 +330,27 @@ function Row({ k, v }: { k: string; v: React.ReactNode }) {
   );
 }
 
+/** 彈性學習列：schema v3 是有序的 label/value 陣列，v2 是 dict。
+ *  兩種形狀會長期並存——CDN 的 course/{id}.json 與前端 bundle 各自快取、歷史學期靠人工跑
+ *  migrate-details 才會轉、資料管線回滾也會倒回舊形狀 → 兩種都吃，發布順序不必人工協調。 */
+function normalizeFlexRows(rows?: LabeledValue[] | Record<string, string> | null): LabeledValue[] {
+  const all: LabeledValue[] = Array.isArray(rows)
+    ? rows.map((r) => ({ label: r?.label ?? "", value: r?.value ?? "" }))
+    : Object.entries(rows ?? {}).map(([label, value]) => ({ label, value: String(value ?? "") }));
+  return all.filter((r) => r.label && r.value.trim());
+}
+
 /**
  * 彈性學習(17-18週)：與「課程進度」同級的欄位（不做獨立 block——教學大綱本身
  * 已是一層有背景的 block，再包一層會層級過重）。子欄位用 --ink-faint 小標拉出層級差。
  *
- * 欄位名與順序**完全跟隨來源**（泛型 key-value，不寫死「類別/內容/時數…」）：
+ * 欄位名與順序**完全跟隨來源**（泛型 label/value，不寫死「類別/內容/時數…」）：
  * 學校改欄位名或增減欄位時 UI 自動跟隨，不必改 code。
  * 已被咬過一次——2026-08 學校把「課程進度」改成「課程進度(1-16週)」，
  * 精確比對失效導致線上資料壞掉數週（見 crawler/ntut_catalog/parse_detail.py）。
  */
-function FlexLearning({ rows }: { rows?: Record<string, string> | null }) {
-  const entries = Object.entries(rows ?? {}).filter(([, v]) => v && v.trim());
+function FlexLearning({ rows }: { rows?: LabeledValue[] | Record<string, string> | null }) {
+  const entries = normalizeFlexRows(rows);
   if (entries.length === 0) return null;
   return (
     <div>
@@ -348,10 +358,11 @@ function FlexLearning({ rows }: { rows?: Record<string, string> | null }) {
         彈性學習（17-18 週）
       </dt>
       <dd className="mt-1 space-y-1.5">
-        {entries.map(([k, v]) => (
-          <div key={k} className="grid grid-cols-[5.5rem_1fr] gap-2">
-            <span className="pt-px text-[11px] text-[var(--ink-faint)]">{k}</span>
-            <span className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--ink)]">{v}</span>
+        {entries.map((r, i) => (
+          // label 可能重複（來源表格把同一欄拆成 17／18 兩列），所以 key 不能只用 label
+          <div key={`${r.label}-${i}`} className="grid grid-cols-[5.5rem_1fr] gap-2">
+            <span className="pt-px text-[11px] text-[var(--ink-faint)]">{r.label}</span>
+            <span className="whitespace-pre-wrap text-sm leading-relaxed text-[var(--ink)]">{r.value}</span>
           </div>
         ))}
       </dd>
