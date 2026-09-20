@@ -4,9 +4,11 @@
 
 > **2026-09-16 修訂（發布端 agent）**：契約三整節改寫 —— 週次表改由校網 Google Calendar ics 推導，**不再解析官方 PDF**（111～115 十個學期逐筆驗證，證據見 `docs/research/assets/2026-09-16-term-week-table-from-ics/`）。新增契約四「行事曆事件 feed」（poterpan/NTUTBox#181），原契約四「HTTP／CDN 行為」順延為契約五。
 
+> **2026-09-20 修訂（發布端 agent）**：新增契約六「syllabi 的 pass-through 欄位」——`flex_learning` 與 `extra` 從 dict 換成有序的 `label`/`value` 陣列（issue #96），`SCHEMA_VERSION` 2 → 3。原 §7～§9（驗收與契約測試／明確非目標／參考與來源清單）整體順延為 §8～§10。
+
 ## 0. 目的與範圍
 
-北科盒子 iOS App 要把本站的課程內容接進主 App。**課程進度的解析放在本站（結構化），App 只讀。** App 端實作不在範圍內（只有 §1 一段交代消費端怎麼用）。五個契約：
+北科盒子 iOS App 要把本站的課程內容接進主 App。**課程進度的解析放在本站（結構化），App 只讀。** App 端實作不在範圍內（只有 §1 一段交代消費端怎麼用）。六個契約：
 
 1. **`weekly_progress` inline 進每份 `syllabi[]`** —— 逐週主題的結構化衍生欄位，原文 `schedule` 保留。
 2. **parser 規則** —— POC parser 搬進發布步驟，加三條新規則，附回歸基準。
@@ -14,7 +16,7 @@
 4. **行事曆事件 feed** —— 2026-09-16 新增。校網 Google Calendar ics 抓取轉 CDN，取代 App 直打 `calModeApp.do`（poterpan/NTUTBox#181）。
 5. **HTTP／CDN 行為** —— ETag／304、Cache-Control、bot 防護與 403/404 語意。
 
-非目標見 §8（Edge API、登入、gold set 阻擋上線、App 端 UI）。
+非目標見 §9（Edge API、登入、gold set 阻擋上線、App 端 UI）。
 
 ## 1. 背景與消費端需求
 
@@ -22,7 +24,7 @@ App 有兩個入口。**課程詳情頁**：從課表點進一門課，看大綱
 
 對本站的要求只有四條：**每門課一個檔**（已成立）、**ETag 且 `If-None-Match` 回 304**、**體積小到能一次預抓 6～10 門**、**每週重產**（現行 `crawl-details.yml` 週日 05:30 已符合）。
 
-已核實：`crawler/ntut_catalog/artifacts.py:155-164` 把 `canonical/{term}/details.ndjson` 炸成 `v1/terms/{term}/course/{offering_id}.json`；`crawler/models.py:256` 的 `schedule: Optional[str]  # 課程進度` 就是那段自由文字；2026-09-05 實測 `cdn.ntutbox.com/course/v1/terms/115-1/course/360744.json` 回 200，`teacher_code` 已在 payload 內。
+已核實：`crawler/ntut_catalog/artifacts.py:155-164` 把 `canonical/{term}/details.ndjson` 炸成 `v1/terms/{term}/course/{offering_id}.json`；`crawler/models.py:272` 的 `schedule: Optional[str]  # 課程進度` 就是那段自由文字；2026-09-05 實測 `cdn.ntutbox.com/course/v1/terms/115-1/course/360744.json` 回 200，`teacher_code` 已在 payload 內。
 
 ## 2. 契約一：`weekly_progress` inline 進每份 `syllabi[]`
 
@@ -294,7 +296,7 @@ gmail、2 個校內信箱），實測遮罩前後三個數字完全相同，不�
 }
 ```
 
-**`schema_version` 刻意不跟 repo 的全域 `SCHEMA_VERSION` 綁**（`crawler/models.py:27`，目前 = 2）。
+**`schema_version` 刻意不跟 repo 的全域 `SCHEMA_VERSION` 綁**（`crawler/models.py:27`，目前 = 3）。
 全域版本是任何一個 model 改動就 bump 的；綁上去等於**課程 schema 的不相干改版會讓 App 整份拒收行事曆**。
 calendar 與 events 走自己的版本號、從 1 開始 —— 所以 #168 的 `supportedSchemaVersion = 1` 不用改。
 這是刻意偏離 repo 慣例，理由記在 `docs/DECISIONS.md`。
@@ -345,7 +347,7 @@ App 只用得到當前學期與下學期；而舊學年度沒有 PDF 可對，�
 ⑨ **必填非 null**：`instruction_start`、`break_start`、`midterm`、`final_exam`。App 要靠這四個欄位取代中文關鍵字耦合（見下），缺一個就等於那邊要退回猜字串。
 ⑩ **回歸**：111～115 十個學期的推導結果必須與 `pdf-week-tables-111-115.json` **逐筆相同**。這份是從校方公告 PDF 抽出來的答案，凍成離線 fixture，以後不需要再碰 PDF。（取代原案只對 115 一個學年度回歸的不變量⑧。）
 
-**⑩ 必須在「發佈時」跑，不能只放在 pytest。** 理由見 §7：**本 repo 目前沒有任何跑測試的 CI**。把這條放進 `quality_gate` 一起跑，等於每次發佈都拿 10 份校方公告答案重驗一次解析規則 —— 成本是把那份 fixture 一起帶進 `crawler/`（8.9 KB，離線、無外部依賴），換到的是「ics 改措辭時當天就被擋下」。ics-only 的安全論證整個押在這條上，不能讓它取決於有沒有人記得跑 pytest。
+**⑩ 必須在「發佈時」跑，不能只放在 pytest。** 理由見 §8：**本 repo 目前沒有任何跑測試的 CI**。把這條放進 `quality_gate` 一起跑，等於每次發佈都拿 10 份校方公告答案重驗一次解析規則 —— 成本是把那份 fixture 一起帶進 `crawler/`（8.9 KB，離線、無外部依賴），換到的是「ics 改措辭時當天就被擋下」。ics-only 的安全論證整個押在這條上，不能讓它取決於有沒有人記得跑 pytest。
 
 任一不過 → **保留上一版、CI 紅燈、log 印出是哪一條不變量、哪個學期**。
 
@@ -535,7 +537,80 @@ ics 解析本身不必從零寫：`docs/research/assets/2026-09-16-calendar-ics-
 
 **需實作者查證**：R2 custom domain 前面現行掛了哪些 Cloudflare 規則（Bot Fight Mode／WAF managed rules），以及能否對特定 UA 放行。我沒有 dashboard 存取權。
 
-## 7. 驗收與契約測試
+## 7. 契約六：`syllabi[]` 的 pass-through 欄位（**2026-09-20 新增**）
+
+**適用欄位**：`Syllabus.flex_learning`（彈性學習 17-18 週）與 `Syllabus.extra`（來源新增的未知標籤欄）。
+兩者都是「**上游決定欄位**」的袋子：欄位名由校方的 HTML 表格決定，發布端原樣搬運。
+
+### 形狀（schema v3 起）
+
+```json
+"flex_learning": [
+  {"label": "類別",       "value": "● 學生分組實作及討論…"},
+  {"label": "內容",       "value": "第17週\n類別：參與課程相關作業(口試)…"},
+  {"label": "時數(小時)", "value": "4"},
+  {"label": "學習成果",   "value": "…"},
+  {"label": "評量比例",   "value": "…"}
+]
+```
+
+`extra` 同形。沒有內容時是 `[]`（不是 null、不是缺欄）。
+
+### 不變量（App 可以依賴）
+
+| 不變量 | 意思 |
+|---|---|
+| **有序** | 陣列順序＝來源表格列序。跑一遍陣列、`label` 當列標題、`value` 當內容即可。 |
+| **`value` 非空白** | 發布端已濾掉空值列，App 不必再過濾一次。 |
+| **`label` 可能重複** | 來源把同一欄拆成 17／18 兩列就會發生。**不可當 key、不可塞進 `Dictionary`**。 |
+| **欄位名原樣** | 不映射、不正規化。校方改名（已發生過：`課程進度` → `課程進度(1-16週)`）或增減欄位時，App 一行都不用改。 |
+
+### 為什麼不是 dict
+
+**Swift 的 `[String: String]` 本質無序**——`JSONDecoder` 解完，來源順序就永久消失了。
+這五欄有閱讀順序（類別 → 內容 → 時數 → 成果 → 比例），dict 根本渲染不出來。
+另外 dict 遇到重複 `label` 會後者覆蓋前者、**靜默掉一整列**，而且逼 App 列舉中文 key
+（「時數(小時)」的半形括號改成全形就會靜默少一欄）。
+
+### 版本與遷移
+
+- `SCHEMA_VERSION` 2 → 3。**讀到比自己認識的更新的版本要降級容忍，不是整包拒收**：
+  這個欄位的設計就是為了讓上游改版不必連帶改 App。
+- **CDN 上的資料不會在合併當下就換形狀**，而且**當期與歷史學期走的是兩條不同的路**。
+  `course/{id}.json` 是 `canonical/{term}/details.ndjson` 的逐行轉寫（`artifacts.py:155-164`，中間只過 `_write_v1_json` → `normalize_pua` 做缺字修復，不碰欄位結構），
+  canonical 住在 orphan `data` branch：
+
+  | 學期 | 怎麼換到 v3 | 為什麼 |
+  |---|---|---|
+  | **當期（115-1）** | `crawl-details` 週更（每週日 cron）重爬後自然換 | 它每次都全量重寫 details.ndjson |
+  | **歷史（110-1～114-2）** | **必須跑 `python -m ntut_catalog migrate-details --out data`** | 週更**刻意只跑當期**（`crawl-details.yml:60-62`）；重爬 10 個學期 ≈ **28,977 請求／6.8 小時**打學校的生產系統，為了純機械的形狀轉換不值得 |
+
+  `migrate-details`（`reprocess.py`）是離線、冪等、不重爬的。它**只動 `flex_learning`/`extra` 兩個 key**，
+  不走 Pydantic round-trip——`Syllabus` 沒有 `extra="forbid"`，round-trip 會把 model 還不認識的欄位
+  （例如尚未併進 main 的 `weekly_progress`，data branch 上已有 2,304 筆）**靜默刪掉**。
+  對 11 個學期、29,480 份 syllabi 實跑驗證過：形狀全轉、順序與內容逐項等價、其餘欄位一字不差、`weekly_progress` 全數保留。
+
+  **跑法**（與 `recategorize`／`rematric` 同一套；這幾個離線子命令都沒有對應 workflow，由人手動跑）：
+
+  1. 把 `data` branch checkout 到 `data/canonical`（workflow 的作法，見 `crawl-details.yml:39-43`）
+  2. `python -m ntut_catalog migrate-details --out data`（收尾會自己重建本地 v1）
+  3. **人工自檢**（手動步驟沒有 CI 守門）：`grep -l '"flex_learning":{' data/canonical/*/details.ndjson`
+     應該完全沒有輸出
+  4. commit 回 `data` branch → 跑 `publish-v1`（輸入名是 `include_details`）
+- 歷史學期的 `flex_learning` 原本全是 `{}`（彈性學習是 115 學年度才有的政策）。
+  **「反正是空的」不是可以不遷移的理由**——`{}` 與 `[]` 對 Swift 的 `Codable` 是不同型別，
+  嚴格 decoder 會整筆解碼失敗，而不是得到一個空陣列。
+- 在資料換完之前線上仍是 v2 的 dict。App 若要在窗口期內上線，decoder 得兩種都吃；
+  Web 端已經是兩種都吃（`CourseDetailContent.tsx` 的 `normalizeFlexRows`）。
+
+### 契約樣本
+
+`crawler/tests/fixtures/contract/course-detail-115-1.json`——與 CDN 的 `course/{id}.json` 同形，
+三位教師涵蓋三種形態：①完整彈性學習（五欄）②沒有彈性學習（`[]`）③重複 `label` + 非空 `extra`。
+樣本由現行 parser 產出並在 `crawler/tests/test_contract_fixtures.py` 比對，不會靜默過期。
+識別碼是佔位值，細節見同目錄的 `README.md`。
+
+## 8. 驗收與契約測試
 
 **Schema 走既有流程**：`crawler/models.py` → `python packages/schema/generate.py` → `packages/schema/schema.json` → `pnpm generate` → `index.d.ts`。`CourseDetail` 已在 `packages/schema/generate.py:17-27` 的 `ROOTS` 裡，所以 `weekly_progress` 一加就自動出現；**calendar 與 calendar-events 是兩個新 root，要自己加進 `ROOTS`**（`packages/schema/generate.py:17-27`）。
 
@@ -577,7 +652,7 @@ fixture 用校方公開的課程目錄資料即可（課名／教師名不是個
   等於同時要決定「發布前是否從課綱文字剝除 email」。
 - 或維持現狀（視為校方公開課綱的一部分）。
 
-## 8. 明確非目標
+## 9. 明確非目標
 
 - **Edge API**。靜態 CDN 就夠（`ntutbox-edge` 現況只有 AASA 與 `/share/{id}`、沒有 R2 binding，要做等於從零加）。
 - **任何登入**。資料源是公開免登入的 `aps.ntut.edu.tw/course/tw/`，消費端也不登入。
@@ -586,9 +661,9 @@ fixture 用校方公開的課程目錄資料即可（課名／教師名不是個
 - **修 #180**。那是現況 bug，與換源獨立。
 - **gold set 阻擋上線**（§3）；**App 端的開關、UI、快取策略**；**用模型補寫教師沒提供的進度**（模型最多進 review queue，不得寫進發布資料）。
 
-## 9. 參考與來源清單
+## 10. 參考與來源清單
 
-**本 repo（已核實行號）**：`crawler/models.py:248-269`（`Syllabus`）、`:256`（`schedule  # 課程進度`）、`:272-282`（`CourseDetail`）、`:456-462`（`ManifestTerm`）；`crawler/ntut_catalog/parse_detail.py:15-27`（`_SYLLABUS_LABELS`，`:17` 是課程進度）、`:32-50`（`_match_label` 前綴比對；`:35-36` 記著 2026-08 學校把標籤改成「課程進度(1-16週)」害線上壞掉的教訓）；`crawler/ntut_catalog/detail.py:20`（`crawl_detail`）；`crawler/ntut_catalog/artifacts.py:155-164`、`:192-216`（`write_manifest`，`:200` 的檔名清單目前不含 detail 與 calendar）；`crawler/ntut_catalog/cli.py:108-110`；`infra/publish.py:29-42`、`:45`；`infra/r2-cors.json`；`packages/schema/generate.py:17-27`。
+**本 repo（已核實行號）**：`crawler/models.py:264-286`（`Syllabus`）、`:272`（`schedule  # 課程進度`）、`:289-302`（`CourseDetail`）、`:473-479`（`ManifestTerm`）、`:248-261`（`LabeledValue`）；`crawler/ntut_catalog/parse_detail.py:15-27`（`_SYLLABUS_LABELS`，`:17` 是課程進度）、`:32-50`（`_match_label` 前綴比對；`:35-36` 記著 2026-08 學校把標籤改成「課程進度(1-16週)」害線上壞掉的教訓）；`crawler/ntut_catalog/detail.py:20`（`crawl_detail`）；`crawler/ntut_catalog/artifacts.py:155-164`、`:192-216`（`write_manifest`，`:200` 的檔名清單目前不含 detail 與 calendar）；`crawler/ntut_catalog/cli.py:108-110`；`infra/publish.py:29-42`、`:45`；`infra/r2-cors.json`；`packages/schema/generate.py:17-27`。
 
 **POC**（`/Users/poterpan/Documents/Coding/NTUT/ntut-course-progress-poc`）：`course_progress_poc/parser.py:73-89`（`WeekSegment`）、`:235`（`parse_schedule`）、`:292-320`（`resolve_week` 三態）；`docs/POC_FINDINGS.md`（6 條陷阱）；`fixtures/observed_115-1_range_cases.json`；`snapshots/115-1-poc-report.json`。
 

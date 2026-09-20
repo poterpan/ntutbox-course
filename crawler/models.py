@@ -24,7 +24,7 @@ from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 # ============================================================== 基礎型別 / Enum
 
@@ -271,6 +271,22 @@ class WeeklyProgress(BaseModel):
     source_schedule_sha256: str
 
 
+class LabeledValue(BaseModel):
+    """「上游決定欄位」的 pass-through 單元：原樣搬來源的標籤與值。
+
+    刻意是**有序陣列的元素**而不是 dict entry：
+      - 順序即來源表格列序，是契約的一部分（消費端照序渲染，不必知道欄位名）。
+        dict 給不了這個保證——Swift 的 Dictionary 本質無序，JSONDecoder 一解完
+        來源順序就沒了。
+      - 重複標籤兩列都留，不會後者覆蓋前者（來源表格改版時最常見的靜默掉資料）。
+    標籤**不映射、不正規化**，改名或新增欄位時解析與 UI 都自動跟隨。
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    label: str
+    value: str
+
+
 class Syllabus(BaseModel):
     """單一教師的教學大綱（ShowSyllabus.jsp；label→textarea，用標籤文字定位）。"""
     teacher_code: Optional[str] = None
@@ -288,11 +304,12 @@ class Syllabus(BaseModel):
     ai_usage: Optional[str] = None               # 課程是否導入 AI
     notes: Optional[str] = None                  # 備註
     # 彈性學習(17-18週)：來源是 <table class="flex-learn-table">，欄位為
-    # 類別/內容/時數(小時)/學習成果/評量比例。刻意用**泛型 key-value 而非固定欄位**——
+    # 類別/內容/時數(小時)/學習成果/評量比例。刻意用**泛型 label/value 而非固定欄位**——
     # 學校改欄位名或增減欄位時（已發生過：課程進度 → 課程進度(1-16週)），
-    # 解析與 UI 都自動跟隨，不必改 code。順序即來源順序（Python dict 保序）。
-    flex_learning: Dict[str, str] = Field(default_factory=dict)
-    extra: Dict[str, str] = Field(default_factory=dict)  # 來源新增的未知標籤欄（label→值）
+    # 解析與 UI 都自動跟隨，不必改 code。形狀理由見 LabeledValue。
+    # 不變量（契約，消費端可依賴）：順序＝來源列序、value 非空白、label 可能重複。
+    flex_learning: List[LabeledValue] = Field(default_factory=list)
+    extra: List[LabeledValue] = Field(default_factory=list)  # 來源新增的未知標籤欄（同一組不變量）
     # 逐週進度（由 schedule 解析而得，契約一）。每份 syllabus 各自一份，
     # **不合併、不投票、不取第一份**——115-1 有 112 個開課實例的不同教師寫了互相衝突的
     # 進度，挑哪一位是 consumer 的事。

@@ -93,8 +93,9 @@ function seedDetail(syllabi: unknown[]) {
 }
 
 describe("彈性學習（17-18 週）", () => {
-  it("renders source field names as-is (generic key-value, no fixed schema)", async () => {
-    // 寬容性是選這個呈現方式的核心理由：學校改欄位名／增減欄位時 UI 自動跟隨。
+  it("still renders the legacy dict shape (schema v2 data)", async () => {
+    // 舊形狀不會因為遷移跑完就消失：資料管線回滾、尚未遷移的學期、以及 CDN／瀏覽器
+    // 既有快取都會讓 dict 再冒出來。這是**永久**保險而不是過渡期測試，不要刪。
     mockUseMprograms.mockReturnValue({ data: dirNone, error: false, loading: false, retry: vi.fn() });
     // 用「基本資料表沒有的」欄位名，避免與課程資訊的「時數」撞名
     seedDetail([{ teacher_name: "王", schedule: "第一週…",
@@ -104,6 +105,37 @@ describe("彈性學習（17-18 週）", () => {
     for (const t of ["類別", "線上數位教材學習", "彈性時數", "未來新欄位", "某值"]) {
       expect(await screen.findByText(t)).toBeInTheDocument();
     }
+  });
+
+  it("renders the label/value array in source order (schema v3 shape)", async () => {
+    // 順序是契約：消費端照陣列順序渲染，不必知道欄位名。
+    mockUseMprograms.mockReturnValue({ data: dirNone, error: false, loading: false, retry: vi.fn() });
+    seedDetail([{ teacher_name: "王", schedule: "第一週…", flex_learning: [
+      { label: "類別", value: "線上數位教材學習" },
+      { label: "彈性時數", value: "4" },
+      { label: "未來新欄位", value: "某值" },
+    ] }]);
+    render(<CourseDetailContent offeringId="A" />);
+    const title = await screen.findByText("彈性學習（17-18 週）");
+    for (const t of ["類別", "線上數位教材學習", "彈性時數", "未來新欄位", "某值"]) {
+      expect(await screen.findByText(t)).toBeInTheDocument();
+    }
+    const text = title.parentElement?.textContent ?? "";
+    expect(text.indexOf("類別")).toBeLessThan(text.indexOf("彈性時數"));
+    expect(text.indexOf("彈性時數")).toBeLessThan(text.indexOf("未來新欄位"));
+  });
+
+  it("keeps duplicate labels instead of collapsing them", async () => {
+    // dict 形狀下後者會覆蓋前者、靜默掉一列；陣列必須兩列都渲染。
+    mockUseMprograms.mockReturnValue({ data: dirNone, error: false, loading: false, retry: vi.fn() });
+    seedDetail([{ teacher_name: "王", schedule: "第一週…", flex_learning: [
+      { label: "內容", value: "第17週：課程口試" },
+      { label: "內容", value: "第18週：反思報告" },
+    ] }]);
+    render(<CourseDetailContent offeringId="A" />);
+    expect(await screen.findByText("第17週：課程口試")).toBeInTheDocument();
+    expect(screen.getByText("第18週：反思報告")).toBeInTheDocument();
+    expect(screen.getAllByText("內容")).toHaveLength(2);
   });
 
   it("is omitted when the course has no flex learning", async () => {

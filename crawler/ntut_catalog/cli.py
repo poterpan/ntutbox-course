@@ -2,6 +2,7 @@
   python -m ntut_catalog crawl    --terms 110-1:115-1 --out ../data   # 爬取
   python -m ntut_catalog rederive --out ../data                        # 離線重建內嵌班級（不重爬）
   python -m ntut_catalog rematric --out ../data                        # 離線回算學制欄位（不重爬）
+  python -m ntut_catalog migrate-details --out ../data                 # 離線把 details 遷成 schema v3（不重爬）
 
 term 範圍只展開 sem 1/2（暑期 3 不在 P0 範圍）。
 已存在的學期預設跳過（resume），--force 重抓。
@@ -132,6 +133,10 @@ def main(argv: List[str] | None = None) -> int:
     rc.add_argument("--out", default="../data")
     rm = sub.add_parser("rematric", help="離線依 raw_fields.matric_codes 回算 matric_codes/matric_division（不重爬）")
     rm.add_argument("--out", default="../data")
+    md = sub.add_parser("migrate-details",
+                        help="離線把 details.ndjson 的 flex_learning/extra 遷成 schema v3 的 label/value 陣列（不重爬）")
+    md.add_argument("--terms", default=None, help="學期，如 110-1,115-1（預設全部）")
+    md.add_argument("--out", default="../data")
     ps = sub.add_parser("pua-scan",
                         help="監測新造字(PUA)碼位：canonical 出現 PUA_MAP 未收錄碼位 → 列出並 exit 1")
     ps.add_argument("--terms", required=True, help="學期，如 115-1（可逗號/範圍）")
@@ -203,6 +208,17 @@ def main(argv: List[str] | None = None) -> int:
         build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
         logger.info("rematric done: %d terms, %d courses rematriced",
                     len(stats), sum(s["rematriced"] for s in stats))
+        return 0
+
+    if args.command == "migrate-details":
+        from ntut_catalog.reprocess import migrate_details_canonical
+        _setup_logging(out_dir, "migrate-details")
+        terms = [t.strip() for t in args.terms.split(",") if t.strip()] if args.terms else None
+        stats = migrate_details_canonical(out_dir, terms)
+        # v1 重建：course/{id}.json 是 details.ndjson 的逐行複製，不重建就還是舊形狀
+        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
+        logger.info("migrate-details done: %d terms, %d syllabi migrated",
+                    len(stats), sum(s["syllabi_migrated"] for s in stats))
         return 0
 
     if args.command == "pua-scan":

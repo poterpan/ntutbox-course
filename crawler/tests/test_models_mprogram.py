@@ -2,7 +2,10 @@ from models import SCHEMA_VERSION, MicroProgram, MicroProgramCourse, MicroProgra
 
 
 def test_schema_version_bumped():
-    assert SCHEMA_VERSION == 2
+    """v3：Syllabus 的 flex_learning/extra 從 dict 換成有序的 label/value 陣列
+    （破壞性型別變更，issue #96）。消費端讀到比自己認識的更新的版本時應降級容忍，
+    不是整包拒收。"""
+    assert SCHEMA_VERSION == 3
 
 
 def test_microprogram_course_fields():
