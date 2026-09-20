@@ -528,7 +528,15 @@ ics 解析本身不必從零寫：`docs/research/assets/2026-09-16-calendar-ics-
 | `terms/{term}/calendar.json` | `public, max-age=86400, stale-while-revalidate=604800` | 一學期最多修訂一兩次，但**不可宣稱 immutable**（開學前會有修正版）。要在 `infra/publish.py:29-42` 新增一條 |
 | `calendar/events.json` | `public, max-age=3600`（**沿用現行預設值，不必加設定**） | 每日重抓；颱風假／補課這種臨時異動要快到使用者手上，不宜比 1 小時更久 |
 
-**ETag／304**：R2 對非 multipart 物件回 MD5 ETag、`If-None-Match` 回 304 是原生行為，但我**沒有實測**（只有 repo 註解與 CORS 設定佐證意圖）。**需實作者查證**：`curl -I` 取 ETag，再帶 `If-None-Match` 必須拿到 304 且 body 為空。
+**ETag／304**（**2026-09-20 實測確認，原為待查證項**）：對 `cdn.ntutbox.com/course/v1/terms/115-1/course/360748.json`：
+
+```
+ETag                    "bf5fb00509ba47a2efbdfe60d9193cda"
+body 的 MD5              bf5fb00509ba47a2efbdfe60d9193cda   ← 相同
+帶 If-None-Match 再取     HTTP 304，body 0 bytes
+```
+
+所以兩件事都成立：**單一 part 物件的 ETag 就是內容 MD5**、`If-None-Match` 回 304 且 body 為空。前者現在也被發佈端用來做差異上傳（`infra/publish.py` 的 `remote_etags`／`unchanged_rels`：遠端 ETag 與本機 MD5 相同就不重傳）。multipart 物件的 ETag 是 `<md5>-<段數>`，不可拿來判等——發佈端一律視為不同、照傳。
 
 **bot 防護（已核實，2026-09-05 實測）**：同一個 CDN URL，Python `urllib` 預設 UA 直接回 **403**；`curl` 與帶一般 UA 的 urllib 回 200。這是個沒有錯誤訊息的失敗模式。要求兩件事：
 
