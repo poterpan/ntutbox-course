@@ -3,24 +3,27 @@
 策略（spec Phase B）：
   - 從 canonical 重建【完整】v1（manifest 涵蓋全學期）
   - quality gate：課數驟降 / 0 課 → 不發佈
-  - 逐檔 wrangler r2 object put；term files 全成功後，manifest 最後推（原子性）
+  - S3 批次上傳（逐目錄 scope）；缺憑證回退 wrangler 逐檔 put
+  - 差異上傳：遠端 ETag(=內容 MD5) 與本機相同就跳過；manifest 不跳過、永遠最後推（原子性）
   - 不預壓縮（CF 邊緣自動壓）；per-object Cache-Control；key 前綴 course/
 
 用法：
   python infra/publish.py --bucket ntutbox-cdn --terms 115-1 [--previous-counts '{"115-1":2450}']
   python infra/publish.py --bucket ntutbox-cdn --all
   python infra/publish.py --bucket ntutbox-cdn --terms 115-1 --dry-run
+  python infra/publish.py --bucket ntutbox-cdn --all --no-skip-unchanged   # 強制全傳
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import subprocess
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 # publish 需要重建 v1（從 canonical），故依賴 crawler 套件
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "crawler"))
@@ -181,7 +184,100 @@ def _run_aws(cmd: List[str]) -> None:
     subprocess.run(cmd, check=True, env=env)
 
 
-def s3_sync_upload(bucket: str, out_dir: Path, files: List[str], dry_run: bool) -> None:
+def _run_aws_json(cmd: List[str]) -> dict:
+    env = dict(os.environ)
+    env["AWS_ACCESS_KEY_ID"] = os.environ["R2_S3_ACCESS_KEY_ID"]
+    env["AWS_SECRET_ACCESS_KEY"] = os.environ["R2_S3_SECRET_ACCESS_KEY"]
+    env.setdefault("AWS_DEFAULT_REGION", "auto")
+    out = subprocess.run(cmd, check=True, env=env, capture_output=True, text=True).stdout
+    return json.loads(out) if out.strip() else {}
+
+
+def remote_etags(bucket: str, endpoint: str, prefix: str = "course/") -> Dict[str, str]:
+    """列出 R2 既有物件的 key → ETag。aws-cli 會自動分頁（32k 物件約 33 次請求）。
+
+    **單一 part 物件的 ETag 就是內容 MD5**——2026-09-20 對
+    `cdn.ntutbox.com/course/v1/terms/115-1/course/360748.json` 實測：
+    ETag 與 body 的 MD5 皆為 bf5fb00509ba47a2efbdfe60d9193cda。
+    （交接文件 §6 原本把這件事記為「未實測」，現已驗證。）
+    """
+    data = _run_aws_json(["aws", "s3api", "list-objects-v2", "--bucket", bucket,
+                          "--prefix", prefix, "--endpoint-url", endpoint, "--output", "json"])
+    return {c["Key"]: c["ETag"].strip('"') for c in data.get("Contents", [])}
+
+
+def _md5(path: Path) -> str:
+    h = hashlib.md5()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def unchanged_rels(out_dir: Path, rels: List[str], remote: Dict[str, str]) -> Set[str]:
+    """遠端 ETag 與本機內容 MD5 相同 → 這次不必重傳。
+
+    為什麼划算：#89／#95 已經讓「內容沒變的產物 byte-identical」，所以每週
+    `crawl-details` 重傳的 2,700 個檔裡，真正變動的通常只有少數幾十個。
+
+    multipart 物件的 ETag 是 `<md5>-<段數>`，不是內容雜湊 → 一律視為不同、照傳。
+    """
+    skip: Set[str] = set()
+    for rel in rels:
+        etag = remote.get(r2_key(rel))
+        if not etag or "-" in etag:
+            continue
+        src = out_dir / rel
+        if src.is_file() and _md5(src) == etag:
+            skip.add(rel)
+    return skip
+
+
+def _dir_upload_cmds(bucket: str, out_dir: Path, rels: List[str],
+                     cache_control: str, endpoint: str) -> List[List[str]]:
+    """依「所在目錄」分批，每個目錄一條 aws 指令，來源 scope 到該目錄。
+
+    為什麼不是「單一指令 + 逐檔 --include」（2026-09-20 之前的作法）：awscli 對
+    走訪到的每個檔都要把全部 pattern 跑一遍（後面的 pattern 能覆蓋前面的，不能
+    提早跳出），成本是 O(走訪檔數 × pattern 數)。而來源是整個 out_dir，所以
+    「只發一個學期」也要走訪全部 11 學期的產物。
+
+    實測（2026-09-20，run 35525476205）：11 學期 32,623 個物件 → 約 10.7 億次
+    比對，8 檔/分、推算 68 小時。比它當初取代的 wrangler 逐檔（約 9 小時）還慢
+    7 倍，等於優化在它唯一的目標情境上是負的。
+
+    scope 到目錄之後，「走訪範圍」就是「要傳的範圍」：整個目錄都要傳時 pattern
+    數是 0，只傳一部分時也只需要該目錄內那幾個檔名。
+    """
+    by_dir: Dict[str, List[str]] = {}
+    for rel in rels:
+        d, _, name = rel.rpartition("/")
+        by_dir.setdefault(d, []).append(name)
+
+    cmds: List[List[str]] = []
+    for d, names in sorted(by_dir.items()):
+        src = out_dir / d
+        cmd = ["aws", "s3", "cp", str(src), f"s3://{bucket}/{r2_key(d)}/",
+               "--endpoint-url", endpoint, "--recursive",
+               "--content-type", "application/json",
+               "--cache-control", cache_control,
+               "--only-show-errors"]
+        # 裸 --recursive 只在「這個目錄就是整批、且沒有子目錄」時才安全：
+        # v1/terms/{t}/ 底下有 course/，不排除的話會把詳情一起掃上去，
+        # 等於 --include-details 失效。
+        entries = list(src.iterdir()) if src.is_dir() else []
+        on_disk = {e.name for e in entries if e.is_file()}
+        has_subdir = any(e.is_dir() for e in entries)
+        if has_subdir or set(names) != on_disk:
+            cmd += ["--exclude", "*"]
+            for name in sorted(names):
+                cmd += ["--include", name]
+        cmds.append(cmd)
+    return cmds
+
+
+def s3_sync_upload(bucket: str, out_dir: Path, files: List[str], dry_run: bool,
+                   skip_unchanged: bool = True) -> None:
     """批次上傳，保留兩個既有保證：
        ① 原子性——manifest 最後推（client 看到 manifest 時物件已就緒）
        ② per-object Cache-Control——manifest/enrollment 短快取、其餘長快取
@@ -198,22 +294,21 @@ def s3_sync_upload(bucket: str, out_dir: Path, files: List[str], dry_run: bool) 
     manifest = [f for f in ordered if f.endswith("manifest.json")]
     body = [f for f in ordered if not f.endswith("manifest.json")]
 
+    # manifest 不參與跳過：它是「物件都就緒了」的信號，永遠要推。
+    if skip_unchanged and body:
+        skip = unchanged_rels(out_dir, body, remote_etags(bucket, _s3_endpoint()))
+        if skip:
+            print(f"skipping {len(skip)} unchanged object(s); uploading {len(body) - len(skip)}")
+            body = [f for f in body if f not in skip]
+
     groups: Dict[str, List[str]] = {}
     for rel in body:
         groups.setdefault(cache_control_for(rel), []).append(rel)
 
     endpoint = _s3_endpoint()
     for cache_control, rels in groups.items():
-        # --recursive 需要共同前綴目錄；用 --exclude "*" + --include 逐一指名，
-        # 讓「哪些檔要傳」完全由 _v1_files_for 決定（避免誤傳 out/ 內的其他東西）。
-        cmd = ["aws", "s3", "cp", str(out_dir), f"s3://{bucket}/course/",
-               "--endpoint-url", endpoint, "--recursive", "--exclude", "*",
-               "--content-type", "application/json",
-               "--cache-control", cache_control,
-               "--only-show-errors"]
-        for rel in rels:
-            cmd += ["--include", rel]
-        _run_aws(cmd)
+        for cmd in _dir_upload_cmds(bucket, out_dir, rels, cache_control, endpoint):
+            _run_aws(cmd)
 
     for rel in manifest:                    # 最後推，維持原子性
         _run_aws(["aws", "s3", "cp", str(out_dir / rel), f"s3://{bucket}/{r2_key(rel)}",
@@ -235,6 +330,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--generated-at", default="", help="manifest generated_at（省略用佔位）")
     ap.add_argument("--include-details", action="store_true", help="也上傳 course/{id}.json 詳情（量大、慢）")
     ap.add_argument("--no-s3", action="store_true", help="強制走 wrangler 逐檔（除錯用）")
+    ap.add_argument("--no-skip-unchanged", action="store_true",
+                    help="不做 ETag 差異比對，全部重傳（改 Cache-Control 等 metadata 變更時用）")
     args = ap.parse_args(argv)
 
     out_dir = Path(args.out).resolve()
@@ -262,7 +359,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     use_s3 = s3_available() and not args.no_s3
     if use_s3:
         print(f"uploading {len(files)} object(s) via S3 batch (aws s3 cp --recursive)")
-        s3_sync_upload(args.bucket, out_dir, files, args.dry_run)
+        s3_sync_upload(args.bucket, out_dir, files, args.dry_run,
+                       skip_unchanged=not args.no_skip_unchanged)
     else:
         if args.include_details and not args.no_s3:
             print("⚠️  S3 credentials 未設定，回退 wrangler 逐檔上傳——"
