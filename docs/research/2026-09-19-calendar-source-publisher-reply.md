@@ -130,6 +130,21 @@ let endExclusive = Calendar.current.date(byAdding: .day, value: 1, to: endDate)!
 
 ---
 
+### 時間戳的語意（2026-09-20 補）
+
+三個 `generated_at` 的差異是刻意的：
+
+| 檔案 | `generated_at` | 內容變動的時間在哪 |
+|---|---|---|
+| `manifest.json` | 有值 | —（索引檔，`max-age=300`，本來就常變） |
+| `calendar/events.json` | `null` | `source.fetched_at` |
+| `terms/{term}/calendar.json` | `null` | `source.parsed_at` |
+| `catalog.json` | `null` | —（repo 既有慣例） |
+
+**不帶建置時間戳**是為了讓內容沒變的日子 byte-identical、ETag 不變、你們拿得到 304。
+兩個 `source.*_at` 現在的語意都是**內容最後一次變動的時間**，不是最後一次跑的時間 ——
+所以它們可以直接當「這份資料多舊」用。
+
 ## 兩項訂正
 
 - **建議 5（manifest `generated_at` 為 null）**：現況不是 null，實測 `2026-09-18T22:30:22Z`。

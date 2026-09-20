@@ -448,3 +448,41 @@ def test_manifest_lists_a_calendar_even_without_a_catalog(tmp_path, events, samp
     manifest = build_v1(tmp_path, "2026-09-19T04:00:00+08:00")
     assert "115-2" not in manifest.terms          # 沒有 catalog
     assert sorted(manifest.calendars) == ["115-1", "115-2"]
+
+
+def test_term_calendar_is_not_rewritten_when_content_is_unchanged(tmp_path, events):
+    """`source.parsed_at` 每次跑都不同，但那不是內容的一部分。不比對就每天重寫 →
+    ETag 每天失效 → max-age=86400 的長快取白設。這是 #89 漏掉的另一半。"""
+    import time
+    from ntut_catalog.artifacts import write_term_calendar
+    first = build_all_term_calendars(events, ["115-1"], "u", "sha")["115-1"]
+    assert write_term_calendar(first, "115-1", tmp_path) is True
+    time.sleep(1.1)                       # parsed_at 用秒精度
+    second = build_all_term_calendars(events, ["115-1"], "u", "sha")["115-1"]
+    assert second.source.parsed_at != first.source.parsed_at
+    assert write_term_calendar(second, "115-1", tmp_path) is False
+
+
+def test_term_calendar_is_rewritten_when_content_really_changed(tmp_path, events):
+    from ntut_catalog.artifacts import write_term_calendar
+    cal = build_all_term_calendars(events, ["115-1"], "u", "sha")["115-1"]
+    write_term_calendar(cal, "115-1", tmp_path)
+    changed = cal.model_copy(deep=True)
+    changed.terms["115-1"].break_start = "2027-01-12"      # 學校改了寒假起日
+    assert write_term_calendar(changed, "115-1", tmp_path) is True
+
+
+def test_published_calendar_bytes_survive_a_rerun(tmp_path, events):
+    """端到端：同樣的來源連跑兩次，v1 產物必須 byte-identical。"""
+    import time
+    from ntut_catalog.artifacts import build_term_calendars_v1, write_term_calendar
+    out = tmp_path / "v1" / "terms" / "115-1" / "calendar.json"
+    write_term_calendar(build_all_term_calendars(events, ["115-1"], "u", "sha")["115-1"],
+                        "115-1", tmp_path)
+    build_term_calendars_v1(tmp_path, "2026-09-20T05:00:00+08:00")
+    first = out.read_bytes()
+    time.sleep(1.1)
+    write_term_calendar(build_all_term_calendars(events, ["115-1"], "u", "sha")["115-1"],
+                        "115-1", tmp_path)
+    build_term_calendars_v1(tmp_path, "2026-09-21T05:00:00+08:00")
+    assert out.read_bytes() == first

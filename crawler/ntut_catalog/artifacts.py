@@ -231,10 +231,29 @@ def build_term_calendars_v1(out_dir: Path, generated_at: str) -> List[str]:
     return done
 
 
-def write_term_calendar(calendar: TermCalendarFile, term_key: str, out_dir: Path) -> None:
+def _calendar_content(calendar: TermCalendarFile) -> dict:
+    """比對用的內容，**排除 parsed_at**——那是「這次解析的時間」，不是內容的一部分。"""
+    return calendar.model_dump(exclude={"generated_at": True, "source": {"parsed_at"}})
+
+
+def write_term_calendar(calendar: TermCalendarFile, term_key: str, out_dir: Path) -> bool:
+    """**內容沒變就不重寫**——回傳 False。
+
+    週次表一學期最多改一兩次，`Cache-Control` 因此設 max-age=86400。但原本每次跑都重寫，
+    `source.parsed_at` 每天更新 → 檔案 bytes 每天不同 → ETag 每天失效 → App 每天重抓，
+    那個長快取等於白設。這是 events.json 那個修正（#89）漏掉的另一半。
+
+    修好之後 `parsed_at` 的語意才正確：**內容最後一次變動的時間**，不是最後一次跑的時間。
+    """
     d = out_dir / "canonical" / term_key
     d.mkdir(parents=True, exist_ok=True)
-    (d / "calendar.json").write_text(calendar.model_dump_json(), encoding="utf-8")
+    path = d / "calendar.json"
+    if path.exists():
+        previous = TermCalendarFile.model_validate_json(path.read_text(encoding="utf-8"))
+        if _calendar_content(previous) == _calendar_content(calendar):
+            return False
+    path.write_text(calendar.model_dump_json(), encoding="utf-8")
+    return True
 
 
 def write_mprograms(directory, out_dir: Path) -> None:

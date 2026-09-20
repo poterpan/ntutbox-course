@@ -249,10 +249,11 @@ def main(argv: List[str] | None = None) -> int:
         term_keys = expand_terms(args.terms) if args.terms else default_terms()
         calendars = build_all_term_calendars(
             feed.events, term_keys, feed.source.url, feed.source.content_sha256)
-        for term_key, cal in calendars.items():
-            write_term_calendar(cal, term_key, out_dir)
+        changed_terms = [k for k, cal in sorted(calendars.items())
+                         if write_term_calendar(cal, k, out_dir)]
         if calendars:
-            logger.info("term calendars: %s", ", ".join(sorted(calendars)))
+            logger.info("term calendars: %s（內容有變動：%s）",
+                        ", ".join(sorted(calendars)), changed_terms or "無")
         else:
             logger.warning("本次未產出任何週次表（新學年度尚未匯入）——既有的保留不動")
         build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
