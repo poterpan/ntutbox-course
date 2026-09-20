@@ -13,6 +13,9 @@
   有契約價值的是欄位形狀，不是這門課真的存在。
 - 三位教師刻意涵蓋三種形態：①完整彈性學習（五欄）②沒有彈性學習（空陣列）
   ③重複 `label` + 非空 `extra`。**②③ 是 decoder 最容易寫錯的兩種。**
+- **與 `../weekly_progress/course-*.json` 互補、不重疊**：那四份的主題是 `weekly_progress`
+  的三態，`flex_learning` 一律是空的；這份是唯一有內容的彈性學習樣本。
+  這份的 `weekly_progress` 則是 `null`（parse_syllabus 不負責產它）。
 
 `flex_learning` / `extra` 的不變量（schema v3 起）：
 

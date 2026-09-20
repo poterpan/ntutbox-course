@@ -22,7 +22,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 SCHEMA_VERSION = 3
 
@@ -314,6 +314,22 @@ class Syllabus(BaseModel):
     # **不合併、不投票、不取第一份**——115-1 有 112 個開課實例的不同教師寫了互相衝突的
     # 進度，挑哪一位是 consumer 的事。
     weekly_progress: Optional[WeeklyProgress] = None
+
+    @field_validator("flex_learning", "extra", mode="before")
+    @classmethod
+    def _accept_v2_dict(cls, v):
+        """吃得下 schema v2 的 `{label: value}` dict。
+
+        canonical 住在 orphan `data` branch，上面還有沒跑過 `migrate-details` 的學期；
+        而 `reprocess_progress`（`reprocess.py`）會對整份 details.ndjson 做 round-trip
+        ——model 不吃舊形狀，整條 reprocess 管線就在那些學期上炸掉。
+
+        只在**入口**相容：dump 出去一律是 v3 陣列，舊形狀不會從舊檔漏進新發佈檔。
+        canonical 全部遷完之後這個 validator 可以拿掉。
+        """
+        if isinstance(v, dict):
+            return [{"label": k, "value": val} for k, val in v.items()]
+        return v
 
 
 class CourseDetail(BaseModel):

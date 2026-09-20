@@ -158,6 +158,10 @@ export type ExtendedResources = string | null;
 export type Sdgs = string | null;
 export type AiUsage = string | null;
 export type Notes = string | null;
+export type Label3 = string;
+export type Value = string;
+export type FlexLearning = LabeledValue[];
+export type Extra = LabeledValue[];
 export type Status = "resolved" | "partial" | "unparsed";
 export type Week = number;
 export type Topics = string[];
@@ -536,11 +540,19 @@ export interface Syllabus1 {
   weekly_progress?: WeeklyProgress | null;
   [k: string]: unknown;
 }
-export interface FlexLearning {
-  [k: string]: string;
-}
-export interface Extra {
-  [k: string]: string;
+/**
+ * 「上游決定欄位」的 pass-through 單元：原樣搬來源的標籤與值。
+ *
+ * 刻意是**有序陣列的元素**而不是 dict entry：
+ *   - 順序即來源表格列序，是契約的一部分（消費端照序渲染，不必知道欄位名）。
+ *     dict 給不了這個保證——Swift 的 Dictionary 本質無序，JSONDecoder 一解完
+ *     來源順序就沒了。
+ *   - 重複標籤兩列都留，不會後者覆蓋前者（來源表格改版時最常見的靜默掉資料）。
+ * 標籤**不映射、不正規化**，改名或新增欄位時解析與 UI 都自動跟隨。
+ */
+export interface LabeledValue {
+  label: Label3;
+  value: Value;
 }
 /**
  * `schedule` 自由文字的結構化衍生欄位。**原文 `schedule` 一律保留、不覆寫。**

@@ -59,6 +59,8 @@ def reprocess_progress(out_dir: Path, term_keys: List[str], now: str) -> List[di
     """對指定學期的 canonical details.ndjson 重算 weekly_progress 並寫回 + 產 report。
 
     `parser_version` 升版時不必重爬學校系統就能重產（照 recategorize/rematric 的先例）。
+    整份走 model round-trip，所以順帶把該學期的 pass-through 欄位寫成 v3 形狀
+    （靠 `Syllabus` 的入口相容 validator）；沒被 reprocess 的學期仍需 `migrate-details`。
     """
     stats = []
     for term_key in term_keys:
@@ -81,6 +83,7 @@ def reprocess_progress(out_dir: Path, term_keys: List[str], now: str) -> List[di
             json.dumps(report, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         logger.info("[%s] weekly_progress 重產：%s", term_key, report["status_counts"])
         stats.append(report)
+    return stats
 
 
 # ---------------------------------------------------------- details 形狀遷移（schema v2 → v3）

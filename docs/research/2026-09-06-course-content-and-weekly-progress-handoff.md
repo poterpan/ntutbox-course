@@ -347,7 +347,7 @@ App 只用得到當前學期與下學期；而舊學年度沒有 PDF 可對，�
 ⑨ **必填非 null**：`instruction_start`、`break_start`、`midterm`、`final_exam`。App 要靠這四個欄位取代中文關鍵字耦合（見下），缺一個就等於那邊要退回猜字串。
 ⑩ **回歸**：111～115 十個學期的推導結果必須與 `pdf-week-tables-111-115.json` **逐筆相同**。這份是從校方公告 PDF 抽出來的答案，凍成離線 fixture，以後不需要再碰 PDF。（取代原案只對 115 一個學年度回歸的不變量⑧。）
 
-**⑩ 必須在「發佈時」跑，不能只放在 pytest。** 理由見 §8：**本 repo 目前沒有任何跑測試的 CI**。把這條放進 `quality_gate` 一起跑，等於每次發佈都拿 10 份校方公告答案重驗一次解析規則 —— 成本是把那份 fixture 一起帶進 `crawler/`（8.9 KB，離線、無外部依賴），換到的是「ics 改措辭時當天就被擋下」。ics-only 的安全論證整個押在這條上，不能讓它取決於有沒有人記得跑 pytest。
+**⑩ 必須在「發佈時」跑，不能只放在 pytest。** 理由見 §8（註：`test.yml` 已於 2026-09-16 補上，push／PR 會跑 `pytest -q`；但**發佈管線不經過它**，所以這條仍要掛在發佈路徑上）。把這條放進 `quality_gate` 一起跑，等於每次發佈都拿 10 份校方公告答案重驗一次解析規則 —— 成本是把那份 fixture 一起帶進 `crawler/`（8.9 KB，離線、無外部依賴），換到的是「ics 改措辭時當天就被擋下」。ics-only 的安全論證整個押在這條上，不能讓它取決於有沒有人記得跑 pytest。
 
 任一不過 → **保留上一版、CI 紅燈、log 印出是哪一條不變量、哪個學期**。
 
@@ -385,7 +385,7 @@ App 只用得到當前學期與下學期；而舊學年度沒有 PDF 可對，�
 檔案照常發佈——這與 `names.json`／`standards/` 的既有先例一致。
 **三份名單漏改任何一份都是靜默不發佈。**
 `ManifestTerm` 已加 optional `calendar: ManifestEntry`，沿用既有 url／sha256／size 契約。
-⚠️ **該 entry 的 `schema_version` 走獨立的 `CALENDAR_SCHEMA_VERSION`（1），不是全域的 2**——
+⚠️ **該 entry 的 `schema_version` 走獨立的 `CALENDAR_SCHEMA_VERSION`（1），不是全域的 `SCHEMA_VERSION`（3）**——
 不區分的話 manifest 會說 2 而檔案本身寫 1，App decoder 對版本不符是整份拒收、且是靜默失效。
 逐課 detail **不要**進 manifest（2,461 個條目會把短快取的 manifest 撐爆）。
 
@@ -590,7 +590,8 @@ ics 解析本身不必從零寫：`docs/research/assets/2026-09-16-calendar-ics-
   （例如尚未併進 main 的 `weekly_progress`，data branch 上已有 2,304 筆）**靜默刪掉**。
   對 11 個學期、29,480 份 syllabi 實跑驗證過：形狀全轉、順序與內容逐項等價、其餘欄位一字不差、`weekly_progress` 全數保留。
 
-  **跑法**（與 `recategorize`／`rematric` 同一套；這幾個離線子命令都沒有對應 workflow，由人手動跑）：
+  **跑法**（與 `recategorize`／`rematric` 同一套，由人手動跑；這兩個沒有對應 workflow，
+  但 `reprocess-progress.yml` 是同型操作的現成樣板——要替 `migrate-details` 補一個 workflow 就照它抄）：
 
   1. 把 `data` branch checkout 到 `data/canonical`（workflow 的作法，見 `crawl-details.yml:39-43`）
   2. `python -m ntut_catalog migrate-details --out data`（收尾會自己重建本地 v1）
@@ -600,6 +601,11 @@ ics 解析本身不必從零寫：`docs/research/assets/2026-09-16-calendar-ics-
 - 歷史學期的 `flex_learning` 原本全是 `{}`（彈性學習是 115 學年度才有的政策）。
   **「反正是空的」不是可以不遷移的理由**——`{}` 與 `[]` 對 Swift 的 `Codable` 是不同型別，
   嚴格 decoder 會整筆解碼失敗，而不是得到一個空陣列。
+- **發布端自己也吃得下舊形狀。** `Syllabus` 有一個入口 validator（`models.py`）把 v2 的 dict
+  正規化成 v3 陣列——因為 `reprocess_progress` 會對整份 `details.ndjson` 做 model round-trip，
+  沒有這層的話 `reprocess-progress` workflow 會在還沒遷移的學期上直接炸掉。
+  相容只在入口，**dump 出去一律是 v3**；副作用是被 reprocess 過的學期順帶就遷好了。
+  canonical 全部遷完之後這個 validator 可以拿掉。
 - 在資料換完之前線上仍是 v2 的 dict。App 若要在窗口期內上線，decoder 得兩種都吃；
   Web 端已經是兩種都吃（`CourseDetailContent.tsx` 的 `normalizeFlexRows`）。
 
@@ -663,7 +669,7 @@ fixture 用校方公開的課程目錄資料即可（課名／教師名不是個
 
 ## 10. 參考與來源清單
 
-**本 repo（已核實行號）**：`crawler/models.py:264-286`（`Syllabus`）、`:272`（`schedule  # 課程進度`）、`:289-302`（`CourseDetail`）、`:473-479`（`ManifestTerm`）、`:248-261`（`LabeledValue`）；`crawler/ntut_catalog/parse_detail.py:15-27`（`_SYLLABUS_LABELS`，`:17` 是課程進度）、`:32-50`（`_match_label` 前綴比對；`:35-36` 記著 2026-08 學校把標籤改成「課程進度(1-16週)」害線上壞掉的教訓）；`crawler/ntut_catalog/detail.py:20`（`crawl_detail`）；`crawler/ntut_catalog/artifacts.py:155-164`、`:192-216`（`write_manifest`，`:200` 的檔名清單目前不含 detail 與 calendar）；`crawler/ntut_catalog/cli.py:108-110`；`infra/publish.py:29-42`、`:45`；`infra/r2-cors.json`；`packages/schema/generate.py:17-27`。
+**本 repo（已核實行號）**：`crawler/models.py:290-332`（`Syllabus`）、`:298`（`schedule  # 課程進度`）、`:335-348`（`CourseDetail`）、`:645-652`（`ManifestTerm`）、`:274-287`（`LabeledValue`）；`crawler/ntut_catalog/parse_detail.py:15-27`（`_SYLLABUS_LABELS`，`:17` 是課程進度）、`:32-50`（`_match_label` 前綴比對；`:35-36` 記著 2026-08 學校把標籤改成「課程進度(1-16週)」害線上壞掉的教訓）；`crawler/ntut_catalog/detail.py:20`（`crawl_detail`）；`crawler/ntut_catalog/artifacts.py:155-164`、`:192-216`（`write_manifest`，`:200` 的檔名清單目前不含 detail 與 calendar）；`crawler/ntut_catalog/cli.py:108-110`；`infra/publish.py:29-42`、`:45`；`infra/r2-cors.json`；`packages/schema/generate.py:17-27`。
 
 **POC**（`/Users/poterpan/Documents/Coding/NTUT/ntut-course-progress-poc`）：`course_progress_poc/parser.py:73-89`（`WeekSegment`）、`:235`（`parse_schedule`）、`:292-320`（`resolve_week` 三態）；`docs/POC_FINDINGS.md`（6 條陷阱）；`fixtures/observed_115-1_range_cases.json`；`snapshots/115-1-poc-report.json`。
 
