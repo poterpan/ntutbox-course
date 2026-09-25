@@ -226,17 +226,27 @@ def test_real_snapshot_agrees_with_school_api_event_for_event():
 
 # ----------------------------------------------------------------- CLI
 
-def test_cli_crawl_calendar_writes_canonical_and_v1(tmp_path, monkeypatch):
-    """走完整 CLI 路徑：抓取（假 client）→ canonical → derive → v1/calendar/events.json。
+def _calendar_ctx(tmp_path, ics_text):
+    """pipeline 的 FetchContext：假行事曆 client、凍結在 2026-09-16（當前學年度 115）。"""
+    from ntut_catalog.ics import TAIPEI
+    from ntut_catalog.registry import FetchContext
+    return FetchContext(tmp_path, calendar_client_factory=lambda: FakeCalendarClient(ics_text),
+                        now=lambda: dt.datetime(2026, 9, 16, 6, 0, tzinfo=TAIPEI))
 
-    用真實快照而不是小 fixture——crawl-calendar 同時要推導週次表（契約三），
+
+def test_pipeline_calendar_writes_canonical_then_derive_builds_v1(tmp_path):
+    """走完整路徑：抓取（假 client）→ canonical → derive → v1/calendar/events.json。
+
+    用真實快照而不是小 fixture——行事曆資料集同時要推導週次表（契約三），
     小 fixture 沒有「開學」「期末考試」那些具名事件。
     """
-    from ntut_catalog import cli
-
-    monkeypatch.setattr(cli, "CalendarClient",
-                        lambda: FakeCalendarClient(SNAPSHOT.read_text(encoding="utf-8")))
-    assert cli.main(["crawl-calendar", "--out", str(tmp_path), "--terms", "115-1"]) == 0
+    from ntut_catalog import cli, pipeline
+    result = pipeline.run("daily", ["calendar"], [], tmp_path, tmp_path / "stage",
+                          ctx=_calendar_ctx(tmp_path, SNAPSHOT.read_text(encoding="utf-8")))
+    assert result.ok
+    (entry,) = result.datasets
+    assert entry["term"] is None
+    assert {"calendar/events.ndjson", "calendar/meta.json", "115-1/calendar.json"} <= set(entry["files"])
     # fetch 只寫 canonical（spec §1）；v1 由 derive 產
     assert not (tmp_path / "v1").exists()
     assert cli.main(["derive", "--out", str(tmp_path)]) == 0
@@ -248,19 +258,20 @@ def test_cli_crawl_calendar_writes_canonical_and_v1(tmp_path, monkeypatch):
     assert out.generated_at is None
 
 
-def test_cli_fails_loudly_when_term_calendar_cannot_be_derived(tmp_path, monkeypatch, sample_ics):
-    """來源缺具名事件（或措辭改了）→ 整個 crawl-calendar 失敗，不寫出半套產物。
+def test_pipeline_calendar_fails_loudly_when_term_calendar_cannot_be_derived(tmp_path, sample_ics):
+    """來源缺具名事件（或措辭改了）→ 行事曆資料集記為失敗，不交出半套產物。
 
-    workflow 對這一步是 continue-on-error（不擋 catalog/enrollment 發布），
-    但最後有一步會把它變成紅燈——靜默沿用舊週次表正是換源要消滅的失效模式。
+    pipeline 不中斷其他資料集，但 exit code 與 pipeline-result.json 都會標失敗 → 告警。
+    靜默沿用舊週次表正是換源要消滅的失效模式。
     """
-    from ntut_catalog import cli
-    from ntut_catalog.term_calendar import CalendarDerivationError
-
-    monkeypatch.setattr(cli, "CalendarClient", lambda: FakeCalendarClient(sample_ics))
-    with pytest.raises(CalendarDerivationError):
-        cli.main(["crawl-calendar", "--out", str(tmp_path), "--terms", "115-1"])
-    assert not (tmp_path / "v1" / "terms" / "115-1" / "calendar.json").exists()
+    from ntut_catalog import pipeline
+    result = pipeline.run("daily", ["calendar"], [], tmp_path, tmp_path / "stage",
+                          ctx=_calendar_ctx(tmp_path, sample_ics))
+    assert not result.ok
+    assert "CalendarDerivationError" in result.datasets[0]["error"]
+    assert result.datasets[0]["files"] == []
+    assert not (tmp_path / "stage" / "canonical" / "calendar").exists()
+    assert not (tmp_path / "canonical" / "115-1" / "calendar.json").exists()
 
 
 def test_v1_bytes_are_stable_when_content_did_not_change(tmp_path, sample_ics):

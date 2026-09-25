@@ -335,12 +335,11 @@ def test_publish_uploads_calendar_with_a_longer_cache(tmp_path, events):
     assert publish.r2_key("v1/terms/115-1/calendar.json") == "course/v1/terms/115-1/calendar.json"
 
 
-def test_cli_crawl_calendar_also_writes_term_calendars(tmp_path, monkeypatch):
-    from ntut_catalog import cli
-    from tests.test_calendar_events import FakeCalendarClient
-    monkeypatch.setattr(cli, "CalendarClient",
-                        lambda: FakeCalendarClient(SNAPSHOT_ICS.read_text(encoding="utf-8")))
-    assert cli.main(["crawl-calendar", "--out", str(tmp_path), "--terms", "115-1,115-2"]) == 0
+def test_pipeline_calendar_also_writes_term_calendars(tmp_path):
+    from ntut_catalog import cli, pipeline
+    from tests.test_calendar_events import _calendar_ctx
+    ctx = _calendar_ctx(tmp_path, SNAPSHOT_ICS.read_text(encoding="utf-8"))
+    assert pipeline.run("daily", ["calendar"], [], tmp_path, tmp_path / "stage", ctx=ctx).ok
     assert cli.main(["derive", "--out", str(tmp_path)]) == 0
     for term_key in ("115-1", "115-2"):
         assert (tmp_path / "canonical" / term_key / "calendar.json").exists()

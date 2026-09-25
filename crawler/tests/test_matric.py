@@ -1,4 +1,4 @@
-"""matric 升級欄位：權威對照表、多碼選取規則、離線重算（rematric）。"""
+"""matric 升級欄位：權威對照表、多碼選取規則、（離線重算 rematric 已隨一次性指令刪除）。"""
 import json
 from pathlib import Path
 
@@ -10,7 +10,6 @@ from models import (
     Selection,
     select_matric_division,
 )
-from ntut_catalog.rematric import rematric_canonical
 
 
 # -------------------------------------------------------- 權威對照表
@@ -101,65 +100,3 @@ def test_select_is_deterministic_regardless_of_set_order():
     second = select_matric_division(set(list(codes)[::-1]))
     assert first == second
     assert first.code == "7"  # day 體系、字典序最小
-
-
-# -------------------------------------------------------- 離線重算 rematric
-
-def _course(oid: str, matric_raw: str) -> CourseOffering:
-    return CourseOffering(
-        term_key="115-1", offering_id=oid, name=LocalizedText(zh="x"),
-        selection=Selection(cwish_subj=oid),
-        raw_fields={"matric_codes": matric_raw} if matric_raw else {},
-    )
-
-
-def test_rematric_promotes_codes_and_division(tmp_path):
-    """A（在職碩專班）原本 matric_codes 空、matric_division None → 回算後升為第一級。"""
-    d = tmp_path / "canonical" / "115-1"
-    d.mkdir(parents=True)
-    c = _course("365061", "A")
-    (d / "catalog.ndjson").write_text(c.model_dump_json() + "\n", encoding="utf-8")
-
-    stats = rematric_canonical(tmp_path)
-    assert stats[0] == {"term": "115-1", "courses": 1, "rematriced": 1}
-
-    out = json.loads((d / "catalog.ndjson").read_text().splitlines()[0])
-    assert out["matric_codes"] == ["A"]
-    assert out["matric_division"]["code"] == "A"
-    assert out["matric_division"]["label"] == "進修部碩士在職專班"
-    assert out["matric_division"]["system"] == "on_job"
-
-
-def test_rematric_round_trips_other_fields(tmp_path):
-    """只動 matric_*，其餘欄位 byte-for-byte 還原（除新欄位差異外不動）。"""
-    d = tmp_path / "canonical" / "115-1"
-    d.mkdir(parents=True)
-    c = _course("300001", "7")
-    # 先把新欄位填好（模擬已重算過的資料）→ 重算應無變更、且整列 round-trip 不變
-    c.matric_codes = ["7"]
-    c.matric_division = select_matric_division({"7"})
-    original = c.model_dump_json(exclude_none=False)
-    (d / "catalog.ndjson").write_text(original + "\n", encoding="utf-8")
-
-    stats = rematric_canonical(tmp_path)
-    assert stats[0]["rematriced"] == 0  # idempotent
-    assert (d / "catalog.ndjson").read_text().strip() == original
-
-
-def test_rematric_multi_code_and_no_codes(tmp_path):
-    d = tmp_path / "canonical" / "115-1"
-    d.mkdir(parents=True)
-    multi = _course("300002", "A,7")          # 多碼 → day 優先（7）
-    none = _course("300003", "")              # 無碼 → None
-    (d / "catalog.ndjson").write_text(
-        multi.model_dump_json() + "\n" + none.model_dump_json() + "\n", encoding="utf-8")
-
-    rematric_canonical(tmp_path)
-    lines = (d / "catalog.ndjson").read_text().splitlines()
-    a = json.loads(lines[0])
-    b = json.loads(lines[1])
-    assert a["matric_codes"] == ["7", "A"]
-    assert a["matric_division"]["code"] == "7"
-    assert a["matric_division"]["system"] == "day"
-    assert b["matric_codes"] == []
-    assert b["matric_division"] is None
