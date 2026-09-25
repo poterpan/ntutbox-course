@@ -1,0 +1,247 @@
+{
+ "datasets": {
+  "calendar": {
+   "_global": {
+    "changed_at": "2026-09-20T05:12:14+08:00",
+    "checked_at": "2026-09-20T05:12:14+08:00",
+    "content_sha256": "3171e49e322cdff90d2ac17ce3556a0146ecc56664fc6e32af4c048a316df6fc"
+   }
+  },
+  "catalog": {
+   "110-1": {
+    "changed_at": "2026-06-14T03:07:48+08:00",
+    "checked_at": "2026-06-14T03:07:48+08:00",
+    "content_sha256": "30101fdcb406b40cbf69eae5e0e0b35c24b71f932c903a290414a4e8e1d70d2a"
+   },
+   "110-2": {
+    "changed_at": "2026-06-14T03:07:48+08:00",
+    "checked_at": "2026-06-14T03:07:48+08:00",
+    "content_sha256": "626db4dda7d4b6ab25f4a3f475592551f5e984d08e9715b5e18161eeb0aa1dce"
+   },
+   "111-1": {
+    "changed_at": "2026-06-14T03:07:48+08:00",
+    "checked_at": "2026-06-14T03:07:48+08:00",
+    "content_sha256": "2e59d3e8d6aaec4a5aa7528302e47a441392caf78f5b15a737c871da8ff8b31c"
+   },
+   "111-2": {
+    "changed_at": "2026-06-14T03:07:48+08:00",
+    "checked_at": "2026-06-14T03:07:48+08:00",
+    "content_sha256": "8fdcc261cd5ec9e65c8ee885a3ed4bdae572826b4b11c4222905eca889945a31"
+   },
+   "112-1": {
+    "changed_at": "2026-06-14T03:07:48+08:00",
+    "checked_at": "2026-06-14T03:07:48+08:00",
+    "content_sha256": "73993d56b9568165577fdd2833d44bf37fa32141df61b2004a14169f937d365e"
+   },
+   "112-2": {
+    "changed_at": "2026-06-14T03:07:48+08:00",
+    "checked_at": "2026-06-14T03:07:48+08:00",
+    "content_sha256": "dca7918a8bd4f3e29f1c85e1b63fb64b5454fafa2cf2fb2f2d00c1d4a7e66341"
+   },
+   "113-1": {
+    "changed_at": "2026-06-14T03:07:48+08:00",
+    "checked_at": "2026-06-14T03:07:48+08:00",
+    "content_sha256": "e87d35a294b0ef22decbdb4a38f455fb12c15fc0663119af8fcbc8d10d454259"
+   },
+   "113-2": {
+    "changed_at": "2026-06-14T03:07:48+08:00",
+    "checked_at": "2026-06-14T03:07:48+08:00",
+    "content_sha256": "de16c67a5300d0c92085326e52ed48cf69a1371359a86032e359c9949cce3ca3"
+   },
+   "114-1": {
+    "changed_at": "2026-06-14T03:07:48+08:00",
+    "checked_at": "2026-06-14T03:07:48+08:00",
+    "content_sha256": "2a9e20887672b00cfc064930e1f17fd55da7b03f8e4e6fb94a96c09618804667"
+   },
+   "114-2": {
+    "changed_at": "2026-06-14T03:07:48+08:00",
+    "checked_at": "2026-06-14T03:07:48+08:00",
+    "content_sha256": "e3be29334296e5088791b094de59ef17df2a01e8a55fe4057855781950d9dc14"
+   },
+   "115-1": {
+    "changed_at": "2026-09-26T01:16:38+08:00",
+    "checked_at": "2026-09-26T01:16:38+08:00",
+    "content_sha256": "a0d5bfaadb0ea483c8df7206abdc330e382160923977d15f1a258248faa5ec80"
+   }
+  },
+  "details": {
+   "110-1": {
+    "changed_at": "2026-09-21T01:11:35+08:00",
+    "checked_at": "2026-09-21T01:11:35+08:00",
+    "content_sha256": "8bbe5a092056c408f5358cf542c108fd5df7283098d5cb1d72f73e8d4ecdd61a"
+   },
+   "110-2": {
+    "changed_at": "2026-09-21T01:11:35+08:00",
+    "checked_at": "2026-09-21T01:11:35+08:00",
+    "content_sha256": "879a64346974a3992ebd245bc7b5b989ee56f90f0a2af69540ade904220697ec"
+   },
+   "111-1": {
+    "changed_at": "2026-09-21T01:11:35+08:00",
+    "checked_at": "2026-09-21T01:11:35+08:00",
+    "content_sha256": "8cd68b0072325924a7922e06bb7b1bf924963b79cb96ff1f67324d20894eae41"
+   },
+   "111-2": {
+    "changed_at": "2026-09-21T01:11:35+08:00",
+    "checked_at": "2026-09-21T01:11:35+08:00",
+    "content_sha256": "7a5bac04beb1044deceac995fff2e6f16ab8615c4fa3e7e548065ddccf0dcf4f"
+   },
+   "112-1": {
+    "changed_at": "2026-09-21T01:11:35+08:00",
+    "checked_at": "2026-09-21T01:11:35+08:00",
+    "content_sha256": "91e38c3d94fd7c93fda7daac91e46ffdc85d733e61ad1a07692593e28fc48e9e"
+   },
+   "112-2": {
+    "changed_at": "2026-09-21T01:11:35+08:00",
+    "checked_at": "2026-09-21T01:11:35+08:00",
+    "content_sha256": "e28f44e7de49c0ef618ffa075fef9f39a7ebdcd0cdac6ec5b2055e4b37e5d517"
+   },
+   "113-1": {
+    "changed_at": "2026-09-21T01:11:35+08:00",
+    "checked_at": "2026-09-21T01:11:35+08:00",
+    "content_sha256": "81876ab34b396d3786b8d483f4ee0d0aaa7f3bd6aa20b019550f1addccf93b3d"
+   },
+   "113-2": {
+    "changed_at": "2026-09-21T01:11:35+08:00",
+    "checked_at": "2026-09-21T01:11:35+08:00",
+    "content_sha256": "60792fe1332b3b5a347d911e8f1b22084f2c2c5413f7f4e8f3f901221c031b68"
+   },
+   "114-1": {
+    "changed_at": "2026-09-21T01:11:35+08:00",
+    "checked_at": "2026-09-21T01:11:35+08:00",
+    "content_sha256": "133a8bfe95c44e5647d6f9af4fc482a7474957b5f1cf4879b25410d16b5d6c66"
+   },
+   "114-2": {
+    "changed_at": "2026-09-21T01:11:35+08:00",
+    "checked_at": "2026-09-21T01:11:35+08:00",
+    "content_sha256": "ccd0da6df3412f12387f0c22c9df718a210fa5e41580f3c7bdbc0f3536b727b4"
+   },
+   "115-1": {
+    "changed_at": "2026-09-21T08:15:04+08:00",
+    "checked_at": "2026-09-21T08:15:04+08:00",
+    "content_sha256": "55a1c048a6d2b4050845c6e82ec34d735f3c27dc998a5de2f7fab1a8aaeb0035"
+   }
+  },
+  "enrollment": {
+   "110-1": {
+    "changed_at": "2026-06-13T04:53:00+08:00",
+    "checked_at": "2026-06-13T04:53:10+08:00",
+    "content_sha256": "77085d3d3e12c06950241ff5fcff85f4ee35825b37d597c3232840f87b5dd469"
+   },
+   "110-2": {
+    "changed_at": "2026-06-13T04:59:00+08:00",
+    "checked_at": "2026-06-13T04:59:16+08:00",
+    "content_sha256": "dbd99a88662a454ee9d4a3811ce2a4aec150f93e206c42dcc1035a6b055dabb8"
+   },
+   "111-1": {
+    "changed_at": "2026-06-13T05:04:00+08:00",
+    "checked_at": "2026-06-13T05:04:28+08:00",
+    "content_sha256": "1a6862d5f896b166e8f0262bb64e0db6bedc811d18beefee49d0f31d84b9b126"
+   },
+   "111-2": {
+    "changed_at": "2026-06-13T05:09:00+08:00",
+    "checked_at": "2026-06-13T05:09:35+08:00",
+    "content_sha256": "f7cda1824f4b913103dac8fb9276d10f75a8df93b778a4dde4675621e42cb8f6"
+   },
+   "112-1": {
+    "changed_at": "2026-06-13T05:14:00+08:00",
+    "checked_at": "2026-06-13T05:14:46+08:00",
+    "content_sha256": "a15794b9a79b5440dae201c8b83f9eaeebfbfe4acb090413d0b7b8d2a434c2b2"
+   },
+   "112-2": {
+    "changed_at": "2026-06-13T05:20:00+08:00",
+    "checked_at": "2026-06-13T05:20:09+08:00",
+    "content_sha256": "532e7d285ed3c5fb1ead65bb263ddb6f5a1c9e2cd29268632e945e473b076db5"
+   },
+   "113-1": {
+    "changed_at": "2026-06-13T05:25:00+08:00",
+    "checked_at": "2026-06-13T05:25:35+08:00",
+    "content_sha256": "abce697be622d6f9bee2ee3f151a39a9cca3c763aae26ef7de6b6012d8016d8f"
+   },
+   "113-2": {
+    "changed_at": "2026-06-13T05:30:00+08:00",
+    "checked_at": "2026-06-13T05:30:54+08:00",
+    "content_sha256": "dc62076691c02e0a825734c8adcf97ce7b4b42e7397d72cf2708a63c32b718db"
+   },
+   "114-1": {
+    "changed_at": "2026-06-13T05:36:00+08:00",
+    "checked_at": "2026-06-13T05:36:10+08:00",
+    "content_sha256": "52ceefe48821b30aced557b3b7828e412b6fa5a4606342d8e4a250d35525d6ad"
+   },
+   "114-2": {
+    "changed_at": "2026-06-13T05:41:00+08:00",
+    "checked_at": "2026-06-13T05:41:24+08:00",
+    "content_sha256": "f7a80dbb7b42b38a0769764c6c479b8b74c97980e12c416164ce2c015b297fd2"
+   },
+   "115-1": {
+    "changed_at": "2026-09-25T07:05:00+08:00",
+    "checked_at": "2026-09-26T01:09:49+08:00",
+    "content_sha256": "ed5f9759c1a2162c70a2cfbb8b1ece6bbf6f74a40898087bf5f1da557d05ac8a"
+   }
+  },
+  "mprograms": {
+   "110-1": {
+    "changed_at": "2026-09-05T18:48:00+08:00",
+    "checked_at": "2026-09-05T18:48:00+08:00",
+    "content_sha256": "31ce11ac87da2e348d9b706c31ab2697deb3892c6343159604029c3656ffb0e8"
+   },
+   "110-2": {
+    "changed_at": "2026-09-05T18:48:00+08:00",
+    "checked_at": "2026-09-05T18:48:00+08:00",
+    "content_sha256": "95dbe9733e71353be5dd1d553e7010b0d98c01dcdd0bf0cb107efce9981965e3"
+   },
+   "111-1": {
+    "changed_at": "2026-09-05T18:48:00+08:00",
+    "checked_at": "2026-09-05T18:48:00+08:00",
+    "content_sha256": "e76ca78298f0fec6f27ba1e44f5a1928240c25f392e3d68a1062a529691c24d2"
+   },
+   "111-2": {
+    "changed_at": "2026-09-05T18:48:00+08:00",
+    "checked_at": "2026-09-05T18:48:00+08:00",
+    "content_sha256": "d3546ef04d94eb722ae5cddf3328223baea6bb8e4529c0c07984a151b18c90d5"
+   },
+   "112-1": {
+    "changed_at": "2026-09-05T18:48:00+08:00",
+    "checked_at": "2026-09-05T18:48:00+08:00",
+    "content_sha256": "b0b9e795240dc7d90512cdf84a80b0774e6c353b5d2dac0740a86be5017b788b"
+   },
+   "112-2": {
+    "changed_at": "2026-09-05T18:48:00+08:00",
+    "checked_at": "2026-09-05T18:48:00+08:00",
+    "content_sha256": "f8b3f8f8ee8d11d10b56e5fa4c024936391e6eff977ce5723631ea6b906a41c0"
+   },
+   "113-1": {
+    "changed_at": "2026-09-05T18:48:00+08:00",
+    "checked_at": "2026-09-05T18:48:00+08:00",
+    "content_sha256": "a6145994d079f380296c80c953cb6fdd5bb79caab1e87b94b926dbac17a5a0c4"
+   },
+   "113-2": {
+    "changed_at": "2026-09-05T18:48:00+08:00",
+    "checked_at": "2026-09-05T18:48:00+08:00",
+    "content_sha256": "be6621d983aa8b5a20264d479fa82e664f57f6d69441f6e23710419d6701b863"
+   },
+   "114-1": {
+    "changed_at": "2026-09-05T18:48:00+08:00",
+    "checked_at": "2026-09-05T18:48:00+08:00",
+    "content_sha256": "9849b23c01bce91601f95324d8d2a29182457c814749e1aef93709d7733edf64"
+   },
+   "114-2": {
+    "changed_at": "2026-09-05T18:48:00+08:00",
+    "checked_at": "2026-09-05T18:48:00+08:00",
+    "content_sha256": "03ed0384be74a9521d41f62b8566846dc5573805cf1b3fb0f100256177080df5"
+   },
+   "115-1": {
+    "changed_at": "2026-09-23T06:55:09+08:00",
+    "checked_at": "2026-09-23T06:55:09+08:00",
+    "content_sha256": "64d68734e259cea6284f8359ce4a3a01a8053595f6000514faafefddbef515ee"
+   }
+  },
+  "standards": {
+   "_global": {
+    "changed_at": "2026-06-14T03:07:48+08:00",
+    "checked_at": "2026-06-14T03:07:48+08:00",
+    "content_sha256": "271eb6910a6d3b69a3e86a8fe374260cd0d4edd9087af81f49d0386de55fceff"
+   }
+  }
+ },
+ "schema_version": 1
+}

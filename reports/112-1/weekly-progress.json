@@ -1,0 +1,17 @@
+{
+ "schema_version": 1,
+ "term_key": "112-1",
+ "parser_version": "progress/1.0.0",
+ "term_weeks_available": false,
+ "syllabi": 2669,
+ "status_counts": {
+  "resolved": 1051,
+  "partial": 236,
+  "unparsed": 1382
+ },
+ "week_cells": {
+  "total": 48042,
+  "with_topic": 21391,
+  "rate": 0.445256
+ }
+}
