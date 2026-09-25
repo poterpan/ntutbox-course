@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 from models import (
     ClassDirectory,
@@ -24,6 +24,7 @@ from models import (
 )
 from ntut_catalog.classes_builder import build_class_directory
 from ntut_catalog.client import ALL_MATRIC_CODES, ALL_UNITS, SCHOOL_MATRIC, CatalogClient
+from ntut_catalog.nodes import NodeTally
 from ntut_catalog.normalize import to_offering
 from ntut_catalog.parse_course_table import RawCourseRow, parse_course_rows
 from ntut_catalog.parse_subj import parse_classes, parse_departments
@@ -39,6 +40,10 @@ class TermResult:
     enrollment: EnrollmentLatest
     periods: PeriodTable
     warnings: List[str] = field(default_factory=list)
+    # 重試後仍失敗的節點（{"dept"}＝Subj -3、{"unit"}＝系所 QueryCourse、{"matric"}＝學制查詢）。
+    # 任何一個失敗，merge 都會丟棄整個學期的 catalog（含人數快照）、保留 HEAD。
+    failed_nodes: List[Dict[str, object]] = field(default_factory=list)
+    node_total: int = 0
 
 
 def parse_term_key(term_key: str) -> Tuple[int, int]:
@@ -81,6 +86,7 @@ def crawl_enrollment(client, term_key: str, now_iso: str) -> EnrollmentLatest:
 def crawl_term(client: CatalogClient, term_key: str, now_iso: str) -> TermResult:
     year, sem = parse_term_key(term_key)
     warnings: List[str] = []
+    tally = NodeTally()
 
     # 1. 系所 + 班級
     depts = parse_departments(client.subj("-2", year, sem))
@@ -88,16 +94,19 @@ def crawl_term(client: CatalogClient, term_key: str, now_iso: str) -> TermResult
         warnings.append(f"{term_key}: Subj -2 回空系所清單（學期未公布？）")
     subj_classes: Dict[Tuple[str, str], List[Tuple[str, str]]] = {}
     for code, name in depts:
+        tally.attempt()
         try:
             subj_classes[(code, name)] = parse_classes(client.subj("-3", year, sem, code))
-        except Exception as e:  # noqa: BLE001 — 單一系所失敗記警告續跑
+        except Exception as e:  # noqa: BLE001 — 單一系所失敗記警告續跑（並回報節點失敗）
             warnings.append(f"{term_key}: Subj -3 {code}({name}) 失敗: {e}")
+            tally.fail(dept=code)
 
     # 2. 每系所課程列（unit 歸屬）
     rows_by_id: Dict[str, RawCourseRow] = {}
     unit_of: Dict[str, Tuple[str, str]] = {}
     dup_across_units = 0
     for code, name in depts:
+        tally.attempt()
         try:
             rows = parse_course_rows(client.query_course(year, sem, SCHOOL_MATRIC, code))
         except ValueError:
@@ -105,6 +114,7 @@ def crawl_term(client: CatalogClient, term_key: str, now_iso: str) -> TermResult
             continue
         except Exception as e:  # noqa: BLE001
             warnings.append(f"{term_key}: unit={code}({name}) 爬取失敗: {e}")
+            tally.fail(unit=code)
             continue
         for row in rows:
             if row.offering_id in rows_by_id:
@@ -119,10 +129,12 @@ def crawl_term(client: CatalogClient, term_key: str, now_iso: str) -> TermResult
     matric_of: Dict[str, Set[str]] = {}
     footer_checked = False
     for mcode in ALL_MATRIC_CODES:
+        tally.attempt()
         try:
             html = client.query_course(year, sem, f"'{mcode}'", ALL_UNITS)
         except Exception as e:  # noqa: BLE001
             warnings.append(f"{term_key}: matric='{mcode}' 全系所查詢失敗: {e}（division 對映不完整）")
+            tally.fail(matric=mcode)
             continue
         if not footer_checked:
             footer = parse_footer_periods(html)
@@ -188,4 +200,6 @@ def crawl_term(client: CatalogClient, term_key: str, now_iso: str) -> TermResult
         ),
         periods=build_period_table(),
         warnings=warnings,
+        failed_nodes=tally.failed,
+        node_total=tally.total,
     )

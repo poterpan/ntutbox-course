@@ -52,7 +52,6 @@
     ],
     "notes": [],
     "parser_version": "progress/1.0.0",
-    "parsed_at": "2026-09-16T04:00:00+08:00",
     "source_schedule_sha256": "ea13d0cb214de187efaaf1dd39fb00ad8ae00082f9a0e6d2c0dae8efdeccfe35"
    }
   },
@@ -97,10 +96,8 @@
     ],
     "notes": [],
     "parser_version": "progress/1.0.0",
-    "parsed_at": "2026-09-16T04:00:00+08:00",
     "source_schedule_sha256": "432cf200b19bfc78b41d55788b60631eac79e97c8e4dbc47093f48d0eb67399e"
    }
   }
- ],
- "generated_at": "2026-09-16T04:00:00+08:00"
+ ]
 }

@@ -123,6 +123,18 @@ CLI：`python -m ntut_catalog pipeline --cadence daily [--datasets a,b] [--terms
 
 沿用既有模式：`backfill-details.yml` 已是 matrix 爬取＋上鎖 fan-in job。
 
+### 節點失敗的處理
+
+catalog／standards／mprograms／details 都是逐「節點」打上游（一個請求＝一個節點）。單一節點在 client 重試 5 次後仍失敗時，fetcher 照舊跳過續跑（不讓一個節點拖垮整輪、請求量與節流不變），但**必須回報**——否則殘缺結果被當成成功、覆寫完整的 canonical 並發佈，且不會告警（實例：一個系所的 QueryCourse 失敗 → 該系課程整段消失，只占全校 2–5%，0.95 課數檢查抓不到）。
+
+- **回報**：`pipeline-result.json` 每筆加 `failed_nodes`（節點鍵）與 `node_total`（實際嘗試的節點數；非逐節點的資料集為 `null`）。節點鍵：catalog `{"dept"}`（Subj -3）／`{"unit"}`（系所 QueryCourse）／`{"matric"}`（學制查詢）；standards `{"year","matric","division"}`（-4）或 `{"year","matric"}`（-3，整個學制沒展開）；mprograms `{"program"}`（Cprog -4）；details `{"offering_id"}`（該課的 Curr 或任一份大綱失敗即算）。
+- **merge（鎖內、對最新 HEAD）**：
+  - 失敗節點 > `node_total` × **5%**（env `PARTIAL_FAILURE_MAX_RATIO` 可覆寫；`node_total` 缺或為 0 也算）→ 整筆 (資料集, 學期) 丟棄、保留 HEAD、告警，不分資料集。
+  - **catalog**：任何失敗節點 → 丟棄該學期 catalog 檔**與同次人數快照**（保留 HEAD）並告警。不做節點拼接。
+  - **standards／mprograms／details**：逐節點從 HEAD 沿用前一版拼進新檔——standards 以 `standards/{year}.json` 內的 (matric, division) 為鍵（-3 失敗沿用該學制全部系所）、mprograms 以 `{term}/mprograms.json` 的學程 code 為鍵（失敗的只有 Cprog -4，故只沿用 `courses`／`rules_text`，`offering_ids` 用本次成功抓到的）、details 以 `{term}/details.ndjson` 的 offering_id 為鍵（整行換成 HEAD 那一行）。HEAD 也沒有 → standards 該系所不出現、mprograms 保留本次降級版本（`courses=[]`）、details 該行不寫，並在告警列為缺漏。輸出順序與 fetcher 相同（standards 依 HEAD 相對位置插回），除失敗節點外都沒變時與 HEAD 逐位元組相同。發 **warning** 等級告警（列出沿用與缺漏的節點）。
+- **fetch-state**：丟棄者不動；沿用者照常更新 `checked_at`（資料集確實確認過），MergeReport 的 `applied` 項目標 `partial: true`、`failed_nodes: <數量>`，另有 `partial: [{name, term, failed, node_total, carried_forward, missing}]`。
+- **告警**：warning 與丟棄一樣列進 run issue（`[pipeline] <workflow> 失敗`）與 run summary 表（另列「部分節點失敗」表）——沿用的舊資料要有人知道；下一次全部成功即自動關閉。
+
 ### 共用元件（`.github/actions/`）
 
 - `setup`：checkout data branch 到 `data/canonical`、setup-python 3.12＋pip 快取、`pip install -e ./crawler`；`wrangler` 不再安裝（S3 憑證已齊，#99；wrangler fallback 保留在程式但 CI 不走）。

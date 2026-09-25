@@ -1,0 +1,320 @@
+name: maintenance
+
+# 手動作業（僅 dispatch），task：
+#   backfill   補爬指定資料集＋學期（任何 cadence 的資料集都可）。details 每學期一個 matrix leg
+#              （max-parallel 3，單學期約 53 分鐘），其餘資料集一個 leg；全部 fan-in 到一個上鎖的 commit-publish。
+#   republish  不 fetch：derive＋publish（parser／PUA／model 這類只動 derive 的變更上線、看刪除清單、
+#              放行刪除保險、改 Cache-Control 後全傳）。derive 產出的逐週進度報告有變也會 commit。
+#   migrate    **暫時性**（spec §7；切換完成後於下一個 PR 移除）：遷移 data branch 到管線 v2 形狀，
+#              以 baseline_ref（切換前的 main）derive 遷移前狀態、verify_migration 比對，報告寫進
+#              run summary 與 artifact。**只有 confirm=true 才 commit**——先看報告再寫回。
+on:
+  workflow_dispatch:
+    inputs:
+      task:
+        description: "作業"
+        type: choice
+        options: [backfill, republish, migrate]
+        required: true
+      dataset:
+        description: "backfill：資料集（登錄表名稱，如 details、catalog、mprograms、standards）"
+        required: false
+        default: ""
+      terms:
+        description: "backfill：學期（如 110-1:114-2 或 115-1,114-2；calendar／standards 可留空）"
+        required: false
+        default: ""
+      publish_dry_run:
+        description: "publish 只印上傳／刪除清單（寫進 run summary），不動 R2"
+        type: boolean
+        default: false
+      allow_mass_delete:
+        description: "放行刪除保險的 prefix（逗號分隔，如 115-1,standards,calendar）；留空＝不放行"
+        required: false
+        default: ""
+      no_skip_unchanged:
+        description: "不做 MD5 比對、全部重傳（改 Cache-Control 等 metadata 時用；約 3.3 萬物件）"
+        type: boolean
+        default: false
+      confirm:
+        description: "migrate：看過報告、確認寫回 data branch"
+        type: boolean
+        default: false
+      baseline_ref:
+        description: "migrate：遷移前 derive 用的程式碼（切換前 main 的 commit SHA）"
+        required: false
+        default: ""
+      data_ref:
+        description: "（演練用）data branch；正式一律 data"
+        required: false
+        default: data
+      alert_dry_run:
+        description: "（演練用）告警只印不開 issue"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  DATA_REF: ${{ inputs.data_ref || 'data' }}
+  PUBLISH_DRY_RUN: ${{ inputs.publish_dry_run == true && 'true' || 'false' }}
+  ALERT_DRY_RUN: ${{ inputs.alert_dry_run == true && 'true' || 'false' }}
+
+jobs:
+  # ---------------------------------------------------------------- backfill
+  plan:
+    if: inputs.task == 'backfill'
+    runs-on: ubuntu-24.04
+    outputs:
+      legs: ${{ steps.plan.outputs.legs }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          checkout-data: "false"
+      # 學期展開與資料集驗證都走 crawler 本身（registry／expand_terms），workflow 不另寫規則。
+      - name: Plan matrix
+        id: plan
+        env:
+          DATASET: ${{ inputs.dataset }}
+          TERMS: ${{ inputs.terms }}
+        run: |
+          set -euo pipefail
+          if [ -n "$TERMS" ]; then
+            echo "$TERMS" | grep -Eq '^[0-9]{3}-[123]([:,][0-9]{3}-[123])*$' \
+              || { echo "invalid terms: $TERMS"; exit 1; }
+          fi
+          python - >> "$GITHUB_OUTPUT" <<'PY'
+          import json, os, sys
+          from ntut_catalog.cli import expand_terms
+          from ntut_catalog.registry import DATASETS
+          ds, raw = os.environ["DATASET"].strip(), os.environ["TERMS"].strip()
+          if ds not in DATASETS:
+              sys.exit(f"unknown dataset {ds!r}（可用：{sorted(DATASETS)}）")
+          d = DATASETS[ds]
+          terms = expand_terms(raw) if raw else []
+          if d.terms in ("active", "current") and not terms:
+              sys.exit(f"{ds} 有學期維度，backfill 必須指定 terms")
+          if ds == "details":
+              legs = [{"id": t, "terms": t} for t in terms]        # 一學期一個 leg（約 53 分鐘）
+          else:
+              legs = [{"id": ds, "terms": ",".join(terms)}]
+          print(f"will run: {legs}", file=sys.stderr)
+          print("legs=" + json.dumps(legs))
+          PY
+
+  fetch:
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false      # 一個學期失敗不該讓其他學期的成果一起丟掉
+      max-parallel: 3
+      matrix:
+        leg: ${{ fromJSON(needs.plan.outputs.legs) }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          data-ref: ${{ env.DATA_REF }}
+      - name: pipeline --datasets ${{ inputs.dataset }} (${{ matrix.leg.id }})
+        env:
+          DATASET: ${{ inputs.dataset }}
+          TERMS: ${{ matrix.leg.terms }}
+        run: |
+          set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
+          ARGS=(--cadence manual --datasets "$DATASET" --out data --stage "$RUNNER_TEMP/stage")
+          if [ -n "$TERMS" ]; then ARGS+=(--terms "$TERMS"); fi
+          python -m ntut_catalog pipeline "${ARGS[@]}"
+          code=$?
+          [ -f "$RUNNER_TEMP/stage/pipeline-result.json" ] || { echo "no pipeline-result.json (exit $code)"; exit 1; }
+          if [ "$code" -eq 1 ]; then echo "::warning title=部分失敗::見 pipeline-result.json；成功者照常合併"; exit 0; fi
+          exit "$code"
+      - name: Upload stage
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage-backfill-${{ matrix.leg.id }}
+          path: ${{ runner.temp }}/stage
+          if-no-files-found: error
+          retention-days: 7
+
+  backfill-commit:
+    needs: [plan, fetch]
+    if: always() && needs.plan.result == 'success' && needs.fetch.result != 'cancelled'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    concurrency:
+      group: data-pipeline
+      cancel-in-progress: false
+    outputs:
+      publish-exit: ${{ steps.cp.outputs.publish-exit }}
+      deletions-skipped: ${{ steps.cp.outputs.deletions-skipped }}
+    env:
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # R2 的 S3 相容憑證（與 CLOUDFLARE_API_TOKEN 同一組 R2 API Token；對照表 docs/ARCHITECTURE.md §6）。
+      R2_S3_ACCESS_KEY_ID: ${{ secrets.R2_S3_ACCESS_KEY_ID }}
+      R2_S3_SECRET_ACCESS_KEY: ${{ secrets.R2_S3_SECRET_ACCESS_KEY }}
+      QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
+      PARTIAL_FAILURE_MAX_RATIO: ${{ vars.PARTIAL_FAILURE_MAX_RATIO }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          data-ref: ${{ env.DATA_REF }}
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: stage-*
+          path: ${{ runner.temp }}/stages
+      - id: cp
+        uses: ./.github/actions/commit-publish
+        with:
+          cadence: backfill
+          stages: ${{ runner.temp }}/stages
+          data-ref: ${{ env.DATA_REF }}
+          publish-dry-run: ${{ env.PUBLISH_DRY_RUN }}
+          allow-mass-delete: ${{ inputs.allow_mass_delete }}
+          no-skip-unchanged: ${{ inputs.no_skip_unchanged && 'true' || 'false' }}
+
+  # ---------------------------------------------------------------- republish
+  republish:
+    if: inputs.task == 'republish'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90       # 切換當天的一次性全量重傳估 35–40 分鐘（spec §8）
+    permissions:
+      contents: write         # derive 產出的逐週進度報告有變 → commit
+    concurrency:
+      group: data-pipeline
+      cancel-in-progress: false
+    outputs:
+      publish-exit: ${{ steps.cp.outputs.publish-exit }}
+      deletions-skipped: ${{ steps.cp.outputs.deletions-skipped }}
+    env:
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # R2 的 S3 相容憑證（與 CLOUDFLARE_API_TOKEN 同一組 R2 API Token；對照表 docs/ARCHITECTURE.md §6）。
+      R2_S3_ACCESS_KEY_ID: ${{ secrets.R2_S3_ACCESS_KEY_ID }}
+      R2_S3_SECRET_ACCESS_KEY: ${{ secrets.R2_S3_SECRET_ACCESS_KEY }}
+      QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
+      PARTIAL_FAILURE_MAX_RATIO: ${{ vars.PARTIAL_FAILURE_MAX_RATIO }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          data-ref: ${{ env.DATA_REF }}
+      - id: cp
+        uses: ./.github/actions/commit-publish
+        with:
+          cadence: republish
+          commit-message: "data(republish): reports"
+          data-ref: ${{ env.DATA_REF }}
+          publish-dry-run: ${{ env.PUBLISH_DRY_RUN }}
+          allow-mass-delete: ${{ inputs.allow_mass_delete }}
+          no-skip-unchanged: ${{ inputs.no_skip_unchanged && 'true' || 'false' }}
+
+  # ---------------------------------------------------------------- migrate（暫時性）
+  migrate:
+    if: inputs.task == 'migrate'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    concurrency:
+      group: data-pipeline
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v7
+      # fetch-state 的時間取自 git log → 要完整歷史
+      - uses: ./.github/actions/setup
+        with:
+          data-ref: ${{ env.DATA_REF }}
+          fetch-depth: "0"
+
+      - name: Check baseline_ref
+        env:
+          BASELINE: ${{ inputs.baseline_ref }}
+        run: |
+          [ -n "$BASELINE" ] || { echo "migrate 需要 baseline_ref（切換前 main 的 commit SHA）"; exit 1; }
+
+      - name: Checkout baseline code
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.baseline_ref }}
+          path: baseline-code
+
+      # 新程式碼的 CourseDetail 拒收舊 details 的 generated_at（spec §8 第 2 步），遷移前狀態只能用舊程式碼 derive。
+      - name: Derive pre-migration v1 with baseline code
+        run: |
+          set -euo pipefail
+          python -m venv "$RUNNER_TEMP/baseline-venv"
+          "$RUNNER_TEMP/baseline-venv/bin/pip" install -q -e ./baseline-code/crawler
+          mkdir -p "$RUNNER_TEMP/pre/canonical"
+          rsync -a --exclude .git data/canonical/ "$RUNNER_TEMP/pre/canonical/"
+          "$RUNNER_TEMP/baseline-venv/bin/python" -m ntut_catalog derive --out "$RUNNER_TEMP/pre"
+
+      - name: migrate-pipeline-v2
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/migration"
+          python -m ntut_catalog migrate-pipeline-v2 --data data/canonical | tee "$RUNNER_TEMP/migration/migrate-summary.json"
+          python -m ntut_catalog derive --out data
+
+      - name: Verify migration
+        run: |
+          set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
+          python infra/verify_migration.py "$RUNNER_TEMP/pre/v1" data/v1 \
+            --report "$RUNNER_TEMP/migration/migration-report.md" > /dev/null
+          code=$?
+          cat "$RUNNER_TEMP/migration/migration-report.md" >> "$GITHUB_STEP_SUMMARY"
+          exit "$code"
+
+      - name: Upload migration report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: migration-report
+          path: ${{ runner.temp }}/migration
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Redline scan (block PII/secrets/error pages)
+        if: inputs.confirm
+        run: python infra/redline_scan.py data/canonical
+
+      - name: Commit migration to data branch
+        if: inputs.confirm
+        run: |
+          set -euo pipefail
+          git -C data/canonical config user.name "github-actions[bot]"
+          git -C data/canonical config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python infra/data_commit.py --repo data/canonical --cadence migrate \
+            --message "data(migrate): 管線 v2 遷移（spec §7）"
+          git -C data/canonical push origin "HEAD:$DATA_REF"
+
+      - name: Not written back
+        if: ${{ !inputs.confirm }}
+        run: |
+          echo "confirm=false：報告見 run summary／artifact migration-report；確認後以 confirm=true 重跑寫回。" \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+  alert:
+    needs: [plan, fetch, backfill-commit, republish, migrate]
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/alert
+        with:
+          workflow: maintenance-${{ inputs.task }}
+          needs-json: ${{ toJSON(needs) }}
+          publish-exit: ${{ needs.backfill-commit.outputs.publish-exit || needs.republish.outputs.publish-exit }}
+          deletions-skipped: ${{ needs.backfill-commit.outputs.deletions-skipped || needs.republish.outputs.deletions-skipped }}
+          dry-run: ${{ env.ALERT_DRY_RUN }}

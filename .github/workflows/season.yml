@@ -1,0 +1,125 @@
+name: season
+
+# 選課季人數刷新：登錄表 cadence=season 的資料集（enrollment：只抓人/撤，寫快照＋觀測紀錄）。
+# **僅 dispatch**（日後由 Cloudflare Cron 呼叫；選課窗口自動判斷是後續工作，spec Non-goals）。
+# terms **必填**：12 月 115-2 網路選課時 current-term 可能仍是 115-1，默默用它會刷錯學期
+# （Review Focus 5；pipeline --cadence season 沒帶 --terms 也會 exit 2）。
+on:
+  workflow_dispatch:
+    inputs:
+      terms:
+        description: "學期（必填，如 115-2）"
+        required: true
+      data_ref:
+        description: "（演練用）data branch；正式一律 data"
+        required: false
+        default: data
+      publish_dry_run:
+        description: "（演練用）publish 只印清單不動 R2"
+        type: boolean
+        default: false
+      alert_dry_run:
+        description: "（演練用）告警只印不開 issue"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  DATA_REF: ${{ inputs.data_ref || 'data' }}
+  PUBLISH_DRY_RUN: ${{ inputs.publish_dry_run == true && 'true' || 'false' }}
+  ALERT_DRY_RUN: ${{ inputs.alert_dry_run == true && 'true' || 'false' }}
+
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup
+        with:
+          data-ref: ${{ env.DATA_REF }}
+
+      # 不可信輸入只經由 env 注入、以陣列傳參（防 command injection）。
+      # exit 1（部分資料集失敗）照樣交給 commit-publish：成功的照常上線，失敗的由告警開 issue；
+      # exit 2（用法錯誤）或沒產出 pipeline-result.json（整支掛掉）→ 這個 job 紅燈、不 commit。
+      - name: pipeline --cadence season
+        env:
+          INPUT_TERMS: ${{ inputs.terms }}
+        run: |
+          set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
+          echo "$INPUT_TERMS" | grep -Eq '^[0-9]{3}-[123]([:,][0-9]{3}-[123])*$' \
+            || { echo "invalid terms: '$INPUT_TERMS'（season 必須明確指定學期）"; exit 2; }
+          ARGS=(--cadence season --terms "$INPUT_TERMS" --out data --stage "$RUNNER_TEMP/stage")
+          python -m ntut_catalog pipeline "${ARGS[@]}"
+          code=$?
+          [ -f "$RUNNER_TEMP/stage/pipeline-result.json" ] || { echo "no pipeline-result.json (exit $code)"; exit 1; }
+          if [ "$code" -eq 1 ]; then echo "::warning title=部分資料集失敗::見 pipeline-result.json；成功者照常合併"; exit 0; fi
+          exit "$code"
+
+      - name: Upload stage
+        uses: actions/upload-artifact@v7
+        with:
+          name: stage-season
+          path: ${{ runner.temp }}/stage
+          if-no-files-found: error
+          retention-days: 7
+
+  commit-publish:
+    needs: fetch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    concurrency:
+      group: data-pipeline
+      cancel-in-progress: false
+    outputs:
+      publish-exit: ${{ steps.cp.outputs.publish-exit }}
+      deletions-skipped: ${{ steps.cp.outputs.deletions-skipped }}
+    env:
+      R2_BUCKET: ${{ vars.R2_BUCKET }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # R2 的 S3 相容憑證（與 CLOUDFLARE_API_TOKEN 同一組 R2 API Token；對照表 docs/ARCHITECTURE.md §6）。
+      R2_S3_ACCESS_KEY_ID: ${{ secrets.R2_S3_ACCESS_KEY_ID }}
+      R2_S3_SECRET_ACCESS_KEY: ${{ secrets.R2_S3_SECRET_ACCESS_KEY }}
+      QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
+      PARTIAL_FAILURE_MAX_RATIO: ${{ vars.PARTIAL_FAILURE_MAX_RATIO }}
+    steps:
+      - uses: actions/checkout@v7
+      # 鎖內重新 checkout **最新** data branch（fetch job 那份可能已過期）
+      - uses: ./.github/actions/setup
+        with:
+          data-ref: ${{ env.DATA_REF }}
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: stage-*
+          path: ${{ runner.temp }}/stages
+      - id: cp
+        uses: ./.github/actions/commit-publish
+        with:
+          cadence: season
+          stages: ${{ runner.temp }}/stages
+          data-ref: ${{ env.DATA_REF }}
+          publish-dry-run: ${{ env.PUBLISH_DRY_RUN }}
+          daily-checks: "false"
+          alert-dry-run: ${{ env.ALERT_DRY_RUN }}
+
+  alert:
+    needs: [fetch, commit-publish]
+    if: always()
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/alert
+        with:
+          workflow: season
+          needs-json: ${{ toJSON(needs) }}
+          publish-exit: ${{ needs.commit-publish.outputs.publish-exit }}
+          deletions-skipped: ${{ needs.commit-publish.outputs.deletions-skipped }}
+          dry-run: ${{ env.ALERT_DRY_RUN }}

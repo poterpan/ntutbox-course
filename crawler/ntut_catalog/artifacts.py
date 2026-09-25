@@ -6,10 +6,13 @@
   data/v1/terms/{term}/classes.json         ClassDirectory
   data/v1/terms/{term}/periods.json         PeriodTable
   data/v1/terms/{term}/enrollment.json      EnrollmentLatest（volatile overlay）
-  data/v1/manifest.json                     sha256/size/dataset_version
+  data/v1/terms/{term}/course/{id}.json     CourseDetail（逐週進度在 derive 即時計算）
+  data/v1/manifest.json                     sha256/size/dataset_version＋來源新鮮度
+  data/canonical/reports/{term}/weekly-progress.json   逐週進度精度報告（derive 產、commit 回 data branch）
 """
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import json
 import shutil
@@ -20,6 +23,8 @@ from models import (
     CALENDAR_SCHEMA_VERSION,
     CalendarManifestEntry,
     CatalogManifestEntry,
+    CourseDetail,
+    DetailsFreshness,
     SCHEMA_VERSION,
     CalendarEventsFeed,
     TermCalendarFile,
@@ -33,9 +38,12 @@ from models import (
     TermCatalog,
     TermInfo,
 )
+from ntut_catalog import enrollment_store, fetch_state
 from ntut_catalog.orchestrator import TermResult
+from ntut_catalog.parse_progress import attach_weekly_progress, progress_report
 from ntut_catalog.periods import build_period_table
 from ntut_catalog.pua import normalize_pua
+from ntut_catalog.term_calendar import load_term
 
 # normalize.py 寫入 raw_fields 的 volatile 鍵（人數/撤選），結構檔需剔除以免每日 churn
 _VOLATILE_RAW_KEYS = ("enrolled", "withdrawn")
@@ -79,30 +87,6 @@ def write_canonical(result: TermResult, out_dir: Path) -> None:
     (d / "classes.json").write_text(result.classes.model_dump_json(), encoding="utf-8")
 
 
-def write_enrollment_snapshot(term_key: str, enrollment, out_dir: Path, date: str) -> None:
-    """寫 enrollment 時序快照：offering_id + 人數/撤選 + observed_at。
-
-    date 顆粒由呼叫端決定：daily 用 'YYYY-MM-DD'；選課季 hourly 用 'YYYY-MM-DDTHH'
-    （同顆粒重跑覆寫同檔 → 限制檔數）。enrollment 為 EnrollmentLatest。
-    """
-    d = out_dir / "canonical" / term_key / "enrollment"
-    d.mkdir(parents=True, exist_ok=True)
-    with (d / f"{date}.ndjson").open("w", encoding="utf-8") as f:
-        for oid, e in enrollment.counts.items():
-            f.write(
-                json.dumps(
-                    {
-                        "offering_id": oid,
-                        "enrolled_count": e.enrolled_count,
-                        "withdrawn_count": e.withdrawn_count,
-                        "observed_at": e.observed_at,
-                    },
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
-
-
 def derive(out_dir: Path) -> Manifest:
     """derive 層的唯一入口：canonical → 全新的 v1（spec §1 derive 規則）。
 
@@ -120,7 +104,8 @@ def derive(out_dir: Path) -> Manifest:
 def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
     """從【全部】canonical 學期重建完整 v1（catalog/classes/periods/enrollment）+ manifest。
 
-    catalog 純結構（無時間戳）；enrollment.json 取該學期【最新】snapshot 還原數字。
+    catalog 純結構（無時間戳）；enrollment.json 取該學期最後一次觀測（enrollment_store.latest）；
+    course/{id}.json 即時計算逐週進度；manifest 帶 fetch-state 的來源新鮮度。
     對外請用 `derive`（會先清空 v1/）；本函式保留給既有離線工具與測試。
     """
     canonical = out_dir / "canonical"
@@ -152,21 +137,15 @@ def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
         )
         _write_v1_json(v1 / "classes.json", (term_dir / "classes.json").read_text(encoding="utf-8"))
         _write_v1_json(v1 / "periods.json", periods_json)
-        # 最新 snapshot → enrollment.json overlay
-        snaps = sorted((term_dir / "enrollment").glob("*.ndjson")) if (term_dir / "enrollment").exists() else []
-        counts: dict = {}
-        observed = None
-        if snaps:
-            for line in snaps[-1].read_text(encoding="utf-8").splitlines():
-                if not line.strip():
-                    continue
-                r = json.loads(line)
-                counts[r["offering_id"]] = Enrollment(
-                    enrolled_count=r["enrolled_count"],
-                    withdrawn_count=r["withdrawn_count"],
-                    observed_at=r["observed_at"],
-                )
-                observed = r["observed_at"]
+        # 最新一次觀測 → enrollment.json overlay（spec §5：快照列不帶時間，
+        # 頂層與每列的 observed_at 都填最後一筆觀測時間，web「人數更新於」語意不變）
+        rows, observed = enrollment_store.latest(term_dir)
+        counts = {
+            r["offering_id"]: Enrollment(enrolled_count=r["enrolled_count"],
+                                         withdrawn_count=r["withdrawn_count"],
+                                         observed_at=observed)
+            for r in rows
+        }
         _write_v1_json(
             v1 / "enrollment.json",
             EnrollmentLatest(term_key=term, observed_at=observed, counts=counts).model_dump_json(),
@@ -178,13 +157,7 @@ def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
         # 選用：詳情（canonical/{term}/details.ndjson 存在 → 炸成 course/{id}.json）
         det = term_dir / "details.ndjson"
         if det.exists():
-            cdir = v1 / "course"
-            cdir.mkdir(exist_ok=True)
-            for line in det.read_text(encoding="utf-8").splitlines():
-                if not line.strip():
-                    continue
-                oid = json.loads(line)["offering_id"]
-                _write_v1_json(cdir / f"{oid}.json", line)
+            build_details_v1(out_dir, term, det, v1 / "course")
     # 課程標準（跨入學年，canonical/standards/*.json → v1/standards/）
     std_src = out_dir / "canonical" / "standards"
     if std_src.exists():
@@ -199,6 +172,35 @@ def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
     # 綁在一起會讓「還沒開放查詢的下學期」拿不到週次表（#168 要的正是提前拿到）。
     build_term_calendars_v1(out_dir, generated_at)
     return write_manifest(out_dir, generated_at)
+
+
+def build_details_v1(out_dir: Path, term: str, details_nd: Path, course_dir: Path) -> dict:
+    """details.ndjson → course/{id}.json，並即時計算逐週進度（spec §4）。
+
+    canonical 只存課綱原文；weekly_progress 是「原文 × 行事曆 × parser 版本」的衍生物，
+    放在這裡算，行事曆改了或 parser 升版，下次 derive 自動生效，不必再記得手動重處理。
+    沒有 calendar.json 的學期（110-1～114-2）→ `term=None`：日期／錨點規則停用，
+    marker 路徑照常產出三態結果（Review Focus 4）。
+
+    精度報告寫 `canonical/reports/{term}/weekly-progress.json`（不帶時間戳，數字不變就沒有 diff），
+    由 commit-publish job 一併 commit——它的 commit 歷史就是長期精度追蹤。回傳報告。
+    """
+    term_obj = load_term(out_dir, term)
+    course_dir.mkdir(parents=True, exist_ok=True)
+    details = []
+    for line in details_nd.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        d = CourseDetail.model_validate_json(line)
+        attach_weekly_progress(d.syllabi, term_obj, course_name=d.name.zh)
+        _write_v1_json(course_dir / f"{d.offering_id}.json", d.model_dump_json())
+        details.append(d)
+    report = progress_report(details, term, term_obj is not None)
+    rp_dir = out_dir / "canonical" / "reports" / term
+    rp_dir.mkdir(parents=True, exist_ok=True)
+    (rp_dir / "weekly-progress.json").write_text(
+        json.dumps(report, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    return report
 
 
 def build_calendar_v1(out_dir: Path, generated_at: str) -> bool:
@@ -373,8 +375,47 @@ def _catalog_entry(path: Path, rel_url: str) -> CatalogManifestEntry:
     return CatalogManifestEntry(**base.model_dump(), count=count)
 
 
+# 產物 → 來源資料集（spec §6）。enrollment.json 的來源是 catalog（daily 順帶記錄）與
+# enrollment（選課季）兩個資料集——merge 讓兩者都寫 fetch-state 的同一個 `enrollment` 鍵
+# （registry.ENROLLMENT_STATE_KEY），「取較新」已在那裡完成；不能拿 catalog 鍵來比，
+# 它的 changed_at 是課程結構的變動時間，與人數無關。
+_FRESHNESS_SOURCES = {
+    "catalog": ("catalog",),
+    "classes": ("catalog",),
+    "enrollment": ("enrollment",),
+    "mprograms": ("mprograms",),
+    "calendar": ("calendar",),
+}
+
+
+def _latest_iso(values) -> Optional[str]:
+    vals = [v for v in values if v]
+    if not vals:
+        return None
+    return max(vals, key=lambda v: dt.datetime.fromisoformat(v))
+
+
+def _freshness(state, datasets, term: Optional[str]) -> Dict[str, Optional[str]]:
+    """從 fetch-state 取 checked_at／changed_at。calendar 無學期維度 → `_global`。"""
+    entries = [fetch_state.get(state, ds, None if ds == "calendar" else term) for ds in datasets]
+    entries = [e for e in entries if e]
+    return {"checked_at": _latest_iso(e.get("checked_at") for e in entries),
+            "changed_at": _latest_iso(e.get("changed_at") for e in entries)}
+
+
+def _details_freshness(out_dir: Path, state, term: str) -> Optional[DetailsFreshness]:
+    nd = out_dir / "canonical" / term / "details.ndjson"
+    if not nd.exists():
+        return None
+    count = sum(1 for line in nd.read_text(encoding="utf-8").splitlines() if line.strip())
+    return DetailsFreshness(**_freshness(state, ("details",), term), count=count)
+
+
 def write_manifest(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
+    """v1/manifest.json。來源新鮮度（checked_at／changed_at）讀 canonical 的 fetch-state，
+    **不讀系統時間**——同一份 canonical（含 `_meta/`）→ 同一份 manifest。"""
     terms_dir = out_dir / "v1" / "terms"
+    state = fetch_state.load(fetch_state.path_for(out_dir / "canonical"))
     terms = {}
     for term_dir in sorted(terms_dir.iterdir()) if terms_dir.exists() else []:
         if not term_dir.is_dir():
@@ -388,11 +429,14 @@ def write_manifest(out_dir: Path, generated_at: Optional[str] = None) -> Manifes
                 # 不區分的話 manifest 會說 schema_version=2 而檔案本身寫 1，
                 # App decoder 對版本不符是整份拒收——會是靜默失效。
                 if name == "catalog":
-                    files[name] = _catalog_entry(p, f"terms/{term}/{name}.json")
-                    continue
-                files[name] = _entry(
-                    p, f"terms/{term}/{name}.json",
-                    CALENDAR_SCHEMA_VERSION if name == "calendar" else SCHEMA_VERSION)
+                    entry = _catalog_entry(p, f"terms/{term}/{name}.json")
+                else:
+                    entry = _entry(
+                        p, f"terms/{term}/{name}.json",
+                        CALENDAR_SCHEMA_VERSION if name == "calendar" else SCHEMA_VERSION)
+                if name in _FRESHNESS_SOURCES:
+                    entry = entry.model_copy(update=_freshness(state, _FRESHNESS_SOURCES[name], term))
+                files[name] = entry
         if "catalog" not in files:
             continue
         # dataset_version = catalog.json 的結構 sha256（catalog 純結構→byte 穩定→版本穩定）
@@ -403,9 +447,12 @@ def write_manifest(out_dir: Path, generated_at: Optional[str] = None) -> Manifes
             enrollment=files.get("enrollment"),
             mprograms=files.get("mprograms"),
             calendar=files.get("calendar"),
+            details=_details_freshness(out_dir, state, term),
             dataset_version=files["catalog"].sha256,
         )
-    manifest = Manifest(generated_at=generated_at, terms=terms,
-                        calendars=_calendar_entries(out_dir))
+    calendar_freshness = _freshness(state, ("calendar",), None)
+    calendars = {k: v.model_copy(update=calendar_freshness)
+                 for k, v in _calendar_entries(out_dir).items()}
+    manifest = Manifest(generated_at=generated_at, terms=terms, calendars=calendars)
     (out_dir / "v1" / "manifest.json").write_text(manifest.model_dump_json(), encoding="utf-8")
     return manifest

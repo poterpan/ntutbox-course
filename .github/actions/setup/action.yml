@@ -1,0 +1,35 @@
+name: pipeline setup
+description: >-
+  資料管線共用前置（spec §3）：checkout data branch 到 data/canonical、Python 3.12（pip 快取）、
+  安裝 crawler。呼叫前須先 actions/checkout 主 repo（本 action 住在裡面）。
+  不裝 wrangler：S3 憑證已齊（#99），publish.py 的 wrangler 回退只留作本機除錯。
+inputs:
+  data-ref:
+    description: data branch（演練時為 data-dryrun）
+    default: data
+  checkout-data:
+    description: "'false' → 不 checkout data branch（例如只要 CLI 的 plan job）"
+    default: "true"
+  fetch-depth:
+    description: data branch 的 git 歷史深度（migrate 要完整歷史算 fetch-state → 0）
+    default: "1"
+runs:
+  using: composite
+  steps:
+    - name: Checkout canonical (data branch)
+      if: inputs.checkout-data == 'true'
+      uses: actions/checkout@v7
+      with:
+        ref: ${{ inputs.data-ref }}
+        path: data/canonical
+        fetch-depth: ${{ inputs.fetch-depth }}
+
+    - uses: actions/setup-python@v7
+      with:
+        python-version: "3.12"
+        cache: pip
+        cache-dependency-path: crawler/pyproject.toml
+
+    - name: Install crawler
+      shell: bash
+      run: pip install -e ./crawler

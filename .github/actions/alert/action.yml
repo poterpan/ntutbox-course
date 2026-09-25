@@ -1,0 +1,56 @@
+name: pipeline alert
+description: >-
+  run 失敗告警（spec §3）：任一 job 失敗、fetch 有失敗的資料集、merge 告警、publish 刪除保險觸發
+  → 開／更新 `[pipeline] <workflow> 失敗` issue；全部成功 → 關閉。放在最後一個 job、`if: always()`，
+  job 需 `issues: write`。只用標準庫與 gh，不必安裝 crawler。
+inputs:
+  workflow:
+    description: issue 標題裡的 workflow 名稱
+    required: true
+  needs-json:
+    description: toJSON(needs)
+    required: true
+  publish-exit:
+    default: ""
+  deletions-skipped:
+    default: ""
+  dry-run:
+    description: "'true' → 只印不動 issue（演練用）"
+    default: "false"
+  github-token:
+    default: ${{ github.token }}
+runs:
+  using: composite
+  steps:
+    - name: Download stage artifacts
+      continue-on-error: true      # republish／migrate 沒有 stage；找不到不算告警失敗
+      uses: actions/download-artifact@v8
+      with:
+        pattern: stage-*
+        path: ${{ runner.temp }}/alert/stages
+
+    - name: Download merge reports
+      continue-on-error: true      # republish／migrate 沒有 stage；找不到不算告警失敗
+      uses: actions/download-artifact@v8
+      with:
+        pattern: merge-reports-*
+        path: ${{ runner.temp }}/alert/reports
+
+    - name: Open / update / close pipeline-alert issue
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        GH_REPO: ${{ github.repository }}
+        WORKFLOW: ${{ inputs.workflow }}
+        NEEDS: ${{ inputs.needs-json }}
+        PUBLISH_EXIT: ${{ inputs.publish-exit }}
+        DELETIONS: ${{ inputs.deletions-skipped }}
+        DRY: ${{ inputs.dry-run }}
+        RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      run: |
+        set -euo pipefail
+        if [ "$DRY" = "true" ]; then export PIPELINE_ALERT_DRY_RUN=1; fi
+        python3 infra/pipeline_alert.py run --workflow "$WORKFLOW" --run-url "$RUN_URL" \
+          --needs-json "$NEEDS" --stages "$RUNNER_TEMP/alert/stages" \
+          --merge-reports "$RUNNER_TEMP/alert/reports" \
+          --publish-exit "$PUBLISH_EXIT" --deletions-skipped "$DELETIONS"

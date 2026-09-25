@@ -45,30 +45,26 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 - `ntut_catalog/parse_subj.py` / `classes_builder.py` — 系所/班級 + pool kind 分類
 - `ntut_catalog/normalize.py` — → `CourseOffering`（內嵌班級 kind/unit/grade 由 directory lookup 填充）
 - `ntut_catalog/orchestrator.py` — 每學期：61 系所×QueryCourse + 13 學制碼×全系所；先建 directory 再 normalize
-- `ntut_catalog/artifacts.py` — `structural_*`（去 volatile，非 mutate）/ `write_canonical` / `write_enrollment_snapshot` / `derive`（清空 v1 → `build_v1` 從全部 canonical 重建）/ `write_manifest`（dataset_version=結構 sha）
+- `ntut_catalog/artifacts.py` — `structural_*`（去 volatile，非 mutate）/ `write_canonical` / `derive`（清空 v1 → `build_v1` 從全部 canonical 重建）/ `write_manifest`（dataset_version=結構 sha）
 - `ntut_catalog/parse_detail.py` / `detail.py` — Curr(描述/EN)+ShowSyllabus(大綱)解析；`crawl_detail`（Curr 依 course_code 去重）+ `write_details`
 - `ntut_catalog/parse_program.py` / `programs.py` — 微學程(SearchMProgram)+課程標準(Cprog -2→-3→-4)解析與爬取
 - `ntut_catalog/requirement_legend.py` — 符號→必/選類別（Cprog -5 全域圖例）；normalize 套用
 - `ntut_catalog/parse_progress.py` — 課程進度自由文字 → 逐週進度（契約一／二）。移植自 POC 並加三條規則：雙語配對／編號＋日期表／純日期清單。**拒絕沒有日期佐證的純編號清單**（那多半是章節）
-- `ntut_catalog/reprocess.py` — 離線重處理：requirement.category、weekly_progress（parser 升版不必重爬）
-- `ntut_catalog/migrate.py` — 既有資料一次性遷移成 structural canonical + seed snapshot
-- `ntut_catalog/rederive.py` — 離線從 classes.json 重建內嵌班級欄位（kind/unit/grade）
+- `ntut_catalog/registry.py` — 資料集登錄表（唯一宣告處）；`pipeline.py`（fetch）、`merge.py`（上鎖合併）、`fetch_state.py`、`enrollment_store.py`
+- `ntut_catalog/migrate_v2.py` — 一次性遷移到管線 v2（`migrate-pipeline-v2`；切換後刪除）
 - `ntut_catalog/periods.py` — 節次↔牆鐘（官方頁尾表，靜態+爬取時驗證）
 - `ntut_catalog/ics.py` / `calendar_client.py` / `calendar_events.py` — 校網 Google Calendar ics 解析（全天 end-exclusive→inclusive、缺 DTEND、UTC→+08:00、穩定排序）+ 外部主機 client + feed 組裝與 horizon 監測
 - `ntut_catalog/term_calendar.py` — 學年度週次表：從 ics 具名事件推導（第 1 週＝開學日所在週、週日起算；末週＝假期起日前一個週六所在週）+ 10 條不變量。**不解析 PDF**；`reference/pdf-week-tables-111-115.json` 是從校方公告 PDF 抽出的 10 學期回歸基準，在**發佈時**跑
 
 ### 自動化 / 發佈
-- `../.github/workflows/crawl.yml` — 每日 cron 04:00（自動偵測當前學期）→ catalog/enrollment + 微學程 + pua-scan 新造字監測 → commit `data` branch → 發佈 R2。
-- `../.github/workflows/crawl-calendar.yml` — 每日 cron 03:00：校網 Google Calendar ics → 事件 feed + 週次表 + horizon 告警。
-  **刻意獨立一支**：它完全不碰學校系統，掛在 crawl.yml 裡會被 `Resolve terms`（要打 aps.ntut.edu.tw）拖累——
-  學校一不通，跟學校無關的行事曆也跟著停更（2026-09-18 實際發生）。錯開一小時避免與 crawl.yml 互等。
+依頻率分 4 支（資料管線 v2，spec `docs/superpowers/specs/2026-09-26-data-pipeline-refactor-design.md` §3）；
+每支都是「fetch job（不上鎖）→ commit-publish job（`data-pipeline` 鎖）→ alert job」，共用 `../.github/actions/{setup,commit-publish,alert}`。
+跑哪些資料集由 `ntut_catalog/registry.py` 的 cadence 決定，新增資料集不改 workflow。
+- `../.github/workflows/daily.yml` — 每日 cron 04:00：calendar、catalog＋人數、mprograms；另跑行事曆 horizon／coverage 與資料過期檢查。
+- `../.github/workflows/weekly.yml` — 每週一 05:30：details（課綱）、standards。
+- `../.github/workflows/season.yml` — 僅 dispatch：選課季人數刷新（`terms` 必填）。
+- `../.github/workflows/maintenance.yml` — 僅 dispatch：`backfill`（任何資料集＋學期，details 走 matrix）／`republish`（derive＋publish，含 dry-run、`allow_mass_delete`）／`migrate`（一次性，切換後移除）。
 - `../.github/workflows/test.yml` — push/PR 跑 pytest + 檢查 `packages/schema` 產物與 `models.py` 同步。**在此之前 repo 沒有任何跑測試的 CI。**
-- `../.github/workflows/crawl-details.yml` — 每週日 cron 爬當前學期課綱詳情（+ pua-scan）→ commit `data` branch → derive → 發佈 R2。
-- `../.github/workflows/crawl-enrollment.yml` — 選課季每小時人數刷新（`ENROLLMENT_FAST_UNTIL` 窗口閘）。
-- `../.github/workflows/reprocess-progress.yml` — **手動：不重爬、只重算逐週進度**（parser 升版後用）。
-  讀 data branch 既有的 `details.ndjson` 重跑 parser → commit → derive → 發佈。
-  實測全學期約 5 秒；對照 `crawl-details.yml` 要重爬 ~5k 請求、timeout 180 分且只在週日跑。
-- `../.github/workflows/publish-v1.yml` — 手動：從 data branch derive + 發佈 R2（預設 dry-run；`allow_mass_delete` 放行刪除保險）。
 - `../infra/publish.py`（純上傳：線上 manifest 品質閘門 + 全量 MD5 比對 + manifest 最後推 + 過期刪除與 10% 保險，見檔頭）、`redline_scan.py`（free-text 跳過 student-id 啟發）、`calendar_horizon_alert.py`（行事曆涵蓋不足→開 issue，補上→自動關；告警不阻斷發布）、`SETUP.md`。
 
 ## 後續（非本輪）

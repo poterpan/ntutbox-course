@@ -12,12 +12,12 @@ from models import (
     TermCatalog,
     TermInfo,
 )
+from tests._fakes import record_enrollment
 from ntut_catalog.artifacts import (
     build_v1,
     structural_catalog,
     structural_course,
     write_canonical,
-    write_enrollment_snapshot,
 )
 
 
@@ -75,20 +75,33 @@ def test_write_canonical_structural(tmp_path, sample_result):
     ClassDirectory.model_validate_json((d / "classes.json").read_text(encoding="utf-8"))
 
 
-def test_write_enrollment_snapshot(tmp_path, sample_result):
-    write_enrollment_snapshot(
-        sample_result.catalog.term.key, sample_result.enrollment, tmp_path, "2026-06-13"
-    )
-    snap = (tmp_path / "canonical" / "115-1" / "enrollment" / "2026-06-13.ndjson")
+def test_enrollment_snapshot_rows_have_no_timestamp(tmp_path, sample_result):
+    """spec §5：快照檔名＝台北時間到分，列內不帶 observed_at（時間在觀測紀錄）。"""
+    name = record_enrollment(tmp_path, "115-1", sample_result.enrollment, "2026-06-13T10:05:42+08:00")
+    assert name == "2026-06-13T1005"
+    snap = (tmp_path / "canonical" / "115-1" / "enrollment" / f"{name}.ndjson")
     lines = snap.read_text(encoding="utf-8").strip().splitlines()
     rec = json.loads(lines[0])
-    assert set(rec) == {"offering_id", "enrolled_count", "withdrawn_count", "observed_at"}
+    assert set(rec) == {"offering_id", "enrolled_count", "withdrawn_count"}
     assert len(lines) == len(sample_result.catalog.courses)
+
+
+def test_v1_enrollment_carries_latest_observation_time(tmp_path, sample_result):
+    """v1 enrollment.json 形狀不變：頂層與每列 observed_at 都是最後一筆觀測時間。"""
+    write_canonical(sample_result, tmp_path)
+    record_enrollment(tmp_path, "115-1", sample_result.enrollment, "2026-06-13T10:00:00+08:00")
+    record_enrollment(tmp_path, "115-1", sample_result.enrollment, "2026-06-14T10:00:00+08:00")
+    build_v1(tmp_path)
+    enr = EnrollmentLatest.model_validate_json(
+        (tmp_path / "v1" / "terms" / "115-1" / "enrollment.json").read_text(encoding="utf-8"))
+    assert enr.observed_at == "2026-06-14T10:00:00+08:00"
+    assert {e.observed_at for e in enr.counts.values()} == {"2026-06-14T10:00:00+08:00"}
+    assert len(list((tmp_path / "canonical" / "115-1" / "enrollment").glob("2026-*.ndjson"))) == 1
 
 
 def test_build_v1_from_canonical(tmp_path, sample_result):
     write_canonical(sample_result, tmp_path)
-    write_enrollment_snapshot(sample_result.catalog.term.key, sample_result.enrollment, tmp_path, "2026-06-13")
+    record_enrollment(tmp_path, sample_result.catalog.term.key, sample_result.enrollment, "2026-06-13T00:00:00+08:00")
     build_v1(tmp_path, "2026-06-13T01:00:00+08:00")
     t = tmp_path / "v1" / "terms" / "115-1"
     cat = TermCatalog.model_validate_json((t / "catalog.json").read_text(encoding="utf-8"))
@@ -117,14 +130,14 @@ def test_build_v1_writes_names_index(tmp_path, sample_result):
 
 def test_build_v1_covers_all_terms(tmp_path, sample_result):
     write_canonical(sample_result, tmp_path)
-    write_enrollment_snapshot(sample_result.catalog.term.key, sample_result.enrollment, tmp_path, "2026-06-13")
+    record_enrollment(tmp_path, sample_result.catalog.term.key, sample_result.enrollment, "2026-06-13T00:00:00+08:00")
     # 第二學期 canonical
     r2 = sample_result
     r2.catalog.term.key = "114-2"
     r2.catalog.term.year = 114
     r2.catalog.term.semester = 2
     write_canonical(r2, tmp_path)
-    write_enrollment_snapshot(r2.catalog.term.key, r2.enrollment, tmp_path, "2026-06-13")
+    record_enrollment(tmp_path, r2.catalog.term.key, r2.enrollment, "2026-06-13T00:00:00+08:00")
     build_v1(tmp_path, "2026-06-13T01:00:00+08:00")
     man = Manifest.model_validate_json((tmp_path / "v1" / "manifest.json").read_text(encoding="utf-8"))
     assert {"115-1", "114-2"} <= set(man.terms)                  # manifest 涵蓋全部學期

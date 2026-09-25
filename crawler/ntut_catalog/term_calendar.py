@@ -326,3 +326,17 @@ def build_all_term_calendars(
         )
         for k, term in terms.items()
     }
+
+
+def load_term(out_dir: Path, term_key: str) -> Optional[AcademicTerm]:
+    """讀該學期 canonical/{term}/calendar.json 的 AcademicTerm（契約三）。沒有就回 None。
+
+    逐週進度的日期／錨點規則需要它（weeks[] 用來映射、midterm/final_exam 當錨點）；
+    沒有週次表時那些規則自動跳過，marker 路徑照常運作（110-1～114-2 全是這種）。
+    原本在 reprocess.py；reprocess-progress 刪除後 derive 仍需要，移到這裡。
+    """
+    p = out_dir / "canonical" / term_key / "calendar.json"
+    if not p.exists():
+        return None
+    cal = TermCalendarFile.model_validate_json(p.read_text(encoding="utf-8"))
+    return cal.terms.get(term_key)

@@ -1,0 +1,169 @@
+name: pipeline commit-publish
+description: >-
+  上鎖 job 的全部步驟（spec §3 job 2）：merge → redline → pua-scan → derive → commit（canonical＋reports）
+  → push → publish，daily 另跑行事曆與資料過期檢查。呼叫端負責：job 層
+  `concurrency: data-pipeline`（cancel-in-progress: false）、先 checkout 主 repo 與 setup
+  （**鎖內**重新 checkout 最新 data branch）、job env 帶 R2 憑證。
+inputs:
+  cadence:
+    description: commit 訊息的 data(<cadence>) 部分
+    required: true
+  stages:
+    description: fetch stage artifact 的下載目錄（其下每個含 pipeline-result.json 的目錄各 merge 一次）；不存在＝不 merge
+    default: ""
+  commit-message:
+    description: 沒有 merge 報告時的 commit 訊息（republish）
+    default: ""
+  data-ref:
+    description: push 的目標 branch
+    default: data
+  publish-dry-run:
+    description: "'true' → publish.py --dry-run"
+    default: "false"
+  allow-mass-delete:
+    description: publish.py --allow-mass-delete（逗號分隔 prefix）
+    default: ""
+  no-skip-unchanged:
+    description: "'true' → publish.py --no-skip-unchanged"
+    default: "false"
+  daily-checks:
+    description: "'true' → 行事曆 horizon／coverage 與資料過期檢查（daily）"
+    default: "false"
+  alert-dry-run:
+    description: "'true' → 告警只印不動 issue（演練用）"
+    default: "false"
+  github-token:
+    description: 告警用（gh）
+    default: ${{ github.token }}
+outputs:
+  publish-exit:
+    description: publish.py 結束碼（0 成功、3 刪除保險觸發、其他＝失敗）
+    value: ${{ steps.publish.outputs.exit_code }}
+  deletions-skipped:
+    description: 刪除保險跳過的 prefix
+    value: ${{ steps.publish.outputs.deletions_skipped }}
+  committed:
+    description: 是否有 commit
+    value: ${{ steps.commit.outputs.committed }}
+runs:
+  using: composite
+  steps:
+    # 只合併 pipeline-result 標記成功的資料集；catalog 課數跌破門檻 → 丟棄並記進報告（merge.py）。
+    - name: Merge fetch output into latest data branch
+      shell: bash
+      env:
+        STAGES: ${{ inputs.stages }}
+      run: |
+        set -euo pipefail
+        REPORTS="$RUNNER_TEMP/merge-reports"
+        mkdir -p "$REPORTS"
+        if [ -n "$STAGES" ] && [ -d "$STAGES" ]; then
+          while IFS= read -r -d '' res; do
+            d="$(dirname "$res")"
+            echo "::group::merge $d"
+            python -m ntut_catalog merge --stage "$d" --out data \
+              --report "$REPORTS/merge-report-$(basename "$d").json"
+            echo "::endgroup::"
+          done < <(find "$STAGES" -name pipeline-result.json -print0 | sort -z)
+        else
+          echo "no stages — skip merge"
+        fi
+
+    - name: Run summary (per dataset)
+      shell: bash
+      env:
+        STAGES: ${{ inputs.stages }}
+      run: python infra/pipeline_alert.py summary --stages "${STAGES:-/nonexistent}" --merge-reports "$RUNNER_TEMP/merge-reports"
+
+    - name: Upload merge reports
+      uses: actions/upload-artifact@v7
+      with:
+        name: merge-reports-${{ github.job }}
+        path: ${{ runner.temp }}/merge-reports
+        if-no-files-found: ignore
+        retention-days: 7
+
+    # 紅線：失敗即整次中止，不放寬（不 commit、不 publish）。
+    - name: Redline scan (block PII/secrets/error pages)
+      shell: bash
+      run: python infra/redline_scan.py data/canonical
+
+    # 新造字監測：只告警不擋（照 docs/research/2026-07-20-pua-glyph-verification.md 補 PUA_MAP）。
+    - name: PUA scan (新造字監測)
+      shell: bash
+      run: |
+        set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
+        TERMS="$(python -c 'import glob, json, os, sys
+        terms = set()
+        for p in glob.glob(os.path.join(sys.argv[1], "*.json")):
+            terms |= set(json.load(open(p, encoding="utf-8")).get("terms") or [])
+        print(",".join(sorted(terms)))' "$RUNNER_TEMP/merge-reports")"
+        if [ -z "$TERMS" ]; then echo "no merged terms — skip"; exit 0; fi
+        python -m ntut_catalog pua-scan --terms "$TERMS" --out data \
+          || echo "::error title=PUA 新造字::pua-scan 發現未收錄碼位（$TERMS），不擋發佈；見上方清單"
+
+    - name: Derive v1 (+ reports)
+      shell: bash
+      run: python -m ntut_catalog derive --out data
+
+    - name: Commit canonical + reports
+      id: commit
+      shell: bash
+      env:
+        CADENCE: ${{ inputs.cadence }}
+        MESSAGE: ${{ inputs.commit-message }}
+      run: |
+        set -euo pipefail
+        git -C data/canonical config user.name "github-actions[bot]"
+        git -C data/canonical config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        python infra/data_commit.py --repo data/canonical --cadence "$CADENCE" \
+          --reports "$RUNNER_TEMP/merge-reports" ${MESSAGE:+--message "$MESSAGE"}
+
+    # 鎖內、剛 checkout 的最新 HEAD → 一定是 fast-forward；被拒代表有人在鎖外寫 data branch，應該紅燈。
+    - name: Push data branch
+      if: steps.commit.outputs.committed == 'true'
+      shell: bash
+      working-directory: data/canonical
+      env:
+        DATA_REF: ${{ inputs.data-ref }}
+      run: git push origin "HEAD:$DATA_REF"
+
+    # exit 3＝刪除保險觸發（資料已上線、只有刪除待放行）→ 不讓 job 紅燈，交給告警開 issue。
+    - name: Publish v1 to R2
+      id: publish
+      shell: bash
+      env:
+        DRY_RUN: ${{ inputs.publish-dry-run }}
+        ALLOW: ${{ inputs.allow-mass-delete }}
+        NO_SKIP: ${{ inputs.no-skip-unchanged }}
+      run: |
+        set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
+        ARGS=(--bucket "$R2_BUCKET" --out data)
+        if [ "$DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
+        if [ "$NO_SKIP" = "true" ]; then ARGS+=(--no-skip-unchanged); fi
+        if [ -n "$ALLOW" ]; then ARGS+=(--allow-mass-delete "$ALLOW"); fi
+        python infra/publish.py "${ARGS[@]}"
+        code=$?
+        echo "exit_code=$code" >> "$GITHUB_OUTPUT"
+        if [ "$code" -eq 3 ]; then
+          echo "::warning title=R2 刪除保險觸發::已跳過部分刪除、其餘照常上線；告警會開 issue"
+          exit 0
+        fi
+        exit "$code"
+
+    - name: Daily checks (行事曆 horizon／coverage、資料過期)
+      if: inputs.daily-checks == 'true' && !cancelled()
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        ALERT_DRY_RUN: ${{ inputs.alert-dry-run }}
+      run: |
+        set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
+        if [ "$ALERT_DRY_RUN" = "true" ]; then
+          export PIPELINE_ALERT_DRY_RUN=1
+          echo "alert dry-run: skip calendar_horizon_alert（它沒有 dry-run 模式）"
+        else
+          python infra/calendar_horizon_alert.py data || echo "::warning::calendar_horizon_alert 失敗"
+        fi
+        python infra/calendar_coverage_check.py data || echo "::warning::calendar_coverage_check 失敗"
+        python infra/pipeline_alert.py stale --data data || echo "::warning::資料過期檢查失敗"

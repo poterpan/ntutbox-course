@@ -13,11 +13,11 @@ permissions:
 
 jobs:
   pytest:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -28,9 +28,9 @@ jobs:
         working-directory: crawler
         run: pytest -q
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "24"
 
       # models.py 是 schema 真相；型別產物必須跟著走，否則 web/iOS 兩端的契約會悄悄落後。
       # index.d.ts 才是 apps/web 真正 import 的東西，一起釘住。

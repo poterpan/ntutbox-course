@@ -134,18 +134,27 @@ export type Sha256 = string;
 export type Size = number;
 export type ContentEncoding = string | null;
 export type SchemaVersion5 = number;
+export type CheckedAt = string | null;
+export type ChangedAt = string | null;
 export type Count = number | null;
 export type Url1 = string;
 export type Sha2561 = string;
 export type Size1 = number;
 export type ContentEncoding1 = string | null;
 export type SchemaVersion6 = number;
+export type CheckedAt1 = string | null;
+export type ChangedAt1 = string | null;
+export type CheckedAt2 = string | null;
+export type ChangedAt2 = string | null;
+export type Count1 = number;
 export type DatasetVersion = string | null;
 export type Url2 = string;
 export type Sha2562 = string;
 export type Size2 = number;
 export type ContentEncoding2 = string | null;
 export type SchemaVersion7 = number;
+export type CheckedAt3 = string | null;
+export type ChangedAt3 = string | null;
 export type FirstWeekStart = string;
 export type LastWeekEnd = string;
 export type TermKey3 = string;
@@ -176,10 +185,8 @@ export type SourceLines = string[];
 export type Weeks = WeeklyProgressWeek[];
 export type Notes1 = string[];
 export type ParserVersion = string;
-export type ParsedAt = string;
 export type SourceScheduleSha256 = string;
 export type Syllabi = Syllabus1[];
-export type GeneratedAt2 = string | null;
 export type SchemaVersion8 = number;
 export type TermKey4 = string;
 export type Code3 = string;
@@ -214,7 +221,7 @@ export type Programs1 = ProgramStandard[];
 export type SchemaVersion10 = number;
 export type Timezone1 = string;
 export type RangeEndSemantics = "inclusive";
-export type GeneratedAt3 = string | null;
+export type GeneratedAt2 = string | null;
 export type Type = string;
 export type Url3 = string;
 export type ContentSha256 = string;
@@ -222,7 +229,7 @@ export type FetchedAt = string;
 export type ParserVersion1 = string;
 export type MaxStart = string;
 export type Ok = boolean;
-export type CheckedAt = string;
+export type CheckedAt4 = string;
 export type Uid = string;
 export type Summary = string;
 export type AllDay = boolean;
@@ -239,11 +246,11 @@ export type SchemaVersion11 = number;
 export type Timezone2 = string;
 export type WeekStartsOn = "sunday";
 export type RangeEndSemantics1 = "inclusive";
-export type GeneratedAt4 = string | null;
+export type GeneratedAt3 = string | null;
 export type Type1 = string;
 export type Url4 = string;
 export type ContentSha2561 = string;
-export type ParsedAt1 = string;
+export type ParsedAt = string;
 export type ParserVersion2 = string;
 export type DerivedFields = string[];
 export type AdministrativeStart = string | null;
@@ -479,6 +486,7 @@ export interface ManifestTerm {
   periods?: ManifestEntry | null;
   mprograms?: ManifestEntry | null;
   calendar?: ManifestEntry | null;
+  details?: DetailsFreshness | null;
   dataset_version?: DatasetVersion;
   [k: string]: unknown;
 }
@@ -495,6 +503,8 @@ export interface CatalogManifestEntry {
   size: Size;
   content_encoding?: ContentEncoding;
   schema_version?: SchemaVersion5;
+  checked_at?: CheckedAt;
+  changed_at?: ChangedAt;
   count?: Count;
   [k: string]: unknown;
 }
@@ -504,6 +514,20 @@ export interface ManifestEntry {
   size: Size1;
   content_encoding?: ContentEncoding1;
   schema_version?: SchemaVersion6;
+  checked_at?: CheckedAt1;
+  changed_at?: ChangedAt1;
+  [k: string]: unknown;
+}
+/**
+ * `terms.{t}.details`：課程詳情（`course/{id}.json`）的新鮮度。
+ *
+ * 沒有 url——單課檔是逐課隨點隨取的，manifest 不逐一列出；這裡只讓 client 知道
+ * 「這學期的詳情最後一次確認／變動是什麼時候、有幾門」。
+ */
+export interface DetailsFreshness {
+  checked_at?: CheckedAt2;
+  changed_at?: ChangedAt2;
+  count: Count1;
   [k: string]: unknown;
 }
 export interface Calendars {
@@ -525,6 +549,8 @@ export interface CalendarManifestEntry {
   size: Size2;
   content_encoding?: ContentEncoding2;
   schema_version?: SchemaVersion7;
+  checked_at?: CheckedAt3;
+  changed_at?: ChangedAt3;
   first_week_start: FirstWeekStart;
   last_week_end: LastWeekEnd;
   [k: string]: unknown;
@@ -539,7 +565,6 @@ export interface CourseDetail {
   name?: LocalizedText;
   description?: LocalizedText;
   syllabi?: Syllabi;
-  generated_at?: GeneratedAt2;
 }
 /**
  * 單一教師的教學大綱（ShowSyllabus.jsp；label→textarea，用標籤文字定位）。
@@ -595,7 +620,6 @@ export interface WeeklyProgress {
   weeks?: Weeks;
   notes?: Notes1;
   parser_version: ParserVersion;
-  parsed_at: ParsedAt;
   source_schedule_sha256: SourceScheduleSha256;
   [k: string]: unknown;
 }
@@ -680,7 +704,7 @@ export interface CalendarEventsFeed {
   schema_version?: SchemaVersion10;
   timezone?: Timezone1;
   range_end_semantics?: RangeEndSemantics;
-  generated_at?: GeneratedAt3;
+  generated_at?: GeneratedAt2;
   source: CalendarSource;
   horizon: CalendarHorizon;
   events?: Events;
@@ -701,7 +725,7 @@ export interface CalendarSource {
 export interface CalendarHorizon {
   max_start: MaxStart;
   ok: Ok;
-  checked_at: CheckedAt;
+  checked_at: CheckedAt4;
   [k: string]: unknown;
 }
 /**
@@ -737,7 +761,7 @@ export interface TermCalendarFile {
   timezone?: Timezone2;
   week_starts_on?: WeekStartsOn;
   range_end_semantics?: RangeEndSemantics1;
-  generated_at?: GeneratedAt4;
+  generated_at?: GeneratedAt3;
   source: TermCalendarSource;
   terms?: Terms1;
   [k: string]: unknown;
@@ -746,7 +770,7 @@ export interface TermCalendarSource {
   type?: Type1;
   url: Url4;
   content_sha256: ContentSha2561;
-  parsed_at: ParsedAt1;
+  parsed_at: ParsedAt;
   parser_version: ParserVersion2;
   derived_fields?: DerivedFields;
   [k: string]: unknown;
