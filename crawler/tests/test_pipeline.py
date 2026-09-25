@@ -133,7 +133,10 @@ def test_one_dataset_failing_does_not_stop_others(tmp_path):
 
 
 def test_current_term_failure_is_recorded_not_raised(tmp_path):
+    calls = []
+
     def down():
+        calls.append(1)
         raise RuntimeError("aps.ntut.edu.tw unreachable")
 
     clock = Clock(dt.datetime(2026, 9, 26, 6, 0, tzinfo=TAIPEI))
@@ -142,6 +145,9 @@ def test_current_term_failure_is_recorded_not_raised(tmp_path):
     by_name = {e["name"]: e for e in result.datasets}
     assert by_name["calendar"]["ok"]                            # 行事曆不依賴學校
     assert not by_name["catalog"]["ok"] and "unreachable" in by_name["catalog"]["error"]
+    # 失敗只偵測一次：mprograms 沿用同一個錯誤，不再各自重試（實測每次重試約 5 分鐘）
+    assert not by_name["mprograms"]["ok"] and "unreachable" in by_name["mprograms"]["error"]
+    assert len(calls) == 1
 
 
 def test_result_entry_shape(tmp_path):

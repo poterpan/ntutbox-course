@@ -60,7 +60,7 @@ jobs:
           INPUT_TERMS: ${{ inputs.terms }}
           ACTIVE_TERMS: ${{ vars.ACTIVE_TERMS }}
         run: |
-          set -uo pipefail
+          set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
           ARGS=(--cadence daily --out data --stage "$RUNNER_TEMP/stage")
           if [ -n "$INPUT_DATASETS" ]; then ARGS+=(--datasets "$INPUT_DATASETS"); fi
           if [ -n "$INPUT_TERMS" ]; then

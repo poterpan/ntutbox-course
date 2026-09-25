@@ -123,7 +123,7 @@ jobs:
           DATASET: ${{ inputs.dataset }}
           TERMS: ${{ matrix.leg.terms }}
         run: |
-          set -uo pipefail
+          set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
           ARGS=(--cadence manual --datasets "$DATASET" --out data --stage "$RUNNER_TEMP/stage")
           if [ -n "$TERMS" ]; then ARGS+=(--terms "$TERMS"); fi
           python -m ntut_catalog pipeline "${ARGS[@]}"
@@ -264,7 +264,7 @@ jobs:
 
       - name: Verify migration
         run: |
-          set -uo pipefail
+          set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
           python infra/verify_migration.py "$RUNNER_TEMP/pre/v1" data/v1 \
             --report "$RUNNER_TEMP/migration/migration-report.md" > /dev/null
           code=$?

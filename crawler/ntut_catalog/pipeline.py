@@ -71,12 +71,19 @@ def run(cadence: str, datasets: Optional[Sequence[str]], terms: Sequence[str], o
     detected: Dict[str, str] = {}
 
     def _current() -> str:
+        # 失敗也記住：學校不通時每個資料集各自重試 5 次（每次約 5 分鐘）只是白等。
+        if "error" in detected:
+            raise RuntimeError(f"current-term 偵測已失敗（沿用首次錯誤）：{detected['error']}")
         if "v" not in detected:
-            if current_term is not None:
-                detected["v"] = current_term()
-            else:
-                from ntut_catalog.client import detect_current_term
-                detected["v"] = detect_current_term(ctx.catalog_client)
+            try:
+                if current_term is not None:
+                    detected["v"] = current_term()
+                else:
+                    from ntut_catalog.client import detect_current_term
+                    detected["v"] = detect_current_term(ctx.catalog_client)
+            except Exception as e:  # noqa: BLE001 — 交給呼叫端記成該資料集失敗
+                detected["error"] = _summary(e)
+                raise
             logger.info("current term: %s", detected["v"])
         return detected["v"]
 

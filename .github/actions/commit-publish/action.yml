@@ -92,7 +92,7 @@ runs:
     - name: PUA scan (新造字監測)
       shell: bash
       run: |
-        set -uo pipefail
+        set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
         TERMS="$(python -c 'import glob, json, os, sys
         terms = set()
         for p in glob.glob(os.path.join(sys.argv[1], "*.json")):
@@ -137,7 +137,7 @@ runs:
         ALLOW: ${{ inputs.allow-mass-delete }}
         NO_SKIP: ${{ inputs.no-skip-unchanged }}
       run: |
-        set -uo pipefail
+        set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
         ARGS=(--bucket "$R2_BUCKET" --out data)
         if [ "$DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
         if [ "$NO_SKIP" = "true" ]; then ARGS+=(--no-skip-unchanged); fi
@@ -158,7 +158,7 @@ runs:
         GH_TOKEN: ${{ inputs.github-token }}
         ALERT_DRY_RUN: ${{ inputs.alert-dry-run }}
       run: |
-        set -uo pipefail
+        set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
         if [ "$ALERT_DRY_RUN" = "true" ]; then
           export PIPELINE_ALERT_DRY_RUN=1
           echo "alert dry-run: skip calendar_horizon_alert（它沒有 dry-run 模式）"

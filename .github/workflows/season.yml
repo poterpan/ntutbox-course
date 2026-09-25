@@ -48,7 +48,7 @@ jobs:
         env:
           INPUT_TERMS: ${{ inputs.terms }}
         run: |
-          set -uo pipefail
+          set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
           echo "$INPUT_TERMS" | grep -Eq '^[0-9]{3}-[123]([:,][0-9]{3}-[123])*$' \
             || { echo "invalid terms: '$INPUT_TERMS'（season 必須明確指定學期）"; exit 2; }
           ARGS=(--cadence season --terms "$INPUT_TERMS" --out data --stage "$RUNNER_TEMP/stage")

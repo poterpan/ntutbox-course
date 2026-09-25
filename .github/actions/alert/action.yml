@@ -23,12 +23,14 @@ runs:
   using: composite
   steps:
     - name: Download stage artifacts
+      continue-on-error: true      # republish／migrate 沒有 stage；找不到不算告警失敗
       uses: actions/download-artifact@v4
       with:
         pattern: stage-*
         path: ${{ runner.temp }}/alert/stages
 
     - name: Download merge reports
+      continue-on-error: true      # republish／migrate 沒有 stage；找不到不算告警失敗
       uses: actions/download-artifact@v4
       with:
         pattern: merge-reports-*
