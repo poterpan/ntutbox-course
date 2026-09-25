@@ -119,7 +119,7 @@ CLI：`python -m ntut_catalog pipeline --cadence daily [--datasets a,b] [--terms
 ### 每個 workflow 兩個 job
 
 1. **fetch job（不上鎖）**：checkout main＋data branch → `pipeline --cadence X` → 把登錄表 `writes` 命中的檔案、`pipeline-result.json`（含各資料集 `checked_at`）、`append_only` 待追加列打包成 artifact。**不在這裡判斷內容是否改變**（這份 checkout 可能已過期）。
-2. **commit-publish job（`concurrency: data-pipeline`、`cancel-in-progress: false`、timeout 30 分）**，順序（Fable P1-3）：重新 checkout **最新** data branch → 合併：覆寫 `writes` 檔；enrollment 快照與最新 HEAD 的最後一份比對、相同就丟棄（daily 與 season 會同時寫 `{term}/enrollment/`，檔名唯一不衝突，去重在此處做）；`append_only` 追加；對最新 HEAD 計算 `content_sha256`／`changed_at` 並依 `(dataset, term)` 鍵更新 `fetch-state.json` → redline 掃描（**失敗即整次中止，不放寬**）→ pua-scan → **derive**（產出 `v1/` 與 `reports/`）→ commit（canonical＋`reports/`；訊息 `data(<cadence>): <datasets> <terms>`）→ push → publish。
+2. **commit-publish job（`concurrency: data-pipeline`、`cancel-in-progress: false`、timeout 30 分）**，順序（Fable P1-3）：重新 checkout **最新** data branch → 合併：覆寫 `writes` 檔；enrollment 快照與最新 HEAD 的最後一份比對、相同就丟棄（daily 與 season 會同時寫 `{term}/enrollment/`，檔名唯一不衝突，去重在此處做）；**只合併 `pipeline-result.json` 標記成功的資料集**（失敗者已寫出的部分檔案丟棄）；catalog 課數 < HEAD 課數 × 0.95 → 丟棄該學期 catalog 檔並告警、其他資料集照常（上游殘缺不可覆寫 canonical，否則隔天的比較基準也壞掉）；`append_only` 追加；對最新 HEAD 計算 `content_sha256`／`changed_at` 並依 `(dataset, term)` 鍵更新 `fetch-state.json` → redline 掃描（**失敗即整次中止，不放寬**）→ pua-scan → **derive**（產出 `v1/` 與 `reports/`）→ commit（canonical＋`reports/`；訊息 `data(<cadence>): <datasets> <terms>`）→ push → publish。
 
 沿用既有模式：`backfill-details.yml` 已是 matrix 爬取＋上鎖 fan-in job。
 
