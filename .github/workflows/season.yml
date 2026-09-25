@@ -33,10 +33,10 @@ env:
 
 jobs:
   fetch:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with:
           data-ref: ${{ env.DATA_REF }}
@@ -59,7 +59,7 @@ jobs:
           exit "$code"
 
       - name: Upload stage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stage-season
           path: ${{ runner.temp }}/stage
@@ -68,7 +68,7 @@ jobs:
 
   commit-publish:
     needs: fetch
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write
@@ -87,12 +87,12 @@ jobs:
       R2_S3_SECRET_ACCESS_KEY: ${{ secrets.R2_S3_SECRET_ACCESS_KEY }}
       QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # 鎖內重新 checkout **最新** data branch（fetch job 那份可能已過期）
       - uses: ./.github/actions/setup
         with:
           data-ref: ${{ env.DATA_REF }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: stage-*
           path: ${{ runner.temp }}/stages
@@ -109,12 +109,12 @@ jobs:
   alert:
     needs: [fetch, commit-publish]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/alert
         with:
           workflow: season

@@ -76,7 +76,7 @@ runs:
       run: python infra/pipeline_alert.py summary --stages "${STAGES:-/nonexistent}" --merge-reports "$RUNNER_TEMP/merge-reports"
 
     - name: Upload merge reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: merge-reports-${{ github.job }}
         path: ${{ runner.temp }}/merge-reports

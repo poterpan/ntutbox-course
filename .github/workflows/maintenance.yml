@@ -65,11 +65,11 @@ jobs:
   # ---------------------------------------------------------------- backfill
   plan:
     if: inputs.task == 'backfill'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       legs: ${{ steps.plan.outputs.legs }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with:
           checkout-data: "false"
@@ -106,7 +106,7 @@ jobs:
 
   fetch:
     needs: plan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 180
     strategy:
       fail-fast: false      # 一個學期失敗不該讓其他學期的成果一起丟掉
@@ -114,7 +114,7 @@ jobs:
       matrix:
         leg: ${{ fromJSON(needs.plan.outputs.legs) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with:
           data-ref: ${{ env.DATA_REF }}
@@ -132,7 +132,7 @@ jobs:
           if [ "$code" -eq 1 ]; then echo "::warning title=部分失敗::見 pipeline-result.json；成功者照常合併"; exit 0; fi
           exit "$code"
       - name: Upload stage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: stage-backfill-${{ matrix.leg.id }}
           path: ${{ runner.temp }}/stage
@@ -142,7 +142,7 @@ jobs:
   backfill-commit:
     needs: [plan, fetch]
     if: always() && needs.plan.result == 'success' && needs.fetch.result != 'cancelled'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     permissions:
       contents: write
@@ -161,11 +161,11 @@ jobs:
       R2_S3_SECRET_ACCESS_KEY: ${{ secrets.R2_S3_SECRET_ACCESS_KEY }}
       QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with:
           data-ref: ${{ env.DATA_REF }}
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: stage-*
           path: ${{ runner.temp }}/stages
@@ -182,7 +182,7 @@ jobs:
   # ---------------------------------------------------------------- republish
   republish:
     if: inputs.task == 'republish'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 90       # 切換當天的一次性全量重傳估 35–40 分鐘（spec §8）
     permissions:
       contents: write         # derive 產出的逐週進度報告有變 → commit
@@ -201,7 +201,7 @@ jobs:
       R2_S3_SECRET_ACCESS_KEY: ${{ secrets.R2_S3_SECRET_ACCESS_KEY }}
       QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/setup
         with:
           data-ref: ${{ env.DATA_REF }}
@@ -218,7 +218,7 @@ jobs:
   # ---------------------------------------------------------------- migrate（暫時性）
   migrate:
     if: inputs.task == 'migrate'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
       contents: write
@@ -226,7 +226,7 @@ jobs:
       group: data-pipeline
       cancel-in-progress: false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # fetch-state 的時間取自 git log → 要完整歷史
       - uses: ./.github/actions/setup
         with:
@@ -240,7 +240,7 @@ jobs:
           [ -n "$BASELINE" ] || { echo "migrate 需要 baseline_ref（切換前 main 的 commit SHA）"; exit 1; }
 
       - name: Checkout baseline code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ inputs.baseline_ref }}
           path: baseline-code
@@ -273,7 +273,7 @@ jobs:
 
       - name: Upload migration report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: migration-report
           path: ${{ runner.temp }}/migration
@@ -303,12 +303,12 @@ jobs:
   alert:
     needs: [plan, fetch, backfill-commit, republish, migrate]
     if: always()
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/alert
         with:
           workflow: maintenance-${{ inputs.task }}
