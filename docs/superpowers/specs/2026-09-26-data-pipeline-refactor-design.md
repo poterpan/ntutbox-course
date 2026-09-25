@@ -184,18 +184,18 @@ CLI：`python -m ntut_catalog pipeline --cadence daily [--datasets a,b] [--terms
 3. `_meta/fetch-state.json`：每個 `(dataset, term)` 以該資料集 `writes` 檔最後 commit 時間初始化 `checked_at`＝`changed_at`，並算 `content_sha256`。
 4. `reports/*/weekly-progress.json`：去掉 `generated_at`。
 
-**遷移驗證**（通過才切換）：用遷移後 canonical 跑新 derive，與目前線上 v1 逐檔比對。**閘門**：除下列兩類外不得有差異——（a）§6 列出的欄位；（b）`weekly_progress` 內容差異：derive 用現行 parser 重算，未重跑過的學期會反映 2026-09-18 的規則改動（`parse_progress.py:660-669`，版號仍 `progress/1.0.0`），**允許但必須列報**（各學期 status 計數前後對照）。腳本 `infra/verify_migration.py` 輸出差異摘要附在 PR。
+**遷移驗證**（通過才切換，**離線**、不下載 R2）：以舊版程式碼對遷移前 canonical 跑 `build_v1`、以新版程式碼對遷移後 canonical 跑 `derive`，兩份 `v1/` 本機逐檔比對。**閘門**：除下列兩類外不得有差異——（a）§6 列出的欄位；（b）`weekly_progress` 內容差異：derive 用現行 parser 重算，未重跑過的學期會反映 2026-09-18 的規則改動（`parse_progress.py:660-669`，版號仍 `progress/1.0.0`），**允許但必須列報**（各學期 status 計數前後對照）。腳本 `infra/verify_migration.py` 輸出差異摘要附在 PR。
 
 ## §8 切換程序
 
 1. `gh workflow disable` 所有會寫 data branch 的排程 workflow。
 2. 合併 PR 3（fetch 端＋遷移腳本）與 PR 4（workflow）——兩者一起合併。PR 3 之後 `CourseDetail`（`extra="forbid"`，`models.py:337`）會拒絕舊資料的 `generated_at`，**遷移前任何 derive 都會失敗**，所以第 1 步停排程是必要條件。
 3. `maintenance` 手動跑遷移 → 驗證（§7）→ commit data branch。
-4. `maintenance` → `republish --all`：一次性全量上傳（單課檔全變，約 3 萬物件，參考 #100 首次全量約 25 分鐘）。
+4. `maintenance` → `republish`：一次性重傳（**不需重爬任何資料**；單課檔全變約 3 萬物件，其餘產物 ETag 相同跳過；參考 #100 首次全量 1.9 萬物件 24 分鐘，估 **35–40 分鐘**；刪除保險預期觸發，人工放行孤兒檔）。
 5. 手動 dispatch `daily` → 確認：manifest 新欄位、R2 無非預期刪除、web 規劃頁「人數更新於」、App 課綱頁週進度與行事曆正常。
 6. 啟用 `daily`、`weekly` 排程。`season` 維持僅 dispatch。
 
-資料最多延後一天更新。回退：`git revert` PR 3＋4、data branch **force-push** 回遷移前 commit（會遺失其間的觀測紀錄）、舊流程全量 publish。
+切換當天合計約 1.5 小時（遷移 5 分、驗證 5 分、重傳 35–40 分、手動 daily 12 分、web／App 檢查 15 分）；資料最多延後一天更新。回退：`git revert` PR 3＋4、data branch **force-push** 回遷移前 commit（會遺失其間的觀測紀錄）、舊流程全量 publish。
 
 ## §9 PR 拆法
 
