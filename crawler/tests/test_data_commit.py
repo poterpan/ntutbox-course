@@ -22,6 +22,9 @@ def repo(tmp_path):
     (r / "115-1" / "catalog.ndjson").write_text("a\n", encoding="utf-8")
     (r / "115-1" / "enrollment" / "2026-09-01.ndjson").write_text("old\n", encoding="utf-8")
     _git(r, "init", "-q")
+    # data_commit.commit 不帶身分 env（正式由 commit-publish action 設 git config）；CI runner 沒有全域身分
+    _git(r, "config", "user.name", "t")
+    _git(r, "config", "user.email", "t@example.com")
     _git(r, "add", "-A")
     _git(r, "commit", "-q", "-m", "init")
     return r
