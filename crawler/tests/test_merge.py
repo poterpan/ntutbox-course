@@ -224,3 +224,38 @@ def test_cli_merge_writes_report(tmp_path, data, capsys):
     on_disk = json.loads((stage / "merge-report.json").read_text(encoding="utf-8"))
     assert on_disk == json.loads(capsys.readouterr().out)
     assert on_disk["datasets"] == ["catalog"]
+
+
+def _season_stage(tmp_path, name, rows, stamp):
+    rel = f"115-1/enrollment/{stamp}.ndjson"
+    obs = f"{stamp[:10]}T{stamp[11:13]}:{stamp[13:]}:00+08:00"
+    return _stage(tmp_path, name, [
+        _entry("enrollment", "115-1", checked_at=obs, files=[rel],
+               enrollment={"observed_at": obs, "snapshot": stamp}),
+    ], {rel: _rows_text(rows)}, cadence="season")
+
+
+def test_empty_enrollment_snapshot_is_dropped(tmp_path, data, monkeypatch):
+    """學校回空的人數表（選課季最要緊的時候）→ 不寫快照、不記觀測、告警；HEAD 的人數保留。"""
+    monkeypatch.delenv("QUALITY_MIN_RATIO", raising=False)
+    first = merge_fetch_output(_season_stage(tmp_path, "s1", A, "2026-12-07T1000"), data)
+    assert not first.dropped
+    report = merge_fetch_output(_season_stage(tmp_path, "s2", [], "2026-12-07T1100"), data)
+
+    term_dir = data / "canonical" / "115-1"
+    assert [(d["name"], d["term"]) for d in report.dropped] == [("enrollment", "115-1")]
+    assert report.alerts and report.alerts[0]["level"] == "error"
+    assert es.snapshots(term_dir) == ["2026-12-07T1000"]
+    assert [o["snapshot"] for o in es.observations(term_dir)] == ["2026-12-07T1000"]
+    assert es.latest(term_dir)[0] == A
+
+
+def test_enrollment_snapshot_below_ratio_is_dropped(tmp_path, data, monkeypatch):
+    monkeypatch.delenv("QUALITY_MIN_RATIO", raising=False)
+    many = [{"offering_id": f"31{i:04d}", "enrolled_count": i, "withdrawn_count": 0} for i in range(100)]
+    merge_fetch_output(_season_stage(tmp_path, "s1", many, "2026-12-07T1000"), data)
+    ok = merge_fetch_output(_season_stage(tmp_path, "s2", many[:95], "2026-12-07T1100"), data)
+    assert not ok.dropped                                          # 95 = 100 × 0.95 → 放行
+    low = merge_fetch_output(_season_stage(tmp_path, "s3", many[:80], "2026-12-07T1200"), data)
+    assert [(d["name"], d["term"]) for d in low.dropped] == [("enrollment", "115-1")]
+    assert "80" in low.alerts[0]["message"] and "95" in low.alerts[0]["message"]

@@ -200,10 +200,18 @@ def merge_fetch_output(stage: Path, data_dir: Path,
             changed = fetch_state.update(state, name, term, digest, checked_at)
         enr = entry.get("enrollment")
         if enr and term:
-            created = _merge_enrollment(stage_canon, canonical, term, enr, snapshot_files)
-            if created:
-                report.snapshots_created.append(created)
-            _update_enrollment_state(state, canonical / term, term, checked_at)
+            why = _enrollment_reject_reason(stage_canon, canonical, term, enr, min_ratio)
+            if why:
+                # 人數表空的或驟減（學校回殘缺頁）：不寫快照、不記觀測，HEAD 的人數保留
+                logger.warning("[merge] %s", why)
+                report.dropped.append({"name": registry.ENROLLMENT_STATE_KEY, "term": term,
+                                       "reason": why})
+                _alert(report, registry.ENROLLMENT_STATE_KEY, term, why)
+            else:
+                created = _merge_enrollment(stage_canon, canonical, term, enr, snapshot_files)
+                if created:
+                    report.snapshots_created.append(created)
+                _update_enrollment_state(state, canonical / term, term, checked_at)
         applied: Dict[str, object] = {"name": name, "term": term, "changed": changed}
         if failed_nodes:
             # 資料集確實確認過（checked_at 照常前進），但有節點沿用舊版——報告裡標出來
@@ -225,6 +233,22 @@ def _accepted_files(ds: registry.Dataset, term: Optional[str], files: List[str],
         else:
             bad.append(rel)
     return ok, bad
+
+
+def _enrollment_reject_reason(stage_canon: Path, canonical: Path, term: str, enr: dict,
+                              min_ratio: float) -> Optional[str]:
+    """候選人數快照的品質檢查（比照 catalog）：0 列，或少於 HEAD 最新快照列數 × min_ratio → 拒收。"""
+    rel = f"{term}/enrollment/{enr['snapshot']}.ndjson"
+    path = stage_canon / rel
+    rows = ([line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+            if path.is_file() else [])
+    head_rows, _ = enrollment_store.latest(canonical / term)
+    if not rows:
+        return f"{term} 人數快照 0 列（HEAD {len(head_rows)} 列），不採用"
+    if head_rows and len(rows) < len(head_rows) * min_ratio:
+        return (f"{term} 人數快照 {len(rows)} 列 < HEAD {len(head_rows)} 列 × {min_ratio:g}"
+                f"（門檻 {int(len(head_rows) * min_ratio)}），不採用")
+    return None
 
 
 def _merge_enrollment(stage_canon: Path, canonical: Path, term: str, enr: dict,
