@@ -227,7 +227,7 @@ def test_real_snapshot_agrees_with_school_api_event_for_event():
 # ----------------------------------------------------------------- CLI
 
 def test_cli_crawl_calendar_writes_canonical_and_v1(tmp_path, monkeypatch):
-    """走完整 CLI 路徑：抓取（假 client）→ canonical → build_v1 → v1/calendar/events.json。
+    """走完整 CLI 路徑：抓取（假 client）→ canonical → derive → v1/calendar/events.json。
 
     用真實快照而不是小 fixture——crawl-calendar 同時要推導週次表（契約三），
     小 fixture 沒有「開學」「期末考試」那些具名事件。
@@ -237,6 +237,9 @@ def test_cli_crawl_calendar_writes_canonical_and_v1(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "CalendarClient",
                         lambda: FakeCalendarClient(SNAPSHOT.read_text(encoding="utf-8")))
     assert cli.main(["crawl-calendar", "--out", str(tmp_path), "--terms", "115-1"]) == 0
+    # fetch 只寫 canonical（spec §1）；v1 由 derive 產
+    assert not (tmp_path / "v1").exists()
+    assert cli.main(["derive", "--out", str(tmp_path)]) == 0
 
     assert (tmp_path / "canonical" / "calendar" / "events.ndjson").exists()
     out = CalendarEventsFeed.model_validate_json(

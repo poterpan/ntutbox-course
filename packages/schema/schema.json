@@ -1007,6 +1007,59 @@
       "title": "CalendarManifestEntry",
       "type": "object"
     },
+    "CatalogManifestEntry": {
+      "description": "`terms.{t}.catalog`：ManifestEntry 加上課數。\n\npublish 的品質閘門以**線上** manifest 的 `count` 為基準（S3 GetObject 直讀 bucket），\n本次 derive 出來的課數跌破基準 × 0.95 就不發佈。純新增欄位，不升 schema_version。\n舊 manifest 沒有這個鍵 → Optional，閘門此時只檢查「不為 0」。",
+      "properties": {
+        "url": {
+          "title": "Url",
+          "type": "string"
+        },
+        "sha256": {
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size": {
+          "title": "Size",
+          "type": "integer"
+        },
+        "content_encoding": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Content Encoding"
+        },
+        "schema_version": {
+          "default": 3,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "count": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Count"
+        }
+      },
+      "required": [
+        "url",
+        "sha256",
+        "size"
+      ],
+      "title": "CatalogManifestEntry",
+      "type": "object"
+    },
     "ManifestEntry": {
       "properties": {
         "url": {
@@ -1050,7 +1103,7 @@
     "ManifestTerm": {
       "properties": {
         "catalog": {
-          "$ref": "#/$defs/ManifestEntry"
+          "$ref": "#/$defs/CatalogManifestEntry"
         },
         "enrollment": {
           "anyOf": [
@@ -1145,6 +1198,18 @@
           ],
           "default": null,
           "title": "Generated At"
+        },
+        "published_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Published At"
         },
         "min_app_version": {
           "anyOf": [

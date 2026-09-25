@@ -341,6 +341,7 @@ def test_cli_crawl_calendar_also_writes_term_calendars(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "CalendarClient",
                         lambda: FakeCalendarClient(SNAPSHOT_ICS.read_text(encoding="utf-8")))
     assert cli.main(["crawl-calendar", "--out", str(tmp_path), "--terms", "115-1,115-2"]) == 0
+    assert cli.main(["derive", "--out", str(tmp_path)]) == 0
     for term_key in ("115-1", "115-2"):
         assert (tmp_path / "canonical" / term_key / "calendar.json").exists()
         assert (tmp_path / "v1" / "terms" / term_key / "calendar.json").exists()
@@ -401,32 +402,57 @@ def test_calendars_list_carries_the_coverage_range(tmp_path):
     """App 只讀 manifest 就能挑出該抓哪一份——不必把 8/1 界線複製進需要送審的那一側。"""
     from ntut_catalog.artifacts import _calendar_entries
     _publish_calendar(tmp_path, "115-1", "2026-09-06")
-    got = _calendar_entries(tmp_path, today=D("2026-09-19"))
+    got = _calendar_entries(tmp_path)
     entry = got["115-1"]
     assert entry.url == "terms/115-1/calendar.json"
     assert (entry.first_week_start, entry.last_week_end) == ("2026-09-06", "2027-01-09")
     assert entry.schema_version == 1        # 獨立版本，與檔案自己宣告的一致
 
 
-def test_calendars_list_keeps_current_and_previous_academic_year(tmp_path):
+def test_calendars_list_keeps_latest_and_previous_academic_year(tmp_path):
+    """範圍＝canonical 裡有週次表的學期之中「最新學年度＋前一學年度」。"""
     from ntut_catalog.artifacts import _calendar_entries
     for term, first in [("113-1", "2024-09-08"), ("114-1", "2025-09-07"),
                         ("115-1", "2026-09-06"), ("115-2", "2027-02-21")]:
         _publish_calendar(tmp_path, term, first)
-    got = _calendar_entries(tmp_path, today=D("2026-09-19"))     # 學年度 115
+    got = _calendar_entries(tmp_path)                            # 最新學年度 115
     assert sorted(got) == ["114-1", "115-1", "115-2"]            # 113 被排除
     assert "113-1" in [p.parent.name for p in
                        (tmp_path / "v1" / "terms").glob("*/calendar.json")]  # 檔案仍在
 
 
 def test_previous_year_fills_the_august_hole(tmp_path):
-    """每年 8 月新學年度的 ics 還沒匯入。只留當前學年度的話清單會是空的，
-    App 連剛結束那學期的週次表都拿不到。"""
+    """每年 8 月新學年度的 ics 還沒匯入：清單仍列最新已有的那一學年度，不會變空。"""
+    from freezegun import freeze_time
     from ntut_catalog.artifacts import _calendar_entries
     _publish_calendar(tmp_path, "115-1", "2026-09-06")
     _publish_calendar(tmp_path, "115-2", "2027-02-21")
-    got = _calendar_entries(tmp_path, today=D("2027-08-15"))     # 已是學年度 116
+    with freeze_time("2027-08-15"):                              # 已是學年度 116
+        got = _calendar_entries(tmp_path)
     assert sorted(got) == ["115-1", "115-2"]
+
+
+def test_new_academic_year_moves_the_window_forward(tmp_path):
+    """新學年度的週次表一出現，清單就往前移一年——由內容驅動，不需要日期。"""
+    from ntut_catalog.artifacts import _calendar_entries
+    for term, first in [("114-1", "2025-09-07"), ("115-1", "2026-09-06"),
+                        ("116-1", "2027-09-05")]:
+        _publish_calendar(tmp_path, term, first)
+    assert sorted(_calendar_entries(tmp_path)) == ["115-1", "116-1"]
+
+
+def test_calendars_list_does_not_depend_on_system_date(tmp_path):
+    """derive 確定性：同一份內容在 7/31 與 8/1（學年度交界）建出同一份清單。"""
+    from freezegun import freeze_time
+    from ntut_catalog.artifacts import _calendar_entries
+    for term, first in [("113-1", "2024-09-08"), ("114-1", "2025-09-07"),
+                        ("115-1", "2026-09-06")]:
+        _publish_calendar(tmp_path, term, first)
+    results = []
+    for day in ("2026-07-31", "2026-08-01", "2030-01-01"):
+        with freeze_time(day):
+            results.append(sorted(_calendar_entries(tmp_path)))
+    assert results[0] == results[1] == results[2] == ["114-1", "115-1"]
 
 
 def test_calendars_list_is_bounded(tmp_path):
@@ -435,7 +461,7 @@ def test_calendars_list_is_bounded(tmp_path):
     for ay in range(110, 121):
         for sem in (1, 2):
             _publish_calendar(tmp_path, f"{ay}-{sem}", "2026-09-06")
-    assert len(_calendar_entries(tmp_path, today=D("2026-09-19"))) == 4
+    assert sorted(_calendar_entries(tmp_path)) == ["119-1", "119-2", "120-1", "120-2"]
 
 
 def test_manifest_lists_a_calendar_even_without_a_catalog(tmp_path, events, sample_result):

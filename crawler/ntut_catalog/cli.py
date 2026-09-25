@@ -1,8 +1,12 @@
 """CLI：
-  python -m ntut_catalog crawl    --terms 110-1:115-1 --out ../data   # 爬取
+  python -m ntut_catalog crawl    --terms 110-1:115-1 --out ../data   # 爬取（只寫 canonical）
+  python -m ntut_catalog derive   --out ../data                        # canonical → v1（唯一入口）
   python -m ntut_catalog rederive --out ../data                        # 離線重建內嵌班級（不重爬）
   python -m ntut_catalog rematric --out ../data                        # 離線回算學制欄位（不重爬）
   python -m ntut_catalog migrate-details --out ../data                 # 離線把 details 遷成 schema v3（不重爬）
+
+fetch 類子命令（crawl*、refresh-enrollment）**只寫 canonical**；v1 一律由 `derive` 產出
+（spec §1 三層邊界）。之前 9 個子命令各自呼叫 build_v1、publish.py 再重建一次。
 
 term 範圍只展開 sem 1/2（暑期 3 不在 P0 範圍）。
 已存在的學期預設跳過（resume），--force 重抓。
@@ -13,12 +17,13 @@ import argparse
 import json
 import logging
 import sys
+import time
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List
 
 from models import CourseOffering
-from ntut_catalog.artifacts import build_v1, write_canonical, write_enrollment_snapshot
+from ntut_catalog.artifacts import derive, write_canonical, write_enrollment_snapshot
 from ntut_catalog.client import CatalogClient, detect_current_term
 from ntut_catalog.artifacts import (
     read_calendar_event_count,
@@ -101,12 +106,12 @@ def main(argv: List[str] | None = None) -> int:
     m = sub.add_parser("migrate", help="既有資料離線遷移成 structural canonical + snapshot（不重爬）")
     m.add_argument("--out", default="../data", help="輸出根目錄（預設 ../data）")
     re = sub.add_parser("refresh-enrollment",
-                        help="選課季輕量人數刷新：只抓人/撤、寫 hourly snapshot、重建 v1")
+                        help="選課季輕量人數刷新：只抓人/撤、寫 hourly snapshot（v1 由 derive 產）")
     re.add_argument("--terms", required=True, help="當前學期，如 115-1（可逗號多個）")
     re.add_argument("--out", default="../data", help="輸出根目錄（預設 ../data）")
     re.add_argument("--delay", type=float, default=0.5, help="每請求基礎延遲秒數")
     cd = sub.add_parser("crawl-detail",
-                        help="爬課程描述(Curr)+教學大綱(ShowSyllabus) → details.ndjson + course/{id}.json")
+                        help="爬課程描述(Curr)+教學大綱(ShowSyllabus) → details.ndjson")
     cd.add_argument("--terms", required=True, help="學期，如 115-1（可逗號多個）")
     cd.add_argument("--out", default="../data", help="輸出根目錄（預設 ../data）")
     cd.add_argument("--delay", type=float, default=0.5, help="每請求基礎延遲秒數")
@@ -120,7 +125,7 @@ def main(argv: List[str] | None = None) -> int:
     st.add_argument("--delay", type=float, default=0.5)
     cal = sub.add_parser(
         "crawl-calendar",
-        help="抓校網 Google Calendar ics → canonical/calendar + v1/calendar/events.json")
+        help="抓校網 Google Calendar ics → canonical/calendar + 週次表（v1 由 derive 產）")
     cal.add_argument("--out", default="../data")
     cal.add_argument("--url", default=ICS_URL, help="覆寫來源 URL（測試用）")
     cal.add_argument("--terms", default=None,
@@ -137,6 +142,9 @@ def main(argv: List[str] | None = None) -> int:
                         help="離線把 details.ndjson 的 flex_learning/extra 遷成 schema v3 的 label/value 陣列（不重爬）")
     md.add_argument("--terms", default=None, help="學期，如 110-1,115-1（預設全部）")
     md.add_argument("--out", default="../data")
+    dv = sub.add_parser("derive",
+                        help="canonical → v1（全量、確定性；先清空 v1/）。publish 前必跑")
+    dv.add_argument("--out", default="../data", help="資料根目錄（含 canonical/；預設 ../data）")
     ps = sub.add_parser("pua-scan",
                         help="監測新造字(PUA)碼位：canonical 出現 PUA_MAP 未收錄碼位 → 列出並 exit 1")
     ps.add_argument("--terms", required=True, help="學期，如 115-1（可逗號/範圍）")
@@ -153,6 +161,14 @@ def main(argv: List[str] | None = None) -> int:
 
     out_dir = Path(args.out).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    if args.command == "derive":
+        started = time.monotonic()
+        manifest = derive(out_dir)
+        n_files = sum(1 for p in (out_dir / "v1").rglob("*") if p.is_file())
+        print(f"derive done: {len(manifest.terms)} terms, {len(manifest.calendars)} calendars, "
+              f"{n_files} files in {time.monotonic() - started:.1f}s")
+        return 0
 
     if args.command == "rederive":
         return _cmd_rederive(out_dir)
@@ -188,7 +204,6 @@ def main(argv: List[str] | None = None) -> int:
                             term, len(enr.counts), hour_stamp, client.request_count)
         finally:
             client.close()
-        build_v1(out_dir, now_iso)
         logger.info("enrollment refresh done. failed: %s", failed or "none")
         return 1 if failed else 0
 
@@ -196,7 +211,6 @@ def main(argv: List[str] | None = None) -> int:
         from ntut_catalog.reprocess import recategorize_canonical
         _setup_logging(out_dir, "recategorize")
         stats = recategorize_canonical(out_dir)
-        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
         logger.info("recategorize done: %d terms, %d courses recategorized",
                     len(stats), sum(s["recategorized"] for s in stats))
         return 0
@@ -205,7 +219,6 @@ def main(argv: List[str] | None = None) -> int:
         from ntut_catalog.rematric import rematric_canonical
         _setup_logging(out_dir, "rematric")
         stats = rematric_canonical(out_dir)
-        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
         logger.info("rematric done: %d terms, %d courses rematriced",
                     len(stats), sum(s["rematriced"] for s in stats))
         return 0
@@ -215,8 +228,7 @@ def main(argv: List[str] | None = None) -> int:
         _setup_logging(out_dir, "migrate-details")
         terms = [t.strip() for t in args.terms.split(",") if t.strip()] if args.terms else None
         stats = migrate_details_canonical(out_dir, terms)
-        # v1 重建：course/{id}.json 是 details.ndjson 的逐行複製，不重建就還是舊形狀
-        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
+        # course/{id}.json 是 details.ndjson 的逐行複製 → 之後要跑 `derive` 才會是新形狀
         logger.info("migrate-details done: %d terms, %d syllabi migrated",
                     len(stats), sum(s["syllabi_migrated"] for s in stats))
         return 0
@@ -238,7 +250,6 @@ def main(argv: List[str] | None = None) -> int:
                 write_mprograms(crawl_mprograms(client, term), out_dir)
         finally:
             client.close()
-        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
         logger.info("crawl-mprograms done. requests: %d", client.request_count)
         return 0
 
@@ -246,7 +257,6 @@ def main(argv: List[str] | None = None) -> int:
         _setup_logging(out_dir, "reprocess-progress")
         now = datetime.now(TAIPEI).isoformat(timespec="seconds")
         reports = reprocess_progress(out_dir, expand_terms(args.terms), now)
-        build_v1(out_dir, now)
         for r in reports:
             logger.info("[%s] %s，有 topic 的週次比例 %.4f",
                         r["term_key"], r["status_counts"], r["week_cells"]["rate"])
@@ -272,7 +282,6 @@ def main(argv: List[str] | None = None) -> int:
                         ", ".join(sorted(calendars)), changed_terms or "無")
         else:
             logger.warning("本次未產出任何週次表（新學年度尚未匯入）——既有的保留不動")
-        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
         logger.info("crawl-calendar done. events: %d, canonical changed: %s, horizon %s (max %s)",
                     len(feed.events), changed,
                     "ok" if feed.horizon.ok else "INSUFFICIENT", feed.horizon.max_start)
@@ -297,7 +306,6 @@ def main(argv: List[str] | None = None) -> int:
                 write_standards(crawl_standards(client, y), out_dir)
         finally:
             client.close()
-        build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
         logger.info("crawl-standards done. years: %s, requests: %d", years, client.request_count)
         return 0
 
@@ -380,10 +388,8 @@ def main(argv: List[str] | None = None) -> int:
     finally:
         client.close()
 
-    # 從【全部】canonical 重建完整 v1（manifest 涵蓋所有學期，不只本次爬的）
-    build_v1(out_dir, datetime.now(TAIPEI).isoformat(timespec="seconds"))
     logger.info(
-        "v1 rebuilt + manifest written. crawled=%s, total requests: %d, failed terms: %s",
+        "crawl done (canonical only; run `derive` for v1). crawled=%s, total requests: %d, failed terms: %s",
         crawled_any, client.request_count, failed or "none",
     )
     return 1 if failed else 0
