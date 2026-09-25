@@ -1,22 +1,23 @@
 flowchart TD
-    A["crawl --terms X [--force]"] --> B["expand_terms(X)<br/>例 90-1:115-1 → 51 個學期清單"]
-    B --> C{"逐學期"}
-    C --> D{"canonical/{term}/<br/>catalog.ndjson 已存在?"}
-    D -->|"否 (沒抓過)"| F["爬這學期"]
-    D -->|"是 + 無 --force"| S["跳過 (resume)<br/>不爬·不寫"]
-    D -->|"是 + --force"| F
-    S --> C
+    A["pipeline --cadence X<br/>[--datasets a,b] [--terms …]"] --> B["registry.py<br/>選出資料集 (未給 = 該 cadence 全部)"]
+    B --> C{"逐資料集:<br/>學期規則"}
+    C -->|"有 --terms"| T0["用指定學期<br/>(expand_terms, 支援 a:b)"]
+    C -->|"active"| T1["ACTIVE_TERMS<br/>未設 = current-term"]
+    C -->|"current"| T2["current-term"]
+    C -->|"calendar / none"| T3["跑一次<br/>(_global)"]
+    T0 --> F
+    T1 --> F
+    T2 --> F
+    T3 --> F
+    F["fetcher(ctx, term)<br/>只寫 canonical · 回報 files / failed_nodes"] --> G{"成功?"}
+    G -->|是| OK["pipeline-result: ok + checked_at"]
+    G -->|否| NG["pipeline-result: 錯誤摘要<br/>(不中斷其他資料集)"]
+    OK --> R["結束碼 0 / 1<br/>stage 交給上鎖的 merge"]
+    NG --> R
 
-    F --> G["crawl_term: 整學期全爬 ~135 請求<br/>Subj-2 系所 → 各系所 Subj-3+QueryCourse → 13 學制碼"]
-    G --> H["write_canonical<br/>結構 catalog.ndjson + classes.json"]
-    H --> I["write_enrollment_snapshot<br/>enrollment/{today}.ndjson"]
-    I --> C
-
-    C -->|"清單跑完"| J["build_v1<br/>從【全部】canonical 重建 v1 + manifest"]
-
-    classDef skip fill:#fde68a,stroke:#b45309,color:#000
     classDef crawl fill:#bfdbfe,stroke:#1e40af,color:#000
     classDef done fill:#bbf7d0,stroke:#15803d,color:#000
-    class S skip
-    class F,G,H,I crawl
-    class J done
+    classDef bad fill:#fecaca,stroke:#b91c1c,color:#000
+    class F crawl
+    class OK,R done
+    class NG bad

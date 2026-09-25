@@ -3,32 +3,36 @@
 > 北科盒子排課系統的資料側架構（爬蟲 → canonical → R2 → 前端）。
 > 圖原始碼在 `diagrams/*.mmd`、渲染圖在 `diagrams/*.png`。
 > 重新渲染：`cd docs/diagrams && npx -y @mermaid-js/mermaid-cli@11 -i 01-architecture.mmd -o 01-architecture.png -b white -s 2`
-> 設計依據：`DECISIONS.md`、`DESIGN.md`、`superpowers/specs/2026-06-13-infra-data-pipeline-design.md`。
+> 設計依據：`DECISIONS.md`、`DESIGN.md`、`superpowers/specs/2026-09-26-data-pipeline-refactor-design.md`（管線 v2；初版為 `superpowers/specs/2026-06-13-infra-data-pipeline-design.md`）。
 
 ## 1. 系統架構
 運算在 GitHub Actions、出口在 Cloudflare R2；canonical 在 git `data` branch、main 純 code。
+管線分三層：**fetch**（打學校，只寫 canonical）→ **derive**（canonical → v1，確定性）→ **publish**（v1 → R2，只傳差異）。決策見 `DECISIONS.md` D11–D17。
 
 ![系統架構](diagrams/01-architecture.png)
 
-## 2. 每日管線流程
-自動偵測當前學期 → 爬 → 寫結構化 canonical + 人數快照 → 紅線掃描 → commit data branch → 重建 v1 → quality gate → 原子發佈 R2。
+## 2. 每支 workflow 的流程（fetch job → 上鎖的 commit-publish job）
+fetch job 不上鎖、只交出檔案與 `pipeline-result.json`；commit-publish job 以 `concurrency: data-pipeline` 序列化，
+對**最新** data branch 合併（去重、fetch-state、節點失敗規則、catalog 課數檢查）→ 紅線掃描 → derive → commit → publish（品質閘門、全量比對、manifest 最後推、過期刪除）。最後由 alert job 開／關 `pipeline-alert` issue。
 
-![每日管線](diagrams/02-pipeline.png)
+![管線流程](diagrams/02-pipeline.png)
 
 ## 3. 資料模型分層
-catalog 純結構（快取久、結構沒變零 diff）；人數走 enrollment overlay（短快取）+ 每日時序快照。v1 完全由 canonical 重建。
+catalog 純結構（快取久、結構沒變零 diff）；人數走快照＋觀測紀錄，v1 只出最新 overlay；「何時確認／何時變」集中在 `_meta/fetch-state.json`，canonical 內容不帶時間。v1 完全由 canonical 重建。
 
 ![資料模型](diagrams/03-datamodel.png)
 
-## 4. 抓取邏輯（`--terms` / `--force` / skip-resume）
-`--terms` 決定**抓哪些學期**（工作清單）；`--force` 決定**已抓過的要不要重抓**。逐學期判斷：canonical 已存在且無 `--force` → 跳過（resume）；否則整學期全爬。清單跑完一律重建全部 v1。
+## 4. 資料集登錄表與學期規則
+跑哪些資料集、跑哪些學期，全由 `crawler/ntut_catalog/registry.py` 決定；workflow 只傳 cadence（與選填的 `datasets`／`terms`）。
+學期規則：明確給 `--terms` 優先；否則 `active` 讀 repo var `ACTIVE_TERMS`（未設＝`current-term`）、`current` 用 `current-term`、`calendar`／`none` 跑一次。每個 (資料集, 學期) 獨立 try，失敗不中斷其他。
 
-![抓取邏輯](diagrams/04-crawl-logic.png)
+![登錄表與學期規則](diagrams/04-crawl-logic.png)
 
-## 5. 兩種抓取節奏（每日 full vs 選課季 hourly enrollment）
-平常每日 full crawl；**選課季**（`ENROLLMENT_FAST_UNTIL` 設定的窗口內）另一支 workflow 每小時輕量刷新人數（只讀人/撤 ~62 請求），寫 hourly 時序快照。兩者共用 `concurrency: data-pipeline` 序列化。catalog 不動（304），只更新 enrollment overlay。
+## 5. 依頻率分的 workflow
+daily（calendar、catalog＋人數、mprograms）、weekly（details、standards）、season（選課季人數，僅 dispatch、`terms` 必填）、maintenance（backfill／republish）。
+全部共用 `concurrency: data-pipeline` 的 commit-publish，daily 與 season 同寫一學期的人數時，去重在鎖內做。操作手冊見 `infra/README.md`「維運 runbook」。
 
-![兩種節奏](diagrams/05-two-cadences.png)
+![依頻率分](diagrams/05-two-cadences.png)
 
 ## 6. 憑證與 secrets 對照
 
@@ -68,12 +72,12 @@ Token value 給 Cloudflare 自家 API（wrangler），Access Key ID + Secret 給
 兩條路徑都保留同樣的保證：**manifest 最後推**（原子性）、**per-object Cache-Control**。
 
 > 為什麼保留 wrangler fallback：S3 那條路若出問題（aws-cli 行為變更、endpoint 異動），
-> 還有一條能動的路可以比對；`publish-v1.yml` 手動發佈也走同一支腳本。
+> 還有一條能動的路可以比對。但 wrangler 回退**不做 listing、不比對、不刪除、沒有線上基準**，CI 不走（見 `publish.py` 檔頭）。
 
 ## 設計要點
 - **運算 GitHub Actions、出口 Cloudflare R2**：R2 只能被 push（無「CF 拉 git」）；Worker 跑不動爬蟲（D6）。CF git 整合留給 P1 web 部署。
-- **canonical 完整可重建 v1**：CI 發佈前重建全部學期 → manifest 永遠涵蓋全學期、與 R2 物件一致。
+- **canonical 完整可重建 v1**：每次發佈前 derive 全部學期（確定性）→ manifest 永遠涵蓋全學期；publish 全量比對 R2、只傳差異。
 - **catalog 純結構 + enrollment 分離**：避免每日 3MB 無意義 diff；git 歷史＝乾淨的 enrollment 時序（比 gnehs inline-people 更省）。
-- **自動偵測當前學期**：學校學期末才上架下學期、開學後凍結 → 只爬偵測到的學期即足夠。
-- **守門**：紅線掃描擋個資/機密進公開 repo；quality gate 擋殘缺資料發佈；原子發佈（manifest 最後推）。
-- **未做（fast-follow）**：選課季 enrollment-only 高頻爬取（見 infra spec）。
+- **自動偵測當前學期**：學校學期末才上架下學期、開學後凍結 → 平常只爬偵測到的學期；選課季要同時追兩學期時設 `ACTIVE_TERMS`。
+- **守門**：紅線掃描擋個資/機密進公開 repo；merge 擋殘缺上游（節點失敗、課數驟降）覆寫 canonical；quality gate 擋殘缺資料發佈；原子發佈（manifest 最後推）；過期刪除有 10% 保險；失敗與資料過期自動開 issue。
+- **未做**：season 的自動觸發（Cloudflare Cron＋選課窗口從行事曆解析），目前只能手動 dispatch。

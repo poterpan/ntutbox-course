@@ -1,14 +1,15 @@
 flowchart TB
-    ntut["NTUT 課程查詢系統<br/>(公開免登入)"]
+    ntut["NTUT 課程查詢系統 / 校網行事曆<br/>(公開免登入)"]
 
-    subgraph GHA["GitHub Actions · cron 每日 04:00"]
-        crawler["crawler"]
-        build["build v1"]
+    subgraph GHA["GitHub Actions · daily / weekly / season / maintenance"]
+        fetch["fetch<br/>pipeline --cadence X"]
+        derive["derive<br/>canonical → v1"]
+        publish["publish<br/>infra/publish.py"]
     end
 
     subgraph GIT["git (單一 repo)"]
         main["main branch<br/>code only"]
-        data["data branch<br/>canonical"]
+        data["data branch<br/>canonical + _meta/fetch-state.json"]
     end
 
     subgraph CF["Cloudflare"]
@@ -16,17 +17,18 @@ flowchart TB
         cdn["cdn.ntutbox.com"]
     end
 
-    web["Web 排課器<br/>(P1)"]
+    web["Web 排課器"]
     ios["北科盒子 App"]
 
-    ntut -->|爬取| crawler
-    crawler -->|commit| data
-    data -->|重建| build
-    build -->|wrangler push| r2
+    ntut -->|爬取| fetch
+    fetch -->|"merge + commit (上鎖)"| data
+    data --> derive
+    derive --> publish
+    publish -->|"S3 API · 只傳差異 · manifest 最後"| r2
     r2 --> cdn
     cdn -->|fetch JSON| web
     cdn -->|fetch JSON| ios
-    main -.->|P1 部署| web
+    main -.->|Workers Builds 部署| web
 
     classDef src fill:#fde68a,stroke:#b45309,color:#000
     classDef store fill:#bfdbfe,stroke:#1e40af,color:#000

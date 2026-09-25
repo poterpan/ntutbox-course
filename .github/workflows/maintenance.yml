@@ -5,16 +5,15 @@ name: maintenance
 #              （max-parallel 3，單學期約 53 分鐘），其餘資料集一個 leg；全部 fan-in 到一個上鎖的 commit-publish。
 #   republish  不 fetch：derive＋publish（parser／PUA／model 這類只動 derive 的變更上線、看刪除清單、
 #              放行刪除保險、改 Cache-Control 後全傳）。derive 產出的逐週進度報告有變也會 commit。
-#   migrate    **暫時性**（spec §7；切換完成後於下一個 PR 移除）：遷移 data branch 到管線 v2 形狀，
-#              以 baseline_ref（切換前的 main）derive 遷移前狀態、verify_migration 比對，報告寫進
-#              run summary 與 artifact。**只有 confirm=true 才 commit**——先看報告再寫回。
+#
+# 一次性的 migrate task（spec §7）已於 2026-09-26 切換完成後移除。
 on:
   workflow_dispatch:
     inputs:
       task:
         description: "作業"
         type: choice
-        options: [backfill, republish, migrate]
+        options: [backfill, republish]
         required: true
       dataset:
         description: "backfill：資料集（登錄表名稱，如 details、catalog、mprograms、standards）"
@@ -36,14 +35,6 @@ on:
         description: "不做 MD5 比對、全部重傳（改 Cache-Control 等 metadata 時用；約 3.3 萬物件）"
         type: boolean
         default: false
-      confirm:
-        description: "migrate：看過報告、確認寫回 data branch"
-        type: boolean
-        default: false
-      baseline_ref:
-        description: "migrate：遷移前 derive 用的程式碼（切換前 main 的 commit SHA）"
-        required: false
-        default: ""
       data_ref:
         description: "（演練用）data branch；正式一律 data"
         required: false
@@ -217,93 +208,8 @@ jobs:
           allow-mass-delete: ${{ inputs.allow_mass_delete }}
           no-skip-unchanged: ${{ inputs.no_skip_unchanged && 'true' || 'false' }}
 
-  # ---------------------------------------------------------------- migrate（暫時性）
-  migrate:
-    if: inputs.task == 'migrate'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    permissions:
-      contents: write
-    concurrency:
-      group: data-pipeline
-      cancel-in-progress: false
-    steps:
-      - uses: actions/checkout@v7
-      # fetch-state 的時間取自 git log → 要完整歷史
-      - uses: ./.github/actions/setup
-        with:
-          data-ref: ${{ env.DATA_REF }}
-          fetch-depth: "0"
-
-      - name: Check baseline_ref
-        env:
-          BASELINE: ${{ inputs.baseline_ref }}
-        run: |
-          [ -n "$BASELINE" ] || { echo "migrate 需要 baseline_ref（切換前 main 的 commit SHA）"; exit 1; }
-
-      - name: Checkout baseline code
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ inputs.baseline_ref }}
-          path: baseline-code
-
-      # 新程式碼的 CourseDetail 拒收舊 details 的 generated_at（spec §8 第 2 步），遷移前狀態只能用舊程式碼 derive。
-      - name: Derive pre-migration v1 with baseline code
-        run: |
-          set -euo pipefail
-          python -m venv "$RUNNER_TEMP/baseline-venv"
-          "$RUNNER_TEMP/baseline-venv/bin/pip" install -q -e ./baseline-code/crawler
-          mkdir -p "$RUNNER_TEMP/pre/canonical"
-          rsync -a --exclude .git data/canonical/ "$RUNNER_TEMP/pre/canonical/"
-          "$RUNNER_TEMP/baseline-venv/bin/python" -m ntut_catalog derive --out "$RUNNER_TEMP/pre"
-
-      - name: migrate-pipeline-v2
-        run: |
-          set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/migration"
-          python -m ntut_catalog migrate-pipeline-v2 --data data/canonical | tee "$RUNNER_TEMP/migration/migrate-summary.json"
-          python -m ntut_catalog derive --out data
-
-      - name: Verify migration
-        run: |
-          set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
-          python infra/verify_migration.py "$RUNNER_TEMP/pre/v1" data/v1 \
-            --report "$RUNNER_TEMP/migration/migration-report.md" > /dev/null
-          code=$?
-          cat "$RUNNER_TEMP/migration/migration-report.md" >> "$GITHUB_STEP_SUMMARY"
-          exit "$code"
-
-      - name: Upload migration report
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: migration-report
-          path: ${{ runner.temp }}/migration
-          if-no-files-found: warn
-          retention-days: 30
-
-      - name: Redline scan (block PII/secrets/error pages)
-        if: inputs.confirm
-        run: python infra/redline_scan.py data/canonical
-
-      - name: Commit migration to data branch
-        if: inputs.confirm
-        run: |
-          set -euo pipefail
-          git -C data/canonical config user.name "github-actions[bot]"
-          git -C data/canonical config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          python infra/data_commit.py --repo data/canonical --cadence migrate \
-            --message "data(migrate): 管線 v2 遷移（spec §7）"
-          git -C data/canonical push origin "HEAD:$DATA_REF"
-
-      - name: Not written back
-        if: ${{ !inputs.confirm }}
-        run: |
-          echo "confirm=false：報告見 run summary／artifact migration-report；確認後以 confirm=true 重跑寫回。" \
-            | tee -a "$GITHUB_STEP_SUMMARY"
-
   alert:
-    needs: [plan, fetch, backfill-commit, republish, migrate]
+    needs: [plan, fetch, backfill-commit, republish]
     if: always()
     runs-on: ubuntu-24.04
     permissions:

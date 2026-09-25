@@ -1,19 +1,20 @@
 flowchart TD
-    A["cron / 手動觸發"] --> B["checkout main + data branch"]
-    B --> C{"有指定學期?"}
-    C -->|否| D["自動偵測當前學期"]
-    C -->|是| E["regex 驗證"]
-    D --> F["爬取 (--force)"]
-    E --> F
-    F --> G["寫 canonical<br/>結構catalog + 班級 + 人數快照"]
-    G --> H{"紅線掃描"}
+    A["cron / 手動 dispatch"] --> B["fetch job (不上鎖)<br/>pipeline --cadence X"]
+    B --> B2["每個 (資料集, 學期) 獨立 try<br/>→ stage + pipeline-result.json"]
+    B2 --> C["commit-publish job<br/>(concurrency: data-pipeline)"]
+    C --> D["checkout 最新 data branch"]
+    D --> E["merge<br/>只收成功者 · 快照去重 · 觀測追加<br/>節點失敗規則 · catalog 課數檢查 · fetch-state"]
+    E --> H{"紅線掃描"}
     H -->|命中個資/機密| HX["✗ 中止"]
-    H -->|乾淨| I["commit 到 data branch"]
-    I --> J["build v1<br/>(從全部 canonical 重建)"]
-    J --> K{"quality gate<br/>課數正常?"}
-    K -->|否 課數驟降/0| KX["✗ 不發佈"]
-    K -->|是| L["wrangler 上傳<br/>檔案先 → manifest 最後"]
+    H -->|乾淨| I["pua-scan → derive<br/>(v1 + reports)"]
+    I --> J["commit + push data branch"]
+    J --> K{"quality gate<br/>對線上 manifest count"}
+    K -->|課數驟降/0| KX["✗ 不發佈 (exit 1)"]
+    K -->|是| L["全量 MD5 比對 → 只傳差異<br/>manifest 最後 → 過期刪除 (10% 保險)"]
     L --> M["R2 / cdn.ntutbox.com"]
+    L -.->|保險觸發 exit 3| AL
+    E -.->|丟棄 / 沿用| AL["alert job<br/>pipeline-alert issue"]
+    KX -.-> AL
 
     classDef bad fill:#fecaca,stroke:#b91c1c,color:#000
     classDef ok fill:#bbf7d0,stroke:#15803d,color:#000
