@@ -2,6 +2,7 @@
   python -m ntut_catalog pipeline --cadence daily [--datasets a,b] [--terms …] --out ../data   # fetch（只寫 canonical＋stage）
   python -m ntut_catalog merge    --stage ../data/stage --out ../data                          # stage → 最新 canonical（上鎖 job）
   python -m ntut_catalog derive   --out ../data                                                # canonical → v1（唯一入口）
+  python -m ntut_catalog migrate-pipeline-v2 --data ../data/canonical                          # 一次性遷移（spec §7，切換後刪除）
 
 三層邊界（spec §1）：fetch 只寫 canonical、derive 只產 v1／reports、publish（infra/publish.py）只上傳。
 資料集宣告在 `registry.py`；新增資料集不必新增子命令或 workflow。
@@ -130,6 +131,10 @@ def main(argv: List[str] | None = None) -> int:
     dv = sub.add_parser("derive",
                         help="canonical → v1（全量、確定性；先清空 v1/）。publish 前必跑")
     dv.add_argument("--out", default="../data", help="資料根目錄（含 canonical/；預設 ../data）")
+    mv = sub.add_parser("migrate-pipeline-v2",
+                        help="一次性：舊 canonical → 管線 v2 形狀（spec §7；冪等，切換後刪除）")
+    mv.add_argument("--data", required=True,
+                    help="data branch checkout（canonical 根目錄，須為 git 工作區）")
     ps = sub.add_parser("pua-scan",
                         help="監測新造字(PUA)碼位：canonical 出現 PUA_MAP 未收錄碼位 → 列出並 exit 1")
     ps.add_argument("--terms", required=True, help="學期，如 115-1（可逗號/範圍）")
@@ -142,6 +147,13 @@ def main(argv: List[str] | None = None) -> int:
             print(detect_current_term(client))
         finally:
             client.close()
+        return 0
+
+    if args.command == "migrate-pipeline-v2":
+        from ntut_catalog.migrate_v2 import migrate
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+        summary = migrate(Path(args.data))
+        print(json.dumps(summary.to_json(), ensure_ascii=False, indent=1))
         return 0
 
     out_dir = Path(args.out).resolve()
