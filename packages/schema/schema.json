@@ -988,6 +988,30 @@
           "title": "Schema Version",
           "type": "integer"
         },
+        "checked_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checked At"
+        },
+        "changed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Changed At"
+        },
         "first_week_start": {
           "title": "First Week Start",
           "type": "string"
@@ -1039,6 +1063,30 @@
           "title": "Schema Version",
           "type": "integer"
         },
+        "checked_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checked At"
+        },
+        "changed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Changed At"
+        },
         "count": {
           "anyOf": [
             {
@@ -1058,6 +1106,44 @@
         "size"
       ],
       "title": "CatalogManifestEntry",
+      "type": "object"
+    },
+    "DetailsFreshness": {
+      "description": "`terms.{t}.details`：課程詳情（`course/{id}.json`）的新鮮度。\n\n沒有 url——單課檔是逐課隨點隨取的，manifest 不逐一列出；這裡只讓 client 知道\n「這學期的詳情最後一次確認／變動是什麼時候、有幾門」。",
+      "properties": {
+        "checked_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checked At"
+        },
+        "changed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Changed At"
+        },
+        "count": {
+          "title": "Count",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "count"
+      ],
+      "title": "DetailsFreshness",
       "type": "object"
     },
     "ManifestEntry": {
@@ -1090,6 +1176,30 @@
           "default": 3,
           "title": "Schema Version",
           "type": "integer"
+        },
+        "checked_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checked At"
+        },
+        "changed_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Changed At"
         }
       },
       "required": [
@@ -1153,6 +1263,17 @@
           "anyOf": [
             {
               "$ref": "#/$defs/ManifestEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "details": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DetailsFreshness"
             },
             {
               "type": "null"
@@ -1484,10 +1605,6 @@
           "title": "Parser Version",
           "type": "string"
         },
-        "parsed_at": {
-          "title": "Parsed At",
-          "type": "string"
-        },
         "source_schedule_sha256": {
           "title": "Source Schedule Sha256",
           "type": "string"
@@ -1496,7 +1613,6 @@
       "required": [
         "status",
         "parser_version",
-        "parsed_at",
         "source_schedule_sha256"
       ],
       "title": "WeeklyProgress",
@@ -1567,18 +1683,6 @@
           },
           "title": "Syllabi",
           "type": "array"
-        },
-        "generated_at": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Generated At"
         }
       },
       "required": [
