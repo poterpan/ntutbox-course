@@ -24,7 +24,6 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Literal, Optional, Sequence, Tuple
 
 from models import AcademicTerm, TermWeek, WeeklyProgress, WeeklyProgressWeek
-from ntut_catalog.ics import TAIPEI
 
 PARSER_VERSION = "progress/1.0.0"
 DEFAULT_WEEK_COUNT = 18
@@ -626,11 +625,11 @@ def _is_unparseable_text(schedule: Optional[str]) -> bool:
     return not schedule or len(schedule.strip()) < 4
 
 
-def _unparsed(schedule: Optional[str], notes: List[str], now: str) -> WeeklyProgress:
+def _unparsed(schedule: Optional[str], notes: List[str]) -> WeeklyProgress:
     """unparsed 也要寫出來（帶 parser_version），App 才能誠實顯示「教師未提供」
     而不是「載入中」。"""
     return WeeklyProgress(status="unparsed", weeks=[], notes=notes,
-                          parser_version=PARSER_VERSION, parsed_at=now,
+                          parser_version=PARSER_VERSION,
                           source_schedule_sha256=_sha256(schedule or ""))
 
 
@@ -638,7 +637,6 @@ def build_weekly_progress(
     schedule: Optional[str],
     week_count: int = DEFAULT_WEEK_COUNT,
     term: Optional[AcademicTerm] = None,
-    now: Optional[str] = None,
 ) -> WeeklyProgress:
     """`schedule` 自由文字 → 三態的結構化逐週進度。
 
@@ -650,9 +648,8 @@ def build_weekly_progress(
     status 降 partial。取捨：App 的版位是一行「本週：主題」，多候選在那裡沒有正確的
     呈現方式；把不確定性丟給 client 只會讓每個 consumer 各自發明取捨、而且發明得不一致。
     """
-    now = now or dt.datetime.now(TAIPEI).isoformat(timespec="seconds")
     if _is_unparseable_text(schedule):
-        return _unparsed(schedule, [], now)
+        return _unparsed(schedule, [])
 
     marker_weeks, notes = _weeks_from_markers(schedule, week_count)
     rule_weeks = _weeks_from_row_rules(schedule, term, week_count)
@@ -671,7 +668,7 @@ def build_weekly_progress(
         notes = []               # notes 是 marker 路徑產的，換路徑就不適用
 
     if not weeks:
-        return _unparsed(schedule, notes, now)
+        return _unparsed(schedule, notes)
     # 彈性學習週寬限：那幾週教師常常不排課，或把內容放進彈休區域。1~16 週齊全就算完整。
     # **閘門綁資料，不寫死 {17,18}**——彈性學習週是 115 學年度才有的，位置也可能變；
     # 沒有 term.flexible_learning 就沒有寬限（舊學期第 17、18 週是正常上課週）。
@@ -679,7 +676,7 @@ def build_weekly_progress(
     missing = set(range(1, week_count + 1)) - {w.week for w in weeks}
     status = "resolved" if not (missing - flexible) else "partial"
     return WeeklyProgress(status=status, weeks=weeks, notes=notes,
-                          parser_version=PARSER_VERSION, parsed_at=now,
+                          parser_version=PARSER_VERSION,
                           source_schedule_sha256=_sha256(schedule))
 
 
@@ -770,7 +767,6 @@ def _weeks_from_row_rules(schedule: str, term: Optional[AcademicTerm],
     return best
 
 def attach_weekly_progress(syllabi, term: Optional[AcademicTerm] = None,
-                           now: Optional[str] = None,
                            course_name: Optional[str] = None) -> None:
     """就地把 weekly_progress 掛到每份 syllabus 上。
 
@@ -782,14 +778,12 @@ def attach_weekly_progress(syllabi, term: Optional[AcademicTerm] = None,
             syllabus.weekly_progress = None
         return
     week_count = len(term.weeks) if term is not None and term.weeks else DEFAULT_WEEK_COUNT
-    now = now or dt.datetime.now(TAIPEI).isoformat(timespec="seconds")
     for syllabus in syllabi:
         syllabus.weekly_progress = build_weekly_progress(
-            syllabus.schedule, week_count, term, now)
+            syllabus.schedule, week_count, term)
 
 
-def progress_report(details, term_key: str, generated_at: str,
-                    had_term_weeks: bool) -> Dict:
+def progress_report(details, term_key: str, had_term_weeks: bool) -> Dict:
     """三態統計，寫進 data/reports/{term}/weekly-progress.json，用來長期追蹤精度。
 
     **gold set 不阻擋上線**——上線靠三態誠實揭露 ＋ parser_version 逐步提升。
@@ -810,7 +804,6 @@ def progress_report(details, term_key: str, generated_at: str,
     return {
         "schema_version": 1,
         "term_key": term_key,
-        "generated_at": generated_at,
         "parser_version": PARSER_VERSION,
         "term_weeks_available": had_term_weeks,   # False → 規則 (b)(c) 未啟用
         "syllabi": syllabi_total,

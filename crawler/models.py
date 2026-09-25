@@ -266,9 +266,10 @@ class WeeklyProgress(BaseModel):
     status: Literal["resolved", "partial", "unparsed"]
     weeks: List[WeeklyProgressWeek] = Field(default_factory=list)
     notes: List[str] = Field(default_factory=list)
-    parser_version: str                          # 例 "progress/1.0.0"，升版即可離線重產
-    parsed_at: str                               # ISO-8601
+    parser_version: str                          # 例 "progress/1.0.0"；derive 每次以現行 parser 重算
     source_schedule_sha256: str
+    # 2026-09 起移除 `parsed_at`：progress 改在 derive 即時計算（spec §4），
+    # 帶解析時間會讓同一份 canonical 每次 derive 出不同的 bytes（ETag／304 全失效）。
 
 
 class LabeledValue(BaseModel):
@@ -320,9 +321,9 @@ class Syllabus(BaseModel):
     def _accept_v2_dict(cls, v):
         """吃得下 schema v2 的 `{label: value}` dict。
 
-        canonical 住在 orphan `data` branch，上面還有沒跑過 `migrate-details` 的學期；
-        而 `reprocess_progress`（`reprocess.py`）會對整份 details.ndjson 做 round-trip
-        ——model 不吃舊形狀，整條 reprocess 管線就在那些學期上炸掉。
+        canonical 住在 orphan `data` branch，上面可能還有舊形狀的學期；
+        而 derive 會對整份 details.ndjson 做 round-trip（逐週進度在那裡即時計算）
+        ——model 不吃舊形狀，derive 就在那些學期上炸掉。
 
         只在**入口**相容：dump 出去一律是 v3 陣列，舊形狀不會從舊檔漏進新發佈檔。
         canonical 全部遷完之後這個 validator 可以拿掉。
@@ -342,7 +343,8 @@ class CourseDetail(BaseModel):
     name: LocalizedText = Field(default_factory=LocalizedText)  # zh(catalog) + en(Curr)
     description: LocalizedText = Field(default_factory=LocalizedText)  # 中/英概述
     syllabi: List[Syllabus] = Field(default_factory=list)       # 逐教師
-    generated_at: Optional[str] = None
+    # 2026-09 起移除 `generated_at`（爬取時間不進 canonical，spec §1）。本產物沒有
+    # schema_version 欄位 → 只能做「移除 optional 欄位」這類向後相容的變更（spec §6）。
 
 
 # ============================================================== 核心：開課實例
@@ -626,6 +628,12 @@ class ManifestEntry(BaseModel):
     size: int
     content_encoding: Optional[str] = None       # gzip/br
     schema_version: int = SCHEMA_VERSION
+    # 來源新鮮度（取自 canonical `_meta/fetch-state.json`；spec §6 時間欄位命名）：
+    #   checked_at  最後一次成功向來源確認
+    #   changed_at  內容最後一次改變
+    # 不是由資料集產出的檔（periods）恆為 null。純新增欄位，不升 schema_version。
+    checked_at: Optional[str] = None
+    changed_at: Optional[str] = None
 
 
 class CalendarManifestEntry(ManifestEntry):
@@ -652,6 +660,17 @@ class CatalogManifestEntry(ManifestEntry):
     count: Optional[int] = None
 
 
+class DetailsFreshness(BaseModel):
+    """`terms.{t}.details`：課程詳情（`course/{id}.json`）的新鮮度。
+
+    沒有 url——單課檔是逐課隨點隨取的，manifest 不逐一列出；這裡只讓 client 知道
+    「這學期的詳情最後一次確認／變動是什麼時候、有幾門」。
+    """
+    checked_at: Optional[str] = None
+    changed_at: Optional[str] = None
+    count: int
+
+
 class ManifestTerm(BaseModel):
     catalog: CatalogManifestEntry
     enrollment: Optional[ManifestEntry] = None
@@ -659,6 +678,7 @@ class ManifestTerm(BaseModel):
     periods: Optional[ManifestEntry] = None
     mprograms: Optional[ManifestEntry] = None     # 微學程（逐學期）
     calendar: Optional[ManifestEntry] = None      # 學年度週次表（逐學期）
+    details: Optional[DetailsFreshness] = None    # 課程詳情新鮮度（無 url）
     dataset_version: Optional[str] = None         # payload 帶此值；App 過舊→提示重驗
 
 

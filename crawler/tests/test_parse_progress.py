@@ -258,7 +258,8 @@ def test_unparsed_is_still_written_out(term):
     而不是「載入中」。"""
     wp = build_weekly_progress("TBA", 18, term)
     assert wp.parser_version.startswith("progress/")
-    assert wp.parsed_at and wp.source_schedule_sha256
+    assert wp.source_schedule_sha256
+    assert "parsed_at" not in wp.model_dump()        # derive 確定性：不帶解析時間
     assert wp.weeks == []
 
 
@@ -368,20 +369,15 @@ def _detail_with_schedule(term_key="115-1", offering_id="360744", schedule="第1
     return CourseDetail(
         term_key=term_key, offering_id=offering_id, course_code="123456",
         name=LocalizedText(zh="測試課程"),
-        syllabi=[Syllabus(teacher_code="23602", teacher_name="測試教師", schedule=schedule)],
-        generated_at="2026-09-16T00:00:00+08:00")
+        syllabi=[Syllabus(teacher_code="23602", teacher_name="測試教師", schedule=schedule)])
 
 
-def test_weekly_progress_reaches_the_published_course_json(tmp_path, term):
-    """發佈端零改動：details.ndjson 的整行 JSON 被原樣炸成 v1/.../course/{id}.json，
-    新欄自動流到 CDN。這條釘住那個假設。"""
-    from ntut_catalog.artifacts import build_v1
+def test_weekly_progress_reaches_the_published_course_json(tmp_path):
+    """canonical 只存原文；derive 產 course/{id}.json 時即時算出逐週進度（spec §4）。"""
+    from ntut_catalog.artifacts import build_details_v1
     from ntut_catalog.detail import write_details
-    from ntut_catalog.parse_progress import attach_weekly_progress
-    detail = _detail_with_schedule()
-    attach_weekly_progress(detail.syllabi, term)
-    write_details([detail], tmp_path)
-    build_v1(tmp_path, "2026-09-16T00:00:00+08:00")
+    nd = write_details([_detail_with_schedule()], tmp_path)
+    build_details_v1(tmp_path, "115-1", nd, tmp_path / "v1" / "terms" / "115-1" / "course")
     published = json.loads(
         (tmp_path / "v1" / "terms" / "115-1" / "course" / "360744.json").read_text(encoding="utf-8"))
     wp = published["syllabi"][0]["weekly_progress"]
@@ -390,34 +386,23 @@ def test_weekly_progress_reaches_the_published_course_json(tmp_path, term):
     assert published["syllabi"][0]["schedule"] == "第1週：課程介紹"   # 原文仍在
 
 
-def test_reprocess_rewrites_canonical_and_writes_a_report(tmp_path):
-    """parser_version 升版時不必重爬學校系統就能重產（照 recategorize/rematric 先例）。"""
+def test_derive_report_reflects_term_calendar_availability(tmp_path, events_feed_terms):
+    """有契約三的 calendar.json 時，日期／錨點規則自動啟用（原 reprocess-progress 的職責）。"""
+    from ntut_catalog.artifacts import build_details_v1, write_term_calendar
     from ntut_catalog.detail import write_details
-    from ntut_catalog.reprocess import reprocess_progress
-    write_details([_detail_with_schedule()], tmp_path)          # 先寫一份沒有 weekly_progress 的
-    nd = tmp_path / "canonical" / "115-1" / "details.ndjson"
-    assert json.loads(nd.read_text(encoding="utf-8"))["syllabi"][0]["weekly_progress"] is None
-
-    reports = reprocess_progress(tmp_path, ["115-1"], "2026-09-16T04:00:00+08:00")
-    assert json.loads(nd.read_text(encoding="utf-8"))["syllabi"][0]["weekly_progress"] is not None
-    report = json.loads((tmp_path / "canonical" / "reports" / "115-1" / "weekly-progress.json")
-                        .read_text(encoding="utf-8"))
-    assert report == reports[0]
-    assert report["status_counts"] == {"resolved": 0, "partial": 1, "unparsed": 0}
-    assert report["term_weeks_available"] is False              # 這個 tmp 沒有 calendar.json
-
-
-def test_reprocess_picks_up_the_term_when_calendar_exists(tmp_path, events_feed_terms):
-    """有契約三的 calendar.json 時，日期／錨點規則自動啟用。"""
-    from ntut_catalog.artifacts import write_term_calendar
-    from ntut_catalog.detail import write_details
-    from ntut_catalog.reprocess import load_term, reprocess_progress
+    from ntut_catalog.term_calendar import load_term
+    nd = write_details([_detail_with_schedule(schedule=_date_list())], tmp_path)
+    course_dir = tmp_path / "v1" / "terms" / "115-1" / "course"
+    report = build_details_v1(tmp_path, "115-1", nd, course_dir)
+    assert report["term_weeks_available"] is False                # 還沒有 calendar.json
     write_term_calendar(events_feed_terms["115-1"], "115-1", tmp_path)
     assert load_term(tmp_path, "115-1") is not None
-    write_details([_detail_with_schedule(schedule=_date_list())], tmp_path)
-    report = reprocess_progress(tmp_path, ["115-1"], "2026-09-16T04:00:00+08:00")[0]
+    report = build_details_v1(tmp_path, "115-1", nd, course_dir)
     assert report["term_weeks_available"] is True
     assert report["status_counts"]["resolved"] == 1     # 純日期清單被規則 (c) 救回
+    on_disk = json.loads((tmp_path / "canonical" / "reports" / "115-1" / "weekly-progress.json")
+                         .read_text(encoding="utf-8"))
+    assert on_disk == report
 
 
 @pytest.fixture(scope="module")
@@ -446,7 +431,7 @@ def test_app_contract_fixtures_stay_valid(name, expect):
     assert [s.weekly_progress.status for s in detail.syllabi] == expect
     for syllabus in detail.syllabi:
         wp = syllabus.weekly_progress
-        assert wp.parser_version and wp.parsed_at and wp.source_schedule_sha256
+        assert wp.parser_version and wp.source_schedule_sha256
         assert syllabus.schedule, "原文 schedule 必須保留"
 
 

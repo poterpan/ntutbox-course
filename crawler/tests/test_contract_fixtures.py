@@ -46,7 +46,6 @@ def _build_sample() -> CourseDetail:
         name=LocalizedText(zh="英語簡報技巧(一)", en="English Presentation Skills (I)"),
         description=LocalizedText(zh="契約樣本：欄位形狀才是重點，識別碼是佔位值。", en=None),
         syllabi=[with_flex, without_flex, synthetic],
-        generated_at="2026-09-20T00:00:00+08:00",
     )
 
 

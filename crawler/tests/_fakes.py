@@ -42,3 +42,13 @@ class FakeClient:
 
 def build_sample_result(term_key="115-1", observed_at="2026-06-13T00:00:00+08:00"):
     return crawl_term(FakeClient(), term_key, observed_at)
+
+
+def record_enrollment(out_dir, term_key, enrollment, observed_at="2026-06-13T00:00:00+08:00"):
+    """測試用：等同 merge 對一次人數觀測做的事（去重寫快照＋追加觀測紀錄）。"""
+    from ntut_catalog import enrollment_store
+    term_dir = Path(out_dir) / "canonical" / term_key
+    name, _ = enrollment_store.write_snapshot(
+        term_dir, enrollment_store.rows_from_enrollment(enrollment), observed_at)
+    enrollment_store.append_observation(term_dir, observed_at, name)
+    return name

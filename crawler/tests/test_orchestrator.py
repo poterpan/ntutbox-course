@@ -11,7 +11,8 @@ from models import (
     PeriodTable,
     TermCatalog,
 )
-from ntut_catalog.artifacts import build_v1, write_canonical, write_enrollment_snapshot
+from tests._fakes import record_enrollment
+from ntut_catalog.artifacts import build_v1, write_canonical
 from ntut_catalog.orchestrator import crawl_term, parse_term_key
 from tests._fakes import FakeClient
 
@@ -79,7 +80,7 @@ def test_crawl_enrollment_light_path():
 def test_artifacts_roundtrip(result, tmp_path):
     # 新管線：write_canonical + snapshot → build_v1 重建完整 v1
     write_canonical(result, tmp_path)
-    write_enrollment_snapshot(result.catalog.term.key, result.enrollment, tmp_path, "2026-06-13")
+    record_enrollment(tmp_path, result.catalog.term.key, result.enrollment, "2026-06-13T00:00:00+08:00")
     build_v1(tmp_path, "2026-06-13T00:00:00+08:00")
     term_dir = tmp_path / "v1" / "terms" / "114-1"
 

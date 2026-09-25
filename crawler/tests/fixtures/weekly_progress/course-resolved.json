@@ -196,10 +196,8 @@
     ],
     "notes": [],
     "parser_version": "progress/1.0.0",
-    "parsed_at": "2026-09-16T04:00:00+08:00",
     "source_schedule_sha256": "3c4a996a37ef91e16955971ef2e574ca37b86eb78245550fe34e1f35a2d124fc"
    }
   }
- ],
- "generated_at": "2026-09-16T04:00:00+08:00"
+ ]
 }
