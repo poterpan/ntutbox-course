@@ -178,3 +178,38 @@ def test_summary_table_lists_each_dataset(tmp_path, monkeypatch, capsys):
     assert "| catalog | 115-1 | ✅ | 丟棄：課數不足 |" in text
     assert "| calendar | _global | ✅ | 已確認、未變 |" in text
     assert "| mprograms | 115-1 | ❌ boom | — |" in text
+
+
+def test_partial_node_failure_warning_is_listed_in_issue(tmp_path):
+    """部分節點失敗、已從 HEAD 沿用（warning）也要進 issue——沿用舊資料要有人知道。"""
+    gh = FakeGh()
+    _run(gh, "--needs-json", OK_NEEDS, "--merge-reports", str(_reports(tmp_path, [
+        {"name": "details", "term": "115-1", "level": "warning",
+         "message": "details 115-1: 2/2727 個節點失敗，已從 HEAD 沿用 1 個：offering_id=360748；"
+                    "HEAD 也沒有、本次缺漏 1 個：offering_id=360749"}])))
+    body = next(a for a in gh.calls if a[:2] == ["issue", "create"])[-1]
+    assert "merge 警告（部分節點失敗） `details` 115-1" in body
+    assert "offering_id=360748" in body and "offering_id=360749" in body
+
+
+def test_summary_lists_partial_nodes(tmp_path, monkeypatch):
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    stages = _stage(tmp_path, [
+        {"name": "standards", "term": None, "ok": True, "node_total": 400,
+         "failed_nodes": [{"year": 115, "matric": "7", "division": "59"}, {"year": 115, "matric": "5"}]},
+        {"name": "catalog", "term": "115-1", "ok": True, "node_total": 200, "failed_nodes": [{"unit": "59"}]},
+    ])
+    d = tmp_path / "reports"
+    d.mkdir()
+    (d / "merge-report.json").write_text(json.dumps({
+        "applied": [{"name": "standards", "term": None, "changed": False,
+                     "partial": True, "failed_nodes": 2}],
+        "dropped": [{"name": "catalog", "term": "115-1", "reason": "1/200 個節點失敗"}],
+        "partial": [{"name": "standards", "term": None, "failed": 2, "node_total": 400,
+                     "carried_forward": [{"year": 115, "matric": "7", "division": "59"}],
+                     "missing": [{"year": 115, "matric": "5"}]}]}), encoding="utf-8")
+    from infra.pipeline_alert import render_summary
+    text = render_summary(stages, d)
+    assert "| standards | _global | ⚠️ 2/400 節點失敗 | 已確認、未變；⚠️ 2 個節點沿用 HEAD／缺漏 |" in text
+    assert "| catalog | 115-1 | ⚠️ 1/200 節點失敗 | 丟棄：1/200 個節點失敗 |" in text
+    assert "| standards | _global | 2/400 | year=115/matric=7/division=59 | year=115/matric=5 |" in text

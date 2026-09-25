@@ -3,7 +3,8 @@
 兩種告警，各自一個 issue、各自自動關閉：
 
   run    `[pipeline] <workflow> 失敗`：任一 job 失敗、`pipeline-result.json` 有失敗的資料集、
-         merge 報告有告警（例如 catalog 課數跌破門檻被丟棄）、publish 刪除保險觸發（exit 3）。
+         merge 報告有告警（例如 catalog 課數跌破門檻被丟棄；部分節點失敗、已從 HEAD 沿用者是
+         warning 等級，同樣列進 issue——沿用的舊資料要有人知道）、publish 刪除保險觸發（exit 3）。
          下一次同 workflow 全部成功 → 留言並關閉。
   stale  `[pipeline] 資料過期：<dataset>`：`_meta/fetch-state.json` 中 cadence=daily 的資料集
          `checked_at` 超過 2 天、weekly 超過 9 天（取該資料集各學期中最新的一筆——只補爬過的
@@ -105,7 +106,8 @@ def collect_problems(needs: Dict[str, dict], stages: Optional[Path], merge_repor
                                 f"{e.get('error')}")
     for p in sorted(merge_reports.rglob("merge-report*.json")) if merge_reports and merge_reports.exists() else []:
         for a in json.loads(p.read_text(encoding="utf-8")).get("alerts", []):
-            problems.append(f"merge 告警 `{a.get('name')}` {a.get('term') or '_global'}："
+            kind = "merge 警告（部分節點失敗）" if a.get("level") == "warning" else "merge 告警"
+            problems.append(f"{kind} `{a.get('name')}` {a.get('term') or '_global'}："
                             f"{a.get('message')}")
     if publish_exit == 3:
         problems.append(f"R2 刪除保險觸發（已跳過刪除、其餘照常上線）：`{deletions_skipped or '?'}`"
@@ -190,19 +192,41 @@ def render_summary(stages: Optional[Path], merge_reports: Optional[Path]) -> str
     """各資料集 fetch／merge 結果表（寫進 $GITHUB_STEP_SUMMARY；Actions 列表看不出哪個資料集
     失敗，spec §3 的對策之一）。"""
     merged: Dict[tuple, str] = {}
+    partial: List[dict] = []
     for p in sorted(merge_reports.rglob("merge-report*.json")) if merge_reports and merge_reports.exists() else []:
         r = json.loads(p.read_text(encoding="utf-8"))
         for a in r.get("applied", []):
-            merged[(a["name"], a.get("term"))] = "內容有變" if a.get("changed") else "已確認、未變"
+            text = "內容有變" if a.get("changed") else "已確認、未變"
+            if a.get("partial"):
+                text += f"；⚠️ {a.get('failed_nodes')} 個節點沿用 HEAD／缺漏"
+            merged[(a["name"], a.get("term"))] = text
         for d in r.get("dropped", []):
             merged[(d["name"], d.get("term"))] = f"丟棄：{d.get('reason')}"
+        partial += r.get("partial", [])
     lines = ["## 資料集", "", "| 資料集 | 學期 | fetch | merge |", "|---|---|---|---|"]
     for p in sorted(stages.rglob("pipeline-result.json")) if stages and stages.exists() else []:
         for e in json.loads(p.read_text(encoding="utf-8")).get("datasets", []):
             key = (e.get("name"), e.get("term"))
-            fetch = "✅" if e.get("ok") else f"❌ {e.get('error')}"
+            if not e.get("ok"):
+                fetch = f"❌ {e.get('error')}"
+            elif e.get("failed_nodes"):
+                fetch = f"⚠️ {len(e['failed_nodes'])}/{e.get('node_total')} 節點失敗"
+            else:
+                fetch = "✅"
             lines.append(f"| {key[0]} | {key[1] or '_global'} | {fetch} | {merged.get(key, '—')} |")
+    if partial:
+        lines += ["", "## 部分節點失敗（已從 HEAD 沿用）", "",
+                  "| 資料集 | 學期 | 失敗 | 沿用 HEAD | HEAD 也沒有（缺漏） |", "|---|---|---|---|---|"]
+        for x in partial:
+            lines.append(f"| {x.get('name')} | {x.get('term') or '_global'} | "
+                         f"{x.get('failed')}/{x.get('node_total')} | "
+                         f"{_node_labels(x.get('carried_forward'))} | {_node_labels(x.get('missing'))} |")
     return "\n".join(lines) + "\n"
+
+
+def _node_labels(nodes) -> str:
+    """`[{"unit": "59"}]` → `unit=59`（與 merge.node_label 相同寫法；這裡不 import crawler）。"""
+    return "、".join("/".join(f"{k}={v}" for k, v in n.items()) for n in nodes or []) or "—"
 
 
 def cmd_summary(args) -> int:
