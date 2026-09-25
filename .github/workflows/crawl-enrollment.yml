@@ -114,13 +114,15 @@ jobs:
           git pull --rebase origin data || true
           git push origin HEAD:data
 
+      # derive＝canonical → v1（全量、確定性）。fetch 子命令只寫 canonical，publish 也不重建 v1。
+      - name: Derive v1
+        if: steps.gate.outputs.active == 'true'
+        run: python -m ntut_catalog derive --out data
+
+      # 全量比對、只傳差異、刪過期檔；品質閘門基準讀線上 manifest（infra/publish.py 檔頭）。
+      # 刪除保險觸發 → 其餘照常上線、exit 3 紅燈，確認後用 publish-v1 的 allow_mass_delete 放行。
       - name: Publish v1 to R2
         if: steps.gate.outputs.active == 'true'
         env:
-          TERM: ${{ steps.term.outputs.term }}
-        run: |
-          python infra/publish.py \
-            --bucket "$R2_BUCKET" \
-            --terms "$TERM" \
-            --out data \
-            --generated-at "$(date -u +%FT%TZ)"
+          QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
+        run: python infra/publish.py --bucket "$R2_BUCKET" --out data

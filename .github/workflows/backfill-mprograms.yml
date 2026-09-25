@@ -122,14 +122,13 @@ jobs:
           git pull --rebase origin data
           git push origin HEAD:data
 
-      # 不帶 --include-details：課綱 JSON 量大且本次沒動到。上傳是 `aws s3 cp`（加法、
-      # 不刪遠端），既有的 course/{id}.json 不受影響；mprograms.json 本來就在預設清單裡。
+      # derive＝canonical → v1（全量、確定性）。fetch 子命令只寫 canonical，publish 也不重建 v1。
+      - name: Derive v1
+        run: python -m ntut_catalog derive --out data
+
+      # 全量比對、只傳差異、刪過期檔；品質閘門基準讀線上 manifest（infra/publish.py 檔頭）。
+      # 刪除保險觸發 → 其餘照常上線、exit 3 紅燈，確認後用 publish-v1 的 allow_mass_delete 放行。
       - name: Publish v1 to R2
         env:
-          TERMS: ${{ steps.terms.outputs.terms }}
-        run: |
-          python infra/publish.py \
-            --bucket "$R2_BUCKET" \
-            --terms "$TERMS" \
-            --out data \
-            --generated-at "$(date -u +%FT%TZ)"
+          QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
+        run: python infra/publish.py --bucket "$R2_BUCKET" --out data

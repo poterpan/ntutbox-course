@@ -14,11 +14,6 @@ on:
   schedule:
     - cron: "0 19 * * *"
   workflow_dispatch:
-    inputs:
-      terms:
-        description: "要產週次表的學期（如 115-1）；留空＝取 canonical 裡最新的學期"
-        required: false
-        default: ""
 
 permissions:
   contents: write
@@ -61,31 +56,8 @@ jobs:
       - name: Install wrangler
         run: npm install -g wrangler@4
 
-      # 不可信輸入只經由 env 注入，不直接插入 shell（防 command injection）。
-      # **不用 current-term 偵測**（那要打學校，正是這支要擺脫的依賴）。
-      # 改取 canonical 裡最新且有 catalog.ndjson 的學期——crawl.yml 每天維護 canonical，
-      # 所以這個推導自動跟著學校走，不需要任何人手動設定。
-      - name: Resolve terms
-        id: terms
-        env:
-          INPUT_TERMS: ${{ github.event.inputs.terms }}
-        run: |
-          set -euo pipefail
-          T="$INPUT_TERMS"
-          if [ -z "$T" ]; then
-            T="$(for f in data/canonical/*/catalog.ndjson; do
-                   [ -f "$f" ] && basename "$(dirname "$f")"
-                 done | grep -E '^[0-9]{3}-[123]$' | sort | tail -1)"
-            echo "auto-detected latest term with catalog data: $T"
-          else
-            echo "$T" | grep -Eq '^[0-9]{3}-[123]([:,][0-9]{3}-[123])*$' \
-              || { echo "invalid terms: $T"; exit 1; }
-          fi
-          test -n "$T" || { echo "no term resolved"; exit 1; }
-          echo "terms=$T" >> "$GITHUB_OUTPUT"
-
-      # crawl-calendar 自己會推導當前學年度的兩個學期（不吃 --terms）；
-      # 上面解析出來的 TERMS 只給 publish 用，決定哪些學期的週次表要上傳。
+      # crawl-calendar 自己會推導當前學年度的兩個學期（不吃 --terms）。
+      # 以前這裡另外解析 TERMS 只為了給 publish 用；publish 改全量比對後不再需要。
       - name: Crawl academic calendar (ics)
         run: |
           set -euo pipefail
@@ -103,8 +75,6 @@ jobs:
 
       - name: Commit calendar to data branch
         working-directory: data/canonical
-        env:
-          TERMS: ${{ steps.terms.outputs.terms }}
         run: |
           set -euo pipefail
           git config user.name "github-actions[bot]"
@@ -117,19 +87,22 @@ jobs:
           git pull --rebase origin data || true
           git push origin HEAD:data
 
+      # derive＝canonical → v1（全量、確定性）。fetch 子命令只寫 canonical，publish 也不重建 v1。
+      - name: Derive v1
+        run: python -m ntut_catalog derive --out data
+
+      # 全量比對、只傳差異、刪過期檔；品質閘門基準讀線上 manifest（infra/publish.py 檔頭）。
+      # 刪除保險觸發 → 其餘照常上線、exit 3 紅燈，確認後用 publish-v1 的 allow_mass_delete 放行。
       - name: Publish v1 to R2
         env:
-          TERMS: ${{ steps.terms.outputs.terms }}
-        run: |
-          python infra/publish.py \
-            --bucket "$R2_BUCKET" \
-            --terms "$TERMS" \
-            --out data \
-            --generated-at "$(date -u +%FT%TZ)"
+          QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
+        run: python infra/publish.py --bucket "$R2_BUCKET" --out data
 
       # 盯「已發布的週次表涵蓋哪些學期」。horizon 只量 ics 來源的日期範圍，兩者可以
       # 同時成立卻都沒發現問題——2026-09-19 就是 horizon.ok 與 115-2 的 404 並存。
       # 只告警不阻斷：8 月新學年度尚未匯入時缺學期是常態。
       - name: Calendar coverage check
+        # publish 因刪除保險 exit 3 時資料其實已上線，覆蓋檢查仍要跑
+        if: ${{ !cancelled() }}
         continue-on-error: true
         run: python infra/calendar_coverage_check.py data
