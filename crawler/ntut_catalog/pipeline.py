@@ -6,6 +6,8 @@
 - fetcher 直接寫 `--out` 的 canonical（fetch job 的 data branch checkout；增量判斷要讀它），
   跑完把**成功者回報的檔**複製到 `--stage`，連同 `pipeline-result.json` 交給 merge。
 - **不在這裡判斷內容有沒有變**——這份 checkout 可能已過期；那是上鎖的 merge 對最新 HEAD 做的事。
+- 逐節點爬取的資料集把重試後仍失敗的節點記在 `failed_nodes`（＋`node_total`）；單一節點失敗
+  不讓整個資料集失敗，丟棄或從 HEAD 沿用由 merge 決定（spec §3「節點失敗的處理」）。
 
 `--stage` 佈局（整個目錄就是 workflow 上傳的 artifact）：
   {stage}/pipeline-result.json
@@ -105,8 +107,13 @@ def run(cadence: str, datasets: Optional[Sequence[str]], terms: Sequence[str], o
                     result.datasets.append(_entry(ds.name, term, ok=False, error=_summary(e)))
                     continue
                 entry = _entry(ds.name, term, ok=True, checked_at=ctx.now_iso(),
-                               files=sorted(set(output.files)))
+                               files=sorted(set(output.files)),
+                               failed_nodes=output.failed_nodes, node_total=output.node_total)
                 entry.update(output.extra)
+                if output.failed_nodes:
+                    logger.warning("[%s] %s: %d/%s 個節點重試後仍失敗（交給 merge 處理）：%s",
+                                   ds.name, term or "_global", len(output.failed_nodes),
+                                   output.node_total, output.failed_nodes)
                 result.datasets.append(entry)
     finally:
         ctx.close()
@@ -116,9 +123,14 @@ def run(cadence: str, datasets: Optional[Sequence[str]], terms: Sequence[str], o
 
 
 def _entry(name: str, term: Optional[str], ok: bool, checked_at: Optional[str] = None,
-           error: Optional[str] = None, files: Optional[List[str]] = None) -> Dict[str, object]:
+           error: Optional[str] = None, files: Optional[List[str]] = None,
+           failed_nodes: Optional[List[Dict[str, object]]] = None,
+           node_total: Optional[int] = None) -> Dict[str, object]:
+    """`failed_nodes`／`node_total`：逐節點爬取的資料集才有 node_total（其餘 None）；
+    ok=True 但 failed_nodes 非空＝「部分成功」，由 merge 決定丟棄或從 HEAD 沿用。"""
     return {"name": name, "term": term, "ok": ok, "checked_at": checked_at, "error": error,
-            "files": files or []}
+            "files": files or [], "failed_nodes": list(failed_nodes or []),
+            "node_total": node_total}
 
 
 def _summary(e: BaseException) -> str:

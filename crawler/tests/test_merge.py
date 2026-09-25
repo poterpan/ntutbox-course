@@ -212,7 +212,7 @@ def test_report_shape(tmp_path, data):
         _catalog_stage(tmp_path, "s", "115-1", 100, "2026-09-26T06:30:00+08:00", A), data)
     j = report.to_json()
     assert set(j) == {"cadence", "applied", "dropped", "alerts", "snapshots_created",
-                      "changed", "datasets", "terms"}
+                      "partial", "changed", "datasets", "terms"}
     assert j["cadence"] == "daily" and j["datasets"] == ["catalog"] and j["terms"] == ["115-1"]
     json.dumps(j)
 

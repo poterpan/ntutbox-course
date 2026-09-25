@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from typing import Optional
 
 from models import (
     MicroProgram,
@@ -9,6 +10,7 @@ from models import (
     MicroProgramDirectory,
     StandardDirectory,
 )
+from ntut_catalog.nodes import NodeTally
 from ntut_catalog.parse_course_table import parse_course_rows
 from ntut_catalog.parse_program import (
     normalize_mprogram_category,
@@ -27,7 +29,11 @@ def _term(term_key: str):
     return int(y), int(s)
 
 
-def crawl_mprograms(client, term_key: str) -> MicroProgramDirectory:
+def crawl_mprograms(client, term_key: str,
+                    tally: Optional[NodeTally] = None) -> MicroProgramDirectory:
+    """`tally`：一個學程＝一個節點；Cprog -4 抓取失敗記 `{"program": code}`（merge 會從
+    HEAD 沿用該學程的 courses／rules_text，見 merge.py）。"""
+    tally = tally if tally is not None else NodeTally()
     year, sem = _term(term_key)
     programs = []
     entries = list(parse_mprogram_list(client.mprogram_list(year, sem)))
@@ -51,10 +57,12 @@ def crawl_mprograms(client, term_key: str) -> MicroProgramDirectory:
         rules_text = None
         rules_failed = False
         cprog_html = None
+        tally.attempt()
         try:
             cprog_html = client.cprog("-4", year=year, matric="H", division=code)
         except Exception:  # noqa: BLE001
             logger.warning("[%s] cprog -4 fetch failed for %s", term_key, code, exc_info=True)
+            tally.fail(program=code)
         if cprog_html is not None:
             try:
                 rules_text = parse_cprog_rules(cprog_html)
@@ -84,20 +92,30 @@ def crawl_mprograms(client, term_key: str) -> MicroProgramDirectory:
     return MicroProgramDirectory(term_key=term_key, programs=programs)
 
 
-def crawl_standards(client, entry_year: int) -> StandardDirectory:
-    """Cprog -2(學制) → -3(系所) → -4(課程標準葉) 全展開某入學年。"""
+def crawl_standards(client, entry_year: int,
+                    tally: Optional[NodeTally] = None) -> StandardDirectory:
+    """Cprog -2(學制) → -3(系所) → -4(課程標準葉) 全展開某入學年。
+
+    `tally`：每個 -3（學制）與 -4（系所）請求各算一個節點。-3 失敗記
+    `{"year", "matric"}`（該學制底下所有系所都缺）、-4 失敗記 `{"year", "matric", "division"}`。
+    """
+    tally = tally if tally is not None else NodeTally()
     programs = []
     for matric, _mname in parse_cprog_matrics(client.cprog("-2", year=entry_year)):
+        tally.attempt()
         try:
             div_html = client.cprog("-3", year=entry_year, matric=matric)
         except Exception as e:  # noqa: BLE001
             logger.warning("cprog -3 %s/%s failed: %s", entry_year, matric, e)
+            tally.fail(year=entry_year, matric=matric)
             continue
         for division, _dname in parse_cprog_divisions(div_html):
+            tally.attempt()
             try:
                 leaf = client.cprog("-4", year=entry_year, matric=matric, division=division)
             except Exception as e:  # noqa: BLE001
                 logger.warning("cprog -4 %s/%s/%s failed: %s", entry_year, matric, division, e)
+                tally.fail(year=entry_year, matric=matric, division=division)
                 continue
             std = parse_cprog_standard(leaf, entry_year, matric, division)
             if std.courses:

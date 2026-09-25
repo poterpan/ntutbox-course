@@ -20,6 +20,7 @@ from typing import Callable, Dict, List, Literal, Optional, Sequence
 from models import CourseOffering
 from ntut_catalog import enrollment_store
 from ntut_catalog.ics import TAIPEI
+from ntut_catalog.nodes import NodeTally
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +37,10 @@ class FetchOutput:
     """
     files: List[str] = field(default_factory=list)
     extra: Dict[str, object] = field(default_factory=dict)
+    # 逐節點爬取的資料集（catalog／standards／mprograms／details）：重試後仍失敗、被跳過的節點
+    # 與實際嘗試的節點數。fetcher 照舊續跑，由 merge 決定丟棄或從 HEAD 沿用（spec §3「節點失敗的處理」）。
+    failed_nodes: List[Dict[str, object]] = field(default_factory=list)
+    node_total: Optional[int] = None
 
 
 class FetchContext:
@@ -186,6 +191,7 @@ def fetch_catalog(ctx: FetchContext, term: str) -> FetchOutput:
     return FetchOutput(
         files=[f"{term}/catalog.ndjson", f"{term}/classes.json", ctx.rel(snap)],
         extra={"enrollment": {"observed_at": observed_at, "snapshot": snap.stem}},
+        failed_nodes=result.failed_nodes, node_total=result.node_total,
     )
 
 
@@ -208,8 +214,10 @@ def fetch_mprograms(ctx: FetchContext, term: str) -> FetchOutput:
     from ntut_catalog.artifacts import write_mprograms
     from ntut_catalog.programs import crawl_mprograms
 
-    write_mprograms(crawl_mprograms(ctx.catalog_client, term), ctx.out_dir)
-    return FetchOutput(files=[f"{term}/mprograms.json"])
+    tally = NodeTally()
+    write_mprograms(crawl_mprograms(ctx.catalog_client, term, tally=tally), ctx.out_dir)
+    return FetchOutput(files=[f"{term}/mprograms.json"],
+                       failed_nodes=tally.failed, node_total=tally.total)
 
 
 def fetch_details(ctx: FetchContext, term: str) -> FetchOutput:
@@ -222,13 +230,14 @@ def fetch_details(ctx: FetchContext, term: str) -> FetchOutput:
     offerings = [CourseOffering.model_validate_json(line)
                  for line in cat_nd.read_text(encoding="utf-8").splitlines() if line.strip()]
     logger.info("[%s] details: %d offerings ...", term, len(offerings))
-    details = crawl_detail(ctx.catalog_client, term, offerings)
+    tally = NodeTally()
+    details = crawl_detail(ctx.catalog_client, term, offerings, tally=tally)
     path = write_details(details, ctx.out_dir)
     if path is None:
         raise RuntimeError(f"[{term}] details 為空——不覆寫既有 canonical")
     with_syl = sum(1 for d in details if d.syllabi)
     logger.info("[%s] details: %d courses, %d 有大綱", term, len(details), with_syl)
-    return FetchOutput(files=[ctx.rel(path)])
+    return FetchOutput(files=[ctx.rel(path)], failed_nodes=tally.failed, node_total=tally.total)
 
 
 STANDARDS_YEARS_BACK = 5
@@ -246,10 +255,11 @@ def fetch_standards(ctx: FetchContext, term: Optional[str]) -> FetchOutput:
     from ntut_catalog.programs import crawl_standards
 
     files = []
+    tally = NodeTally()   # 全部入學年共用一份：standards 是一筆 (資料集, _global)，比例也整筆算
     for year in standards_years(ctx.today()):
-        write_standards(crawl_standards(ctx.catalog_client, year), ctx.out_dir)
+        write_standards(crawl_standards(ctx.catalog_client, year, tally=tally), ctx.out_dir)
         files.append(f"standards/{year}.json")
-    return FetchOutput(files=files)
+    return FetchOutput(files=files, failed_nodes=tally.failed, node_total=tally.total)
 
 
 _ENROLLMENT_SNAPSHOTS = "{term}/enrollment/*.ndjson"

@@ -160,7 +160,9 @@ def test_result_entry_shape(tmp_path):
                  "files": ["115-1/catalog.ndjson", "115-1/classes.json",
                            "115-1/enrollment/2026-09-26T0600.ndjson"],
                  "enrollment": {"observed_at": "2026-09-26T06:00:30+08:00",
-                                "snapshot": "2026-09-26T0600"}}
+                                "snapshot": "2026-09-26T0600"},
+                 # 1 個系所 × (Subj -3＋QueryCourse)＋13 個學制查詢
+                 "failed_nodes": [], "node_total": 15}
     rows = (tmp_path / "canonical" / "115-1" / "enrollment" / "2026-09-26T0600.ndjson") \
         .read_text(encoding="utf-8").splitlines()
     assert rows and all("observed_at" not in json.loads(r) for r in rows)
@@ -197,7 +199,7 @@ def test_standards_fetch_writes_each_year(tmp_path, monkeypatch):
     years = []
     # 真的展開 fixture 課程標準要 ~6 秒／年；這裡只驗「哪幾個入學年、寫到哪」
     monkeypatch.setattr(programs, "crawl_standards",
-                        lambda client, y: years.append(y) or StandardDirectory(entry_year=y))
+                        lambda client, y, tally=None: years.append(y) or StandardDirectory(entry_year=y))
     clock = Clock(dt.datetime(2026, 9, 26, 6, 0, tzinfo=TAIPEI))
     result = pipeline.run("weekly", ["standards"], [], tmp_path, tmp_path / "stage",
                           ctx=_ctx(tmp_path, clock))

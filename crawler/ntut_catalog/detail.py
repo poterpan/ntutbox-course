@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence
 
 from models import CourseDetail, CourseOffering, LocalizedText
+from ntut_catalog.nodes import NodeTally
 from ntut_catalog.parse_detail import parse_curr, parse_syllabus
 
 logger = logging.getLogger(__name__)
@@ -23,10 +24,17 @@ def crawl_detail(
     term_key: str,
     offerings: List[CourseOffering],
     curr_cache: Optional[Dict[str, dict]] = None,
+    tally: Optional[NodeTally] = None,
 ) -> List[CourseDetail]:
+    """`tally`：一個課號＝一個節點。該課的 Curr 或任一份大綱抓取失敗 → 記
+    `{"offering_id"}`（merge 會從 HEAD 沿用那一行，見 merge.py）。"""
     curr_cache = {} if curr_cache is None else curr_cache
+    tally = tally if tally is not None else NodeTally()
+    curr_failed: set = set()   # Curr 失敗也快取成 {}（請求量不變），同編碼的其他課號一樣算失敗
     details: List[CourseDetail] = []
     for off in offerings:
+        tally.attempt()
+        failed = False
         code = off.course_code
         curr: dict = {}
         if code:
@@ -36,7 +44,9 @@ def crawl_detail(
                 except Exception as e:  # noqa: BLE001 — 單課失敗記警告續跑
                     logger.warning("[%s] Curr %s failed: %s", off.offering_id, code, e)
                     curr_cache[code] = {}
+                    curr_failed.add(code)
             curr = curr_cache[code]
+            failed = code in curr_failed
 
         syllabi = []
         for ref in (off.source_refs.syllabus if off.source_refs else []):
@@ -47,6 +57,9 @@ def crawl_detail(
                 syllabi.append(parse_syllabus(client.syllabus(snum, tc), tc))
             except Exception as e:  # noqa: BLE001
                 logger.warning("[%s] syllabus (%s,%s) failed: %s", off.offering_id, snum, tc, e)
+                failed = True
+        if failed:
+            tally.fail(offering_id=off.offering_id)
 
         details.append(
             CourseDetail(
@@ -54,8 +67,10 @@ def crawl_detail(
                 offering_id=off.offering_id,
                 course_code=code,
                 name=LocalizedText(zh=off.name.zh, en=curr.get("name_en")),
+                # Curr 失敗時 curr={}：zh 給空字串（LocalizedText.zh 不收 None，否則整輪崩潰）；
+                # 這一行會被 merge 換成 HEAD 的版本或整行略過，不會以殘缺狀態進 canonical
                 description=LocalizedText(
-                    zh=curr.get("description_zh"), en=curr.get("description_en")
+                    zh=curr.get("description_zh") or "", en=curr.get("description_en")
                 ),
                 syllabi=syllabi,
             )

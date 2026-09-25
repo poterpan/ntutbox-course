@@ -99,6 +99,7 @@ jobs:
       R2_S3_ACCESS_KEY_ID: ${{ secrets.R2_S3_ACCESS_KEY_ID }}
       R2_S3_SECRET_ACCESS_KEY: ${{ secrets.R2_S3_SECRET_ACCESS_KEY }}
       QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
+      PARTIAL_FAILURE_MAX_RATIO: ${{ vars.PARTIAL_FAILURE_MAX_RATIO }}
     steps:
       - uses: actions/checkout@v7
       # 鎖內重新 checkout **最新** data branch（fetch job 那份可能已過期）
