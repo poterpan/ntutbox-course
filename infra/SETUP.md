@@ -56,8 +56,10 @@ gh variable set ENROLLMENT_FAST_UNTIL --body 2026-06-19   # 115-1 預選結束�
 
 ## 5. 首次全量發佈（一次性）
 ```bash
-# 本機（已登入 wrangler）把 11 學期 v1 推上 R2
-python infra/publish.py --bucket ntutbox-cdn --all --out data --generated-at "$(date -u +%FT%TZ)"
+# 需 R2 S3 憑證（R2_S3_ACCESS_KEY_ID／R2_S3_SECRET_ACCESS_KEY、CLOUDFLARE_ACCOUNT_ID）
+python -m ntut_catalog derive --out data
+python infra/publish.py --bucket ntutbox-cdn --out data --dry-run   # 先看上傳／刪除清單
+python infra/publish.py --bucket ntutbox-cdn --out data
 ```
 
 ## 6. 驗證

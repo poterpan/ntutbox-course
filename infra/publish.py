@@ -318,8 +318,11 @@ def _run_aws(cmd: List[str]) -> None:
 
 
 def _run_aws_json(cmd: List[str]) -> dict:
-    out = subprocess.run(cmd, check=True, env=_aws_env(), capture_output=True, text=True).stdout
-    return json.loads(out) if out.strip() else {}
+    proc = subprocess.run(cmd, env=_aws_env(), capture_output=True, text=True)
+    if proc.returncode != 0:
+        # listing／GetObject 失敗一定要帶 stderr，否則 run log 只剩 CalledProcessError 看不出原因
+        raise RuntimeError(f"aws {' '.join(cmd[1:3])} failed ({proc.returncode}): {proc.stderr.strip()}")
+    return json.loads(proc.stdout) if proc.stdout.strip() else {}
 
 
 LIST_PAGE_ITEMS = 1000
