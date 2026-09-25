@@ -5,9 +5,6 @@ name: weekly
 # 行事曆與資料過期檢查只在 daily 跑。details 的學期規則是 current-term——學期交界時預設學期何時切換
 # 要人工確認（spec §2），需要時 dispatch 帶 terms。
 on:
-  # TEMPORARY（演練，最後一個 commit 移除）：push 到 refactor/pipeline-v2 → data-dryrun＋publish --dry-run
-  push:
-    branches: [refactor/pipeline-v2]
   schedule:
     - cron: "30 21 * * 0"
   workflow_dispatch:
@@ -37,9 +34,9 @@ permissions:
   contents: read
 
 env:
-  DATA_REF: ${{ github.event_name == 'push' && 'data-dryrun' || inputs.data_ref || 'data' }}
-  PUBLISH_DRY_RUN: ${{ (github.event_name == 'push' || inputs.publish_dry_run == true) && 'true' || 'false' }}
-  ALERT_DRY_RUN: ${{ (github.event_name == 'push' || inputs.alert_dry_run == true) && 'true' || 'false' }}
+  DATA_REF: ${{ inputs.data_ref || 'data' }}
+  PUBLISH_DRY_RUN: ${{ inputs.publish_dry_run == true && 'true' || 'false' }}
+  ALERT_DRY_RUN: ${{ inputs.alert_dry_run == true && 'true' || 'false' }}
 
 jobs:
   fetch:
@@ -89,7 +86,7 @@ jobs:
     permissions:
       contents: write
     concurrency:
-      group: ${{ github.event_name == 'push' && 'data-pipeline-dryrun' || 'data-pipeline' }}
+      group: data-pipeline
       cancel-in-progress: false
     outputs:
       publish-exit: ${{ steps.cp.outputs.publish-exit }}
