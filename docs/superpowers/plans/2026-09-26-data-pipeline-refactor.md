@@ -29,6 +29,7 @@
 3. **R2 listing 超過 1000 個物件**（實際約 3.3 萬、33 頁）：分頁要完整，否則會把第 1001 個以後的檔案誤判為「R2 沒有」而全部重傳，或誤判為「過期」。→ Task 2 測試（假 client 分頁）。
 4. **沒有 `calendar.json` 的學期**（110-1～114-2 都沒有）在 derive 算 weekly progress：要走 `term=None` 路徑產出結果，不可報錯或產出空值。→ Task 3 測試。
 5. **`season` 沒帶學期觸發**：要立刻失敗並說明，不可默默用 `current-term`（12 月時可能是錯的學期）。→ Task 5 測試（workflow 內的檢查步驟以 `act` 不可行 → 改成 `pipeline --cadence season` 在 terms 為空時 exit 2，pytest 驗證）。
+6. **單一節點（系所／學程／課號）重試後仍失敗**：fetcher 不可默默跳過後回報成功。期望：`pipeline-result.json` 帶 `failed_nodes`／`node_total`；merge 對 catalog 整學期丟棄（含人數快照）、standards／mprograms／details 逐節點從 HEAD 沿用、失敗 > 5% 整筆丟棄，皆告警（spec §3「節點失敗的處理」）。→ Task 3 測試。
 
 ---
 
@@ -75,6 +76,7 @@
 - **Files（修改）:** `cli.py`（新增 `pipeline`、`merge`；刪 `migrate`／`rederive`／`rematric`／`recategorize`／`migrate-details`／`reprocess-progress`）；`detail.py`（不寫 v1、不設 `generated_at`、不掛 progress）；`artifacts.py`（derive 時呼叫 `attach_weekly_progress` 並產出 `reports/{t}/weekly-progress.json`；enrollment 經 `enrollment_store.latest`；manifest 加 `checked_at`／`changed_at`／`details` 新鮮度）；`crawler/models.py`（`CourseDetail` 去 `generated_at`、`WeeklyProgress` 去 `parsed_at`、manifest 新欄位）；`parse_progress.py`（去 `now` 參數）；`load_term` 移到 `term_calendar.py`；刪 `migrate.py`、`rederive.py`、`rematric.py` 與 `reprocess.py` 對應函式及其測試；重生 `packages/schema` TS 型別
 - **Interfaces 消費:** Task 2 的 `derive`。**產出:** 上列新模組簽名；`pipeline-result.json` 格式 `{"datasets":[{"name","term","ok","checked_at","error"}]}`。
 - **測試:** fetch 冪等（fixture 上游不變 → 只有 fetch-state `checked_at` 與 observations 追加）；enrollment 去重、分鐘命名、`history` 含斷點；merge：daily＋season 以過期 checkout 先後合併不丟觀測、不重複快照、`changed_at` 只前進一次；**失敗資料集的檔案不合併**（Review Focus 2）；**catalog 課數跌破 0.95 → 丟棄 catalog 檔、其他照常、報告告警**（Review Focus 1）；**無 calendar 學期的 progress 走 `term=None`**（Review Focus 4）；`pipeline --cadence season` 無 terms → exit 2（Review Focus 5）；standards 學年規則（當前＋前 5）；web `npm run typecheck` 與 schema drift 檢查通過。
+- **節點失敗（Review Focus 6，PR 審查後補）:** `registry.FetchOutput` 加 `failed_nodes`／`node_total`，fetcher（`orchestrator.crawl_term`、`programs.crawl_standards`／`crawl_mprograms`、`detail.crawl_detail`）以 `nodes.NodeTally` 記錄；`merge.py` 依 spec §3「節點失敗的處理」丟棄或逐節點沿用（`_SPLICERS`）；`infra/pipeline_alert.py` 在 issue 與 summary 列出。測試：`tests/test_node_failures.py`、`tests/test_pipeline_alert.py`。
 - **驗收:** crawler 全測試綠；`apps/web` typecheck／build 綠；對一份 fixture canonical 跑 `pipeline`→`merge`→`derive` 端到端。
 
 ### Task 4：遷移＋離線驗證（PR 3，**gate**）
@@ -107,4 +109,4 @@
 
 ### 最終總審
 
-Task 3–5 分支合併前：派一個 fresh-context 高階模型 agent 對整條分支 diff 按 spec 逐節核對（pass/fail 逐條），並特別檢查 Review Focus 五項是否都有測試。修正一批派一個 agent，附測試證據即完成。
+Task 3–5 分支合併前：派一個 fresh-context 高階模型 agent 對整條分支 diff 按 spec 逐節核對（pass/fail 逐條），並特別檢查 Review Focus 六項是否都有測試。修正一批派一個 agent，附測試證據即完成。
