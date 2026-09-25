@@ -12,7 +12,7 @@ name: backfill details (matrix)
 #   但 commit 與 publish 有兩個真實競態：
 #     ① data branch：`git pull --rebase || true` 後 push——兩個 job 同時推，
 #        後者 non-fast-forward 被拒，而 `|| true` 會吞掉 rebase 失敗 → workflow 掛掉
-#     ② publish.py 的 build_v1 從 canonical 重建**全部**學期的 manifest——
+#     ② derive 從 canonical 重建**全部**學期的 v1 與 manifest——
 #        兩個 job 各自只看到自己 checkout 的狀態，後推的會覆蓋先推的條目
 #   → 故 crawl 用 matrix 併發、publish 收斂成單一 job 並保留 data-pipeline 序列化。
 #
@@ -187,13 +187,13 @@ jobs:
           git pull --rebase origin data
           git push origin HEAD:data
 
-      - name: Publish v1 to R2 (with details)
+      # derive＝canonical → v1（全量、確定性）。fetch 子命令只寫 canonical，publish 也不重建 v1。
+      - name: Derive v1
+        run: python -m ntut_catalog derive --out data
+
+      # 全量比對、只傳差異、刪過期檔；品質閘門基準讀線上 manifest（infra/publish.py 檔頭）。
+      # 刪除保險觸發 → 其餘照常上線、exit 3 紅燈，確認後用 publish-v1 的 allow_mass_delete 放行。
+      - name: Publish v1 to R2
         env:
-          TERMS: ${{ steps.place.outputs.terms }}
-        run: |
-          python infra/publish.py \
-            --bucket "$R2_BUCKET" \
-            --terms "$TERMS" \
-            --include-details \
-            --out data \
-            --generated-at "$(date -u +%FT%TZ)"
+          QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
+        run: python infra/publish.py --bucket "$R2_BUCKET" --out data

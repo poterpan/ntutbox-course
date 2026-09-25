@@ -127,18 +127,25 @@ export type TermKey2 = string;
 export type ObservedAt1 = string | null;
 export type SchemaVersion4 = number;
 export type GeneratedAt1 = string | null;
+export type PublishedAt = string | null;
 export type MinAppVersion = string | null;
 export type Url = string;
 export type Sha256 = string;
 export type Size = number;
 export type ContentEncoding = string | null;
 export type SchemaVersion5 = number;
-export type DatasetVersion = string | null;
+export type Count = number | null;
 export type Url1 = string;
 export type Sha2561 = string;
 export type Size1 = number;
 export type ContentEncoding1 = string | null;
 export type SchemaVersion6 = number;
+export type DatasetVersion = string | null;
+export type Url2 = string;
+export type Sha2562 = string;
+export type Size2 = number;
+export type ContentEncoding2 = string | null;
+export type SchemaVersion7 = number;
 export type FirstWeekStart = string;
 export type LastWeekEnd = string;
 export type TermKey3 = string;
@@ -173,7 +180,7 @@ export type ParsedAt = string;
 export type SourceScheduleSha256 = string;
 export type Syllabi = Syllabus1[];
 export type GeneratedAt2 = string | null;
-export type SchemaVersion7 = number;
+export type SchemaVersion8 = number;
 export type TermKey4 = string;
 export type Code3 = string;
 export type Name2 = string;
@@ -187,7 +194,7 @@ export type Online = boolean;
 export type Courses1 = MicroProgramCourse[];
 export type RulesText = string | null;
 export type Programs = MicroProgram[];
-export type SchemaVersion8 = number;
+export type SchemaVersion9 = number;
 export type EntryYear = number;
 export type EntryYear1 = number;
 export type Matric = string;
@@ -204,12 +211,12 @@ export type GroupId = string | null;
 export type Notes2 = string;
 export type Courses2 = StandardCourse[];
 export type Programs1 = ProgramStandard[];
-export type SchemaVersion9 = number;
+export type SchemaVersion10 = number;
 export type Timezone1 = string;
 export type RangeEndSemantics = "inclusive";
 export type GeneratedAt3 = string | null;
 export type Type = string;
-export type Url2 = string;
+export type Url3 = string;
 export type ContentSha256 = string;
 export type FetchedAt = string;
 export type ParserVersion1 = string;
@@ -228,13 +235,13 @@ export type Location = string | null;
 export type Sequence = number | null;
 export type LastModified = string | null;
 export type Events = CalendarEvent[];
-export type SchemaVersion10 = number;
+export type SchemaVersion11 = number;
 export type Timezone2 = string;
 export type WeekStartsOn = "sunday";
 export type RangeEndSemantics1 = "inclusive";
 export type GeneratedAt4 = string | null;
 export type Type1 = string;
-export type Url3 = string;
+export type Url4 = string;
 export type ContentSha2561 = string;
 export type ParsedAt1 = string;
 export type ParserVersion2 = string;
@@ -456,6 +463,7 @@ export interface Counts {
 export interface Manifest {
   schema_version?: SchemaVersion4;
   generated_at?: GeneratedAt1;
+  published_at?: PublishedAt;
   min_app_version?: MinAppVersion;
   terms?: Terms;
   calendars?: Calendars;
@@ -465,7 +473,7 @@ export interface Terms {
   [k: string]: ManifestTerm;
 }
 export interface ManifestTerm {
-  catalog: ManifestEntry;
+  catalog: CatalogManifestEntry;
   enrollment?: ManifestEntry | null;
   classes?: ManifestEntry | null;
   periods?: ManifestEntry | null;
@@ -474,12 +482,28 @@ export interface ManifestTerm {
   dataset_version?: DatasetVersion;
   [k: string]: unknown;
 }
-export interface ManifestEntry {
+/**
+ * `terms.{t}.catalog`：ManifestEntry 加上課數。
+ *
+ * publish 的品質閘門以**線上** manifest 的 `count` 為基準（S3 GetObject 直讀 bucket），
+ * 本次 derive 出來的課數跌破基準 × 0.95 就不發佈。純新增欄位，不升 schema_version。
+ * 舊 manifest 沒有這個鍵 → Optional，閘門此時只檢查「不為 0」。
+ */
+export interface CatalogManifestEntry {
   url: Url;
   sha256: Sha256;
   size: Size;
   content_encoding?: ContentEncoding;
   schema_version?: SchemaVersion5;
+  count?: Count;
+  [k: string]: unknown;
+}
+export interface ManifestEntry {
+  url: Url1;
+  sha256: Sha2561;
+  size: Size1;
+  content_encoding?: ContentEncoding1;
+  schema_version?: SchemaVersion6;
   [k: string]: unknown;
 }
 export interface Calendars {
@@ -496,11 +520,11 @@ export interface Calendars {
  * （例如 1/11~1/31）不會有任何一筆涵蓋今天——那是真實的空窗，不是資料缺漏。
  */
 export interface CalendarManifestEntry {
-  url: Url1;
-  sha256: Sha2561;
-  size: Size1;
-  content_encoding?: ContentEncoding1;
-  schema_version?: SchemaVersion6;
+  url: Url2;
+  sha256: Sha2562;
+  size: Size2;
+  content_encoding?: ContentEncoding2;
+  schema_version?: SchemaVersion7;
   first_week_start: FirstWeekStart;
   last_week_end: LastWeekEnd;
   [k: string]: unknown;
@@ -585,7 +609,7 @@ export interface WeeklyProgressWeek {
  * mprograms.json：逐學期微學程清單 + 各學程開課課號。
  */
 export interface MicroProgramDirectory {
-  schema_version?: SchemaVersion7;
+  schema_version?: SchemaVersion8;
   term_key: TermKey4;
   programs?: Programs;
   [k: string]: unknown;
@@ -617,7 +641,7 @@ export interface MicroProgramCourse {
  * standards/{entry_year}.json：某入學年所有 program 的課程標準。
  */
 export interface StandardDirectory {
-  schema_version?: SchemaVersion8;
+  schema_version?: SchemaVersion9;
   entry_year: EntryYear;
   programs?: Programs1;
   [k: string]: unknown;
@@ -653,7 +677,7 @@ export interface StandardCourse {
  * v1/calendar/events.json：全量單檔（gzip 後約 25-35 KB）。
  */
 export interface CalendarEventsFeed {
-  schema_version?: SchemaVersion9;
+  schema_version?: SchemaVersion10;
   timezone?: Timezone1;
   range_end_semantics?: RangeEndSemantics;
   generated_at?: GeneratedAt3;
@@ -664,7 +688,7 @@ export interface CalendarEventsFeed {
 }
 export interface CalendarSource {
   type?: Type;
-  url: Url2;
+  url: Url3;
   content_sha256: ContentSha256;
   fetched_at: FetchedAt;
   parser_version: ParserVersion1;
@@ -709,7 +733,7 @@ export interface CalendarEvent {
  * 代價是多一層巢狀，換到的是換來源時 App 端零改動。
  */
 export interface TermCalendarFile {
-  schema_version?: SchemaVersion10;
+  schema_version?: SchemaVersion11;
   timezone?: Timezone2;
   week_starts_on?: WeekStartsOn;
   range_end_semantics?: RangeEndSemantics1;
@@ -720,7 +744,7 @@ export interface TermCalendarFile {
 }
 export interface TermCalendarSource {
   type?: Type1;
-  url: Url3;
+  url: Url4;
   content_sha256: ContentSha2561;
   parsed_at: ParsedAt1;
   parser_version: ParserVersion2;

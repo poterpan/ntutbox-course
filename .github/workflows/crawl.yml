@@ -28,7 +28,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       R2_BUCKET: ${{ vars.R2_BUCKET }}
-      MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO || '0.95' }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       # R2 的 S3 相容憑證。與 CLOUDFLARE_API_TOKEN 來自**同一組** R2 API Token
@@ -77,22 +76,6 @@ jobs:
             echo "$T" | grep -Eq '^[0-9]{3}-[123]([:,][0-9]{3}-[123])*$' || { echo "invalid terms: $T"; exit 1; }
           fi
           echo "terms=$T" >> "$GITHUB_OUTPUT"
-
-      - name: Record previous course counts (quality-gate baseline)
-        id: prev
-        run: |
-          set -euo pipefail
-          python - "$GITHUB_OUTPUT" <<'PY'
-          import json, sys, pathlib
-          out = pathlib.Path(sys.argv[1])
-          base = pathlib.Path("data/canonical")
-          counts = {}
-          for d in sorted(base.glob("*/catalog.ndjson")):
-              term = d.parent.name
-              counts[term] = sum(1 for ln in d.read_text(encoding="utf-8").splitlines() if ln.strip())
-          with out.open("a", encoding="utf-8") as f:
-              f.write("counts=" + json.dumps(counts) + "\n")
-          PY
 
       - name: Crawl
         env:
@@ -146,15 +129,13 @@ jobs:
           git pull --rebase origin data || true
           git push origin HEAD:data
 
+      # derive＝canonical → v1（全量、確定性）。fetch 子命令只寫 canonical，publish 也不重建 v1。
+      - name: Derive v1
+        run: python -m ntut_catalog derive --out data
+
+      # 全量比對、只傳差異、刪過期檔；品質閘門基準讀線上 manifest（infra/publish.py 檔頭）。
+      # 刪除保險觸發 → 其餘照常上線、exit 3 紅燈，確認後用 publish-v1 的 allow_mass_delete 放行。
       - name: Publish v1 to R2
         env:
-          TERMS: ${{ steps.terms.outputs.terms }}
-          PREV_COUNTS: ${{ steps.prev.outputs.counts }}
-        run: |
-          python infra/publish.py \
-            --bucket "$R2_BUCKET" \
-            --terms "$TERMS" \
-            --out data \
-            --min-ratio "$MIN_RATIO" \
-            --previous-counts "$PREV_COUNTS" \
-            --generated-at "$(date -u +%FT%TZ)"
+          QUALITY_MIN_RATIO: ${{ vars.QUALITY_MIN_RATIO }}
+        run: python infra/publish.py --bucket "$R2_BUCKET" --out data

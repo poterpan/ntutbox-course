@@ -642,8 +642,18 @@ class CalendarManifestEntry(ManifestEntry):
     last_week_end: str
 
 
+class CatalogManifestEntry(ManifestEntry):
+    """`terms.{t}.catalog`：ManifestEntry 加上課數。
+
+    publish 的品質閘門以**線上** manifest 的 `count` 為基準（S3 GetObject 直讀 bucket），
+    本次 derive 出來的課數跌破基準 × 0.95 就不發佈。純新增欄位，不升 schema_version。
+    舊 manifest 沒有這個鍵 → Optional，閘門此時只檢查「不為 0」。
+    """
+    count: Optional[int] = None
+
+
 class ManifestTerm(BaseModel):
-    catalog: ManifestEntry
+    catalog: CatalogManifestEntry
     enrollment: Optional[ManifestEntry] = None
     classes: Optional[ManifestEntry] = None
     periods: Optional[ManifestEntry] = None
@@ -655,7 +665,11 @@ class ManifestTerm(BaseModel):
 class Manifest(BaseModel):
     """manifest.json：client 先抓（極小），比對 sha256 決定要不要重抓。"""
     schema_version: int = SCHEMA_VERSION
+    # derive 產出時兩者皆為 null（derive 確定性）；publish 上傳前寫入同一個值（ISO 8601 +08:00）。
+    # generated_at 保留是為了相容：改名會觸發共用 SCHEMA_VERSION 升版，待 App 清掉未使用的
+    # generatedAt 後再移除（spec §6）。
     generated_at: Optional[str] = None
+    published_at: Optional[str] = None
     min_app_version: Optional[str] = None
     terms: Dict[str, ManifestTerm] = Field(default_factory=dict)  # term_key -> ManifestTerm
     # 週次表的發現清單。**與 terms 分開**是因為 ManifestTerm.catalog 是必填，

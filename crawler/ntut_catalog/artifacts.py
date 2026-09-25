@@ -12,14 +12,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import shutil
 from pathlib import Path
 from typing import Dict, List, Optional
-
-import datetime as dt
 
 from models import (
     CALENDAR_SCHEMA_VERSION,
     CalendarManifestEntry,
+    CatalogManifestEntry,
     SCHEMA_VERSION,
     CalendarEventsFeed,
     TermCalendarFile,
@@ -35,9 +35,7 @@ from models import (
 )
 from ntut_catalog.orchestrator import TermResult
 from ntut_catalog.periods import build_period_table
-from ntut_catalog.ics import TAIPEI
 from ntut_catalog.pua import normalize_pua
-from ntut_catalog.term_calendar import current_academic_year
 
 # normalize.py 寫入 raw_fields 的 volatile 鍵（人數/撤選），結構檔需剔除以免每日 churn
 _VOLATILE_RAW_KEYS = ("enrolled", "withdrawn")
@@ -105,10 +103,25 @@ def write_enrollment_snapshot(term_key: str, enrollment, out_dir: Path, date: st
             )
 
 
-def build_v1(out_dir: Path, generated_at: str) -> Manifest:
+def derive(out_dir: Path) -> Manifest:
+    """derive 層的唯一入口：canonical → 全新的 v1（spec §1 derive 規則）。
+
+    - **確定性**：同一份 canonical → 逐位元組相同的 v1。不讀系統時間、不連網；
+      manifest 的 `generated_at`／`published_at` 留空，由 publish 在上傳前寫入。
+    - **先清空 `v1/`**：publish 以「本地 v1 有沒有這個檔」判斷 R2 上的物件是否過期，
+      殘留的舊產物（例如已消失的課號）會讓它永遠刪不掉。v1 是純衍生物，重建即可。
+    """
+    v1 = out_dir / "v1"
+    if v1.exists():
+        shutil.rmtree(v1)
+    return build_v1(out_dir, None)
+
+
+def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
     """從【全部】canonical 學期重建完整 v1（catalog/classes/periods/enrollment）+ manifest。
 
     catalog 純結構（無時間戳）；enrollment.json 取該學期【最新】snapshot 還原數字。
+    對外請用 `derive`（會先清空 v1/）；本函式保留給既有離線工具與測試。
     """
     canonical = out_dir / "canonical"
     periods_json = build_period_table().model_dump_json()
@@ -307,28 +320,37 @@ def _entry(path: Path, rel_url: str, schema_version: int = SCHEMA_VERSION) -> Ma
                          size=len(data), schema_version=schema_version)
 
 
-def _calendar_entries(out_dir: Path,
-                      today: Optional[dt.date] = None) -> Dict[str, CalendarManifestEntry]:
-    """週次表的發現清單，限**當前與前一學年度**。
+def _academic_year(term_key: str) -> Optional[int]:
+    try:
+        return int(term_key.split("-")[0])
+    except ValueError:
+        return None
 
-    為什麼要留前一學年度而不是只留當前：每年 8/1 之後有一段期間新學年度的 ics 還沒匯入
-    （112 學年度下學期拖到隔年 2 月），只留當前的話清單會是空的，App 連剛結束那學期的
-    週次表都拿不到。留前一年剛好填住這個洞，而且總數封頂在 4 筆、不會隨年份長大。
 
-    範圍由建置日期推算，不需要任何人手動設定。舊的 calendar.json **檔案照舊留在 CDN**，
-    只是不列進清單——與孤兒課程檔同一原則：曾經存在是事實，但不該被發現。
+def _calendar_entries(out_dir: Path) -> Dict[str, CalendarManifestEntry]:
+    """週次表的發現清單，限**已有週次表的學期之中「最新學年度＋前一學年度」**。
+
+    為什麼要留前一學年度：每年 8/1 之後有一段期間新學年度的 ics 還沒匯入
+    （112 學年度下學期拖到隔年 2 月），只留最新一年的話，剛匯入新學年度時 App 連剛結束
+    那學期的週次表都拿不到。留前一年剛好填住這個洞，而且總數封頂在 4 筆、不會隨年份長大。
+
+    範圍**由 canonical 內容決定、不讀系統時間**（spec §1 derive 確定性）。之前依建置日期
+    推算當前學年度，同一份 canonical 在 7/31 與 8/1 建出不同的 manifest。改成以內容為準後，
+    新學年度的 ics 一匯入（產出該年的 calendar.json），清單就自然往前移一年。
+    舊的 calendar.json **檔案照舊留在 CDN**（derive 仍會產出，publish 不會當成過期刪掉），
+    只是不列進清單——曾經存在是事實，但不該被發現。
     """
-    today = today or dt.datetime.now(TAIPEI).date()
-    current = current_academic_year(today)
-    keep = {current, current - 1}
     terms_dir = out_dir / "v1" / "terms"
+    paths = sorted(terms_dir.glob("*/calendar.json")) if terms_dir.exists() else []
+    years = {y for y in (_academic_year(p.parent.name) for p in paths) if y is not None}
+    if not years:
+        return {}
+    latest = max(years)
+    keep = {latest, latest - 1}
     out: Dict[str, CalendarManifestEntry] = {}
-    for path in sorted(terms_dir.glob("*/calendar.json")) if terms_dir.exists() else []:
+    for path in paths:
         term_key = path.parent.name
-        try:
-            academic_year = int(term_key.split("-")[0])
-        except ValueError:
-            continue
+        academic_year = _academic_year(term_key)
         if academic_year not in keep:
             continue
         weeks = (TermCalendarFile.model_validate_json(path.read_text(encoding="utf-8"))
@@ -344,8 +366,14 @@ def _calendar_entries(out_dir: Path,
     return out
 
 
-def write_manifest(out_dir: Path, generated_at: str,
-                   today: Optional[dt.date] = None) -> Manifest:
+def _catalog_entry(path: Path, rel_url: str) -> CatalogManifestEntry:
+    """catalog 項目多帶 `count`（課數）——publish 的品質閘門以線上 manifest 的這個值為基準。"""
+    base = _entry(path, rel_url)
+    count = len(json.loads(path.read_bytes())["courses"])
+    return CatalogManifestEntry(**base.model_dump(), count=count)
+
+
+def write_manifest(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
     terms_dir = out_dir / "v1" / "terms"
     terms = {}
     for term_dir in sorted(terms_dir.iterdir()) if terms_dir.exists() else []:
@@ -359,6 +387,9 @@ def write_manifest(out_dir: Path, generated_at: str,
                 # calendar.json 走**獨立的** CALENDAR_SCHEMA_VERSION，不是全域那個。
                 # 不區分的話 manifest 會說 schema_version=2 而檔案本身寫 1，
                 # App decoder 對版本不符是整份拒收——會是靜默失效。
+                if name == "catalog":
+                    files[name] = _catalog_entry(p, f"terms/{term}/{name}.json")
+                    continue
                 files[name] = _entry(
                     p, f"terms/{term}/{name}.json",
                     CALENDAR_SCHEMA_VERSION if name == "calendar" else SCHEMA_VERSION)
@@ -375,6 +406,6 @@ def write_manifest(out_dir: Path, generated_at: str,
             dataset_version=files["catalog"].sha256,
         )
     manifest = Manifest(generated_at=generated_at, terms=terms,
-                        calendars=_calendar_entries(out_dir, today))
+                        calendars=_calendar_entries(out_dir))
     (out_dir / "v1" / "manifest.json").write_text(manifest.model_dump_json(), encoding="utf-8")
     return manifest
