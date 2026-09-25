@@ -10,9 +10,6 @@ inputs:
   checkout-data:
     description: "'false' → 不 checkout data branch（例如只要 CLI 的 plan job）"
     default: "true"
-  fetch-depth:
-    description: data branch 的 git 歷史深度（migrate 要完整歷史算 fetch-state → 0）
-    default: "1"
 runs:
   using: composite
   steps:
@@ -22,7 +19,6 @@ runs:
       with:
         ref: ${{ inputs.data-ref }}
         path: data/canonical
-        fetch-depth: ${{ inputs.fetch-depth }}
 
     - uses: actions/setup-python@v7
       with:

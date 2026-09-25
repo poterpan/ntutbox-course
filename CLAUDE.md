@@ -9,13 +9,17 @@
 - **送件在 App**：iOS App（Swift，獨立專案）負責登入與送件；Web ↔ App 只透過「選課計畫 payload」串接。
 - 母品牌北科盒子為 **iOS 專屬**、遵循 Apple 美學（Liquid Glass）；本 Web 視覺向其靠攏（可再豐富，但別偏離太多）。
 
-## 現況（2026-07-19）
+## 現況（2026-09-26）
 **P0 爬蟲完成**：`crawler/ntut_catalog/` 已實作，110-1～115-1 共 11 學期 32,338 課爬畢，
 全過 `models.py` 驗證，產物在 `data/`（canonical NDJSON + v1 JSON artifacts + manifest）。
 實作與 live 探測結論（stime 必帶、「全校查詢被擋」其實只是前端 JS 等）見 `docs/superpowers/plans/2026-06-13-crawler-p0.md` 與 `crawler/README.md`。
-- **進行中**：P1 Web 排課器（`apps/web/`）已上線並持續擴充（最新：微學程瀏覽，見 feat/mprogram PR）；infra（GitHub Actions cron + R2 發佈）持續。
+- **資料管線 v2 已切換（2026-09-26）**：fetch／derive／publish 三層、依頻率分 `daily`／`weekly`／`season`／`maintenance` 四支 workflow（舊 9 支已刪），
+  資料集唯一宣告處 `crawler/ntut_catalog/registry.py`；canonical 不記爬取時間，時間在 `_meta/fetch-state.json` 與 manifest `checked_at`／`changed_at`。
+  決策 `docs/DECISIONS.md` D11–D17、操作 `infra/README.md`「維運 runbook」、設計 `docs/superpowers/specs/2026-09-26-data-pipeline-refactor-design.md`、切換紀錄 `docs/research/2026-09-26-pipeline-v2-migration-report.md`。
+  **115-2 選課前**：先把 `ACTIVE_TERMS` 設成含 115-2（或 dispatch daily 帶 terms）建出 catalog，season 才能跑；season 的自動觸發（Cloudflare Cron）是後續工作。
+- **進行中**：P1 Web 排課器（`apps/web/`）已上線並持續擴充。
 - 課程描述/課綱詳情（details.ndjson）、微學程（mprograms.json v2：開課+分類課程+規則原文）、
-  課程標準（standards/<entry_year>.json）皆已爬；微學程 Web UI 見 feat/mprogram PR。
+  課程標準（standards/<entry_year>.json）皆已爬並入排程（details／standards 週更）。
 
 ## 路線（技術文件 Phase 0–4）
 - **P0：資料 + 爬蟲 PoC**（穩定產出 catalog JSON）（完成）

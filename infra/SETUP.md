@@ -1,6 +1,6 @@
 # infra — 上線設定（go-live runbook）
 
-> 程式碼/設定已就緒（見 `crawl.yml`、`publish.py`、`redline_scan.py`、`r2-cors.json`）。
+> 程式碼/設定已就緒（見 `.github/workflows/{daily,weekly,season,maintenance}.yml`、`publish.py`、`redline_scan.py`、`r2-cors.json`）。
 > 本檔是**對外資源建立**步驟——需在 Cloudflare/GitHub 實際開通。每一步做完再做下一步。
 > 設計依據：`docs/superpowers/specs/2026-06-13-infra-data-pipeline-design.md`。
 
@@ -47,13 +47,13 @@ Dashboard → My Profile → API Tokens → Create Token：
 ```bash
 gh secret set CLOUDFLARE_API_TOKEN          # 貼上 token
 gh secret set CLOUDFLARE_ACCOUNT_ID         # 貼上 account id
+gh secret set R2_S3_ACCESS_KEY_ID           # 同一組 R2 API Token 的 Access Key ID（對照表 docs/ARCHITECTURE.md §6）
+gh secret set R2_S3_SECRET_ACCESS_KEY       # 同一組 token 的 Secret Access Key（只顯示一次）
 gh variable set R2_BUCKET --body ntutbox-cdn
-gh variable set ACTIVE_TERMS --body ""      # 留空＝workflow 自動偵測當前學期
+gh variable set ACTIVE_TERMS --body ""      # 留空＝daily 自動偵測當前學期；新學期選課前要設成含新學期，見 infra/README.md runbook
 gh variable set QUALITY_MIN_RATIO --body 0.95
 # 選填：單筆資料集節點失敗占比上限（merge；未設＝0.05，見 spec §3「節點失敗的處理」）
 # gh variable set PARTIAL_FAILURE_MAX_RATIO --body 0.05
-# 選課季人數快速刷新窗口（台北日期）：設了才會啟用 crawl-enrollment.yml 的每小時刷新；過期自動 no-op
-gh variable set ENROLLMENT_FAST_UNTIL --body 2026-06-19   # 115-1 預選結束日；非選課季留空
 ```
 
 ## 5. 首次全量發佈（一次性）
@@ -72,9 +72,10 @@ curl -s -H "Origin: https://course.ntutbox.com" -I https://cdn.ntutbox.com/cours
 ```
 
 ## 7. 啟用排程
-- `crawl.yml` 已含 `schedule`（每日 04:00 台北）。可先手動跑驗證：
-  - GitHub → Actions → "crawl catalog" → Run workflow（`terms` 留空＝自動當前學期）。
-  - 確認：`data` branch 出現 `data(enrollment): ...` commit；R2 manifest 更新；無 catalog 結構 commit（結構未變時）。
+- `daily.yml`（每日 04:00 台北）與 `weekly.yml`（每週一 05:30 台北）已含 `schedule`；`season.yml`、`maintenance.yml` 僅 dispatch。
+- 先手動跑一次驗證：GitHub → Actions → **daily** → Run workflow（`terms` 留空＝登錄表規則）。
+  - 確認：`data` branch 出現 `data(daily): …` commit（上游沒變時只有 `_meta/fetch-state.json` 與 `observations.ndjson` 一行）；R2 manifest 的 `published_at` 更新；沒有開 `pipeline-alert` issue。
+- 排程被停用過（如切換期間）→ `gh workflow enable daily.yml`、`gh workflow enable weekly.yml`。
 
 ## 8. GA4 成效分析（排課站；opt-in）
 `apps/web` 的 GA4 埋點靠 **build-time** env 開關，全部缺席 → 完全 no-op（不載入任何 Google 資源）。
@@ -93,7 +94,7 @@ Workers（`ntutbox-course-web`）→ Settings → **Build** → Build variables�
 - 事件契約與參數 enum 的唯一真相來源：`apps/web/src/lib/analytics/events.ts`。
 
 ## 維運備忘
-- **學期滾動**：`ACTIVE_TERMS` 留空即自動跟進（學校上架新學期下拉會翻）；要釘住特定學期才設值。
-- **歷史重爬**：Actions → Run workflow，`terms` 填 `110-1:115-1`。
-- **quality gate**：課數較上次掉 >5%（或 0 課）→ job fail、不更新 R2（防殘缺資料發佈）。
-- **選課季高頻 enrollment**：見 spec「選課季 fast-follow」（本期未實作）。
+日常操作（補爬、重新發佈、選課季、告警處理、門檻變數）見 `infra/README.md`「維運 runbook」。
+- **學期滾動**：`ACTIVE_TERMS` 留空即自動跟進 `current-term`（學校上架新學期下拉會翻）；要同時追多個學期（如選課季）才設值。
+- **歷史重爬**：Actions → maintenance → `task=backfill`、`dataset`＋`terms`（如 `110-1:115-1`）。
+- **quality gate**：課數較線上 manifest 掉 >5%（`QUALITY_MIN_RATIO`）或 0 課 → 不發佈 R2（防殘缺資料發佈）。

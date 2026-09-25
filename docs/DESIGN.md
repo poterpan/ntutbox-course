@@ -150,9 +150,9 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 ```
 
 - **爬蟲跑在 GitHub Actions**：公開 repo **無限分鐘**、單 job 最長 6hr、cron 方便、Node/Python 環境齊全。**不要**用 Cloudflare Workers 跑爬蟲（單次 50 子請求 + CPU 上限，爬不動）。
-- **管線排程（三 workflow 共用 `data-pipeline` concurrency 序列化，不撞 data branch / R2）**：`crawl.yml` **每日** 04:00（台北）爬當前學期 catalog/enrollment/微學程；**`crawl-details.yml` 每週日** 05:30（台北）爬課綱詳情（~5k 請求/學期、學期內變動慢 → 週更即足夠，`--include-details` 一併發佈 R2）；`crawl-enrollment.yml` 選課季人數輕量刷新。**補抓用的兩支 `workflow_dispatch`**：`backfill-details.yml`（歷史課綱，28,977 請求／6.8 小時 → matrix 併發爬取、收斂後單次發佈）與 `backfill-mprograms.yml`（歷史微學程，762 請求／約 8 分鐘 → 單一 job 即可；留空 terms 會自動掃出缺 `mprograms.json` 的學期）——每日 `crawl.yml` 的微學程只跑當學期，歷史學期需靠這支補。每日與週更管線都在 commit 前跑 `pua-scan`（`continue-on-error`）**監測新造字**：canonical 出現 `PUA_MAP` 未收錄的 PUA（unicode category `Co`）碼位即 fail-loud 提醒考證（處置照 `docs/research/2026-07-20-pua-glyph-verification.md` 的 GServer 流程補 `PUA_MAP`），但不阻斷 commit/publish。
+- **管線排程（資料管線 v2，2026-09-26 起；依頻率分、共用 `data-pipeline` concurrency 序列化，不撞 data branch / R2）**：`daily.yml` **每日** 04:00（台北）跑 calendar、catalog＋人數、微學程；`weekly.yml` **每週一** 05:30（台北）跑課綱詳情（~5k 請求/學期、學期內變動慢 → 週更即足夠）與課程標準；`season.yml`（僅 dispatch、`terms` 必填）選課季人數刷新；`maintenance.yml`（僅 dispatch）`backfill` 補爬任何資料集＋學期（details 走 matrix 併發、收斂後單次發佈）／`republish` 只 derive＋publish。跑哪些資料集、哪些學期由 `crawler/ntut_catalog/registry.py` 決定，新增資料集不新增 workflow（理由見 `DECISIONS.md` D11–D12、操作見 `infra/README.md` runbook）。每支的 commit-publish 都在 commit 前跑 `pua-scan`（`continue-on-error`）**監測新造字**：canonical 出現 `PUA_MAP` 未收錄的 PUA（unicode category `Co`）碼位即 fail-loud 提醒考證（處置照 `docs/research/2026-07-20-pua-glyph-verification.md` 的 GServer 流程補 `PUA_MAP`），但不阻斷 commit/publish。
 - **資料 commit 進 git**：免費紅利＝**選課人數時間序列**（commit 歷史就是 enrollment 快照，學長的退選率分析即源於此）。
-- **對外出口走 Cloudflare**（R2 物件儲存或 Pages 靜態）：**egress 永遠 $0**、邊緣快取、自訂網域、可自控 cache header；同一個 Action 結束時用 `wrangler` 推上去。避開 GitHub Pages 100GB/月軟上限與「拿 Pages 當 API」的 ToS 灰色地帶。
+- **對外出口走 Cloudflare**（R2 物件儲存或 Pages 靜態）：**egress 永遠 $0**、邊緣快取、自訂網域、可自控 cache header；同一個 Action 結束時由 `infra/publish.py` 經 S3 API 推上去（全量比對只傳差異）。避開 GitHub Pages 100GB/月軟上限與「拿 Pages 當 API」的 ToS 灰色地帶。
 - **免費額度速記**：GH Actions 公開 repo 無限；Cloudflare Pages 頻寬無限／500 builds 月；R2 10GB 儲存、讀 1000 萬次/月、egress $0。
 - **App 端省頻寬鐵律**（不論放哪都要做）：按學期切檔（別塞 20 年）、gzip/brotli、`ETag` 條件式請求（沒變回 304）、裝置端快取＋TTL。一個學期 `main.json` 就 **5MB**，這條決定免費額度撐多久。
 - **開發期 bootstrap**：先直接讀學長 gh-pages JSON（CORS 全開、即用）把排課 UX 做出來；正式版換成我們自己的爬蟲＋Cloudflare 出口（schema 設計見 §4.5，刻意做到能無痛切換資料源）。
@@ -176,7 +176,7 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 4. **加 envelope/metadata**：每個檔含 `schemaVersion / term / generatedAt / crawlStartedAt / crawlFinishedAt / sourceSystem / 爬蟲 gitSha`——CDN 會 aggressive cache，metadata 讓 client 偵測格式變更與陳舊。
 5. **避免中文檔名**：改 ASCII（`day/extension/graduate`）或乾脆不按學制切檔，把學制當課程欄位；中文檔名對 URL/CI/iOS 下載碼/未來公開 API 都是地雷。
 6. **明確建模身分**：`offeringId`=課號(每學期實例、cwish `subj` 候選) vs `courseCode`=課程碼(跨學期課程身分、對描述/標準/同課多班分組)；主鍵＝`termKey + offeringId`。
-7. **enrollment 與目錄分離**：最新人數放 `enrollment/latest.json`、歷史壓成 `enrollment/snapshots/YYYY-MM-DD.ndjson`(append-only) commit 進 git；每筆帶 `observedAt`，UI 顯示陳舊警告；**搶課時以 cwish 即時 addable 狀態為準、勿信靜態人數**。
+7. **enrollment 與目錄分離**：最新人數放 v1 `enrollment.json`（帶 `observed_at`，UI 顯示陳舊警告）、歷史存 canonical `{term}/enrollment/`（分鐘級快照＋`observations.ndjson` 觀測紀錄，commit 進 git；實作見 `crawler/README.md`「人數時序」）；**搶課時以 cwish 即時 addable 狀態為準、勿信靜態人數**。
 
 **格式選擇（定案，web-first）**：
 - **Canonical 來源**：**normalized NDJSON**（一行一課，commit 進 git）——可 diff、可審查、可重建 artifacts；commit 歷史＝免費 enrollment 時序。
@@ -190,12 +190,12 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 **PUA（私用區）字元正規化（分層：canonical 忠實 / v1 best-effort）**：學校資料含瀏覽器無字型可畫的 PUA 字元三類——
 ① Word 符號字型殘留（U+F0xx，老師從 Word 貼課綱，Symbol/Wingdings 字元被存成 `0xF000+charcode`，多是條列項目符號）；
 ② 學校造字（U+E0xx–E2xx，教師名/課名/備註，逐字考證困難）；③ Adobe/PDF 殘留（U+F3xx/F6xx/F7xx）。
-**canonical 一律保留來源原文**（忠實、可審查、可重建）；**只有 v1 消費層在 `build_v1` 時套 `ntut_catalog/pua.py` 的 `normalize_pua`**——
+**canonical 一律保留來源原文**（忠實、可審查、可重建）；**只有 v1 消費層在 derive（`build_v1`）時套 `ntut_catalog/pua.py` 的 `normalize_pua`**——
 對照表 `PUA_MAP` 只收「能在權威字碼表核實」的碼位（Wingdings→Unicode 採 Alan Wood's Unicode Resources；Symbol 為 Adobe 標準），
 **未收錄的碼位一律原樣保留（不猜、不刪）**。目前對照表：9 個 Word 符號（●■□◆•➢✓☑ 與算式內的 ±）＋ 42 個學校造字
 （GServer 字形認定，部分經使用者考證覆核）。**造字字形可經學校 GServer 外字服務（`font.ntut.edu.tw` 的 `MingGaiji.TTE`）半自動考證**，
 協定、認字方法與已認定清單見 `docs/research/2026-07-20-pua-glyph-verification.md`（6 個既有系網考證與 GServer 字形完全吻合＝權威反證；
-近似字如 凃/涂、苷/昔、晣/晰 需上下文與外部佐證覆核；`U+EF0D` 無字形、證據未定，不入表）。分層好處：不需重爬，下次 publish 重建 v1 即修正全歷史學期；造字考證可持續補 `PUA_MAP`。
+近似字如 凃/涂、苷/昔、晣/晰 需上下文與外部佐證覆核；`U+EF0D` 無字形、證據未定，不入表）。分層好處：不需重爬，下次 derive＋publish（或 maintenance `republish`）即修正全歷史學期；造字考證可持續補 `PUA_MAP`。
 `manifest` 的 `dataset_version` = `catalog.json` sha256，會因正規化改變（屬預期：內容確實變乾淨了），非正規化學期不受影響。
 
 **建議檔案佈局（v1）**：
@@ -207,7 +207,7 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 /v1/terms/114-2/mprograms.json          # 微學程(v2)：開課 offering_ids + 分類課程 + 規則原文
 /v1/terms/114-2/course/{offeringId}.json # 重文字(描述/課綱)，隨點隨取
 /v1/terms/114-2/enrollment.json         # 人數,小,選課季常更新(volatile overlay)
-/v1/terms/114-2/enrollment/snapshots/2026-06-13.ndjson  # 歷史時序(git)
+# 人數歷史不發佈：留在 canonical {term}/enrollment/（快照 + observations.ndjson，git）
 # catalog.sqlite 延後：iOS/進階版由 canonical 產，web v1 不發佈
 ```
 

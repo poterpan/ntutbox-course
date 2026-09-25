@@ -2,7 +2,7 @@
 
 背景：學校資料含私用區(PUA, unicode category `Co`)造字（教師名/課名/備註/課綱）。已考證者
 收進 `pua.PUA_MAP`、v1 消費層轉真字（見 pua.py）；未來學校可能新增造字碼位，若無人發現，
-web 端就會出現畫不出的 tofu。本掃描接在每日 crawl / 每週 crawl-details 管線後 fail-loud 提醒。
+web 端就會出現畫不出的 tofu。本掃描接在每支資料 workflow 的 commit-publish（merge 之後、derive 之前）fail-loud 提醒。
 
 處置流程（發現新碼位時）：照 docs/research/2026-07-20-pua-glyph-verification.md 的 GServer
 外字服務流程考證字形，補進 `pua.PUA_MAP`；若無字形/證據未定，加進 KNOWN_EXCEPTIONS 並註明。

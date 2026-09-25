@@ -6,7 +6,7 @@
   範圍外的變動（不該出現）只印 `::warning`、不 commit——不用 `git add -A`，免得哪天
   fetcher 多寫了檔就默默進公開 repo。
 - 訊息：`data(<cadence>): <datasets> <terms>`（spec §3），datasets／terms 取自 `--reports`
-  目錄下全部 `merge-report*.json` 的聯集；沒有報告（republish／migrate）→ `--message`。
+  目錄下全部 `merge-report*.json` 的聯集；沒有報告（republish）→ `--message`。
 - 沒有 diff → 不 commit。結果寫 `$GITHUB_OUTPUT` 的 `committed=true|false`。
 """
 from __future__ import annotations
