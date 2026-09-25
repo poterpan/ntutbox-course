@@ -280,3 +280,17 @@ def test_remote_etags_parses_listing_and_strips_quotes(monkeypatch):
     monkeypatch.setattr(publish, "_run_aws_json", lambda cmd: payload)
     assert publish.remote_etags("bkt", "https://ep") == {
         "course/v1/a.json": "abc123", "course/v1/b.json": "def456"}
+
+
+def test_parse_terms_arg_expands_ranges():
+    assert publish.parse_terms_arg("110-1:111-1") == ["110-1", "110-2", "111-1"]
+
+
+def test_parse_terms_arg_mixes_commas_and_ranges():
+    assert publish.parse_terms_arg("115-1, 114-1:114-2") == ["115-1", "114-1", "114-2"]
+
+
+@pytest.mark.parametrize("bad", ["", "115", "115-3", "abc", "115-1:"])
+def test_parse_terms_arg_rejects_invalid(bad):
+    with pytest.raises(ValueError):
+        publish.parse_terms_arg(bad)

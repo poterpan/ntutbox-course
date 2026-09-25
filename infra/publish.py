@@ -19,6 +19,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -28,11 +29,30 @@ from typing import Dict, List, Optional, Set, Tuple
 # publish 需要重建 v1（從 canonical），故依賴 crawler 套件
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "crawler"))
 from ntut_catalog.artifacts import build_v1  # noqa: E402
+from ntut_catalog.cli import expand_terms  # noqa: E402
 
 _SHORT_CACHE = "public, max-age=300"     # manifest / enrollment（常變）
 _LONG_CACHE = "public, max-age=3600"     # catalog / classes / periods / calendar/events（靠 sha + ETag 304）
 # 週次表一學期最多修訂一兩次，但**不可宣稱 immutable**——開學前會有修正版。
 _CALENDAR_CACHE = "public, max-age=86400, stale-while-revalidate=604800"
+
+
+_TERM_RE = re.compile(r"^\d{3}-[12]$")
+
+
+def parse_terms_arg(spec: str) -> List[str]:
+    """`--terms` 解析：與 CLI 同一套規則（`a:b` 範圍、逗號混用），格式錯誤丟 ValueError。
+
+    之前只切逗號，dispatch 填 `110-1:115-1` 會被當成單一學期字串傳下去。
+    """
+    try:
+        terms = expand_terms(spec)
+    except ValueError as e:
+        raise ValueError(f"invalid --terms: {spec!r}") from e
+    bad = [t for t in terms if not _TERM_RE.match(t)]
+    if not terms or bad:
+        raise ValueError(f"invalid --terms: {spec!r}")
+    return terms
 
 
 def r2_key(rel_path: str) -> str:
@@ -335,7 +355,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     args = ap.parse_args(argv)
 
     out_dir = Path(args.out).resolve()
-    terms = None if args.all else ([t.strip() for t in args.terms.split(",")] if args.terms else None)
+    try:
+        terms = None if args.all else (parse_terms_arg(args.terms) if args.terms else None)
+    except ValueError as e:
+        ap.error(str(e))
     if terms is None and not args.all:
         ap.error("need --terms or --all")
 
