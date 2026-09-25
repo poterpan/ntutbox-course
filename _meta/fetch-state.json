@@ -116,9 +116,9 @@
     "content_sha256": "ccd0da6df3412f12387f0c22c9df718a210fa5e41580f3c7bdbc0f3536b727b4"
    },
    "115-1": {
-    "changed_at": "2026-09-21T08:15:04+08:00",
-    "checked_at": "2026-09-21T08:15:04+08:00",
-    "content_sha256": "55a1c048a6d2b4050845c6e82ec34d735f3c27dc998a5de2f7fab1a8aaeb0035"
+    "changed_at": "2026-09-26T06:26:06+08:00",
+    "checked_at": "2026-09-26T06:26:06+08:00",
+    "content_sha256": "8241af87ffefac9ee5ff16e43b0121517aa9cdf9919b8f2ce84e0bd422c025a6"
    }
   },
   "enrollment": {
@@ -237,9 +237,9 @@
   },
   "standards": {
    "_global": {
-    "changed_at": "2026-06-14T03:07:48+08:00",
-    "checked_at": "2026-06-14T03:07:48+08:00",
-    "content_sha256": "271eb6910a6d3b69a3e86a8fe374260cd0d4edd9087af81f49d0386de55fceff"
+    "changed_at": "2026-09-26T06:47:55+08:00",
+    "checked_at": "2026-09-26T06:47:55+08:00",
+    "content_sha256": "cc1f41adc01855e02e7f0074be23f0b2c7d4dfcf1782eee45628238a6cdb0c9a"
    }
   }
  },
