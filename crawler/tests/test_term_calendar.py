@@ -328,7 +328,7 @@ def test_publish_uploads_calendar_with_a_longer_cache(tmp_path, events):
     from ntut_catalog.artifacts import build_term_calendars_v1
     _write_one(tmp_path, events)
     build_term_calendars_v1(tmp_path, "g")
-    files = publish._v1_files_for(tmp_path, None)
+    files = publish.local_files(tmp_path)
     assert "v1/terms/115-1/calendar.json" in files
     assert publish.cache_control_for("v1/terms/115-1/calendar.json") == \
         "public, max-age=86400, stale-while-revalidate=604800"
