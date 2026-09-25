@@ -89,4 +89,4 @@ merge（鎖內、對最新 HEAD）的規則：
 - 丟棄與沿用都列進 `[pipeline] <workflow> 失敗` issue，下一次全部成功自動關閉。
 
 ## D17 — runner 釘 `ubuntu-24.04`
-所有資料管線 workflow 的 `runs-on` 釘 `ubuntu-24.04`，不用 `ubuntu-latest`：選課季期間不讓 GitHub 的映像滾動版本意外改變執行環境。映像升級排在選課季之後（115-2 選課結束後）另開 PR 統一升，升完手動跑一次 daily／weekly 驗證。
+所有資料管線 workflow 的 `runs-on` 釘 `ubuntu-24.04`，不用 `ubuntu-latest`。觸發點：GitHub 公告 `ubuntu-latest` 自 2026-10-19 起分批改指向 Ubuntu 26（runner-images#14748），切換期剛好撞上管線 v2 上線與 12/07 的 115-2 選課季；而 publish 依賴映像預裝的 AWS CLI、告警依賴預裝的 `gh`、commit job 依賴預裝的 `git`，映像一換，這些工具的版本或有無可能在程式碼沒動的某一天改變，且分批切換會讓同一支 workflow 前後跑在不同映像上、難以歸因。映像升級排在選課季之後（115-2 選課結束後）另開 PR 統一升，升完手動跑一次 daily／weekly 驗證；屆時一併評估 AWS CLI 改以 pip 安裝並固定版本，降低對預裝工具的依賴。
