@@ -5,9 +5,6 @@ name: daily
 # 兩個 job（spec §3）：fetch 不上鎖（打學校最慢的部分）；commit-publish 上鎖、對**最新** data branch
 # 合併／判斷有沒有變／derive／commit／publish。無 push trigger → 對 data branch 的 commit 不會自迴圈。
 on:
-  # TEMPORARY（演練，最後一個 commit 移除）：push 到 refactor/pipeline-v2 → data-dryrun＋publish --dry-run
-  push:
-    branches: [refactor/pipeline-v2]
   schedule:
     - cron: "0 20 * * *"
   workflow_dispatch:
@@ -37,9 +34,9 @@ permissions:
   contents: read
 
 env:
-  DATA_REF: ${{ github.event_name == 'push' && 'data-dryrun' || inputs.data_ref || 'data' }}
-  PUBLISH_DRY_RUN: ${{ (github.event_name == 'push' || inputs.publish_dry_run == true) && 'true' || 'false' }}
-  ALERT_DRY_RUN: ${{ (github.event_name == 'push' || inputs.alert_dry_run == true) && 'true' || 'false' }}
+  DATA_REF: ${{ inputs.data_ref || 'data' }}
+  PUBLISH_DRY_RUN: ${{ inputs.publish_dry_run == true && 'true' || 'false' }}
+  ALERT_DRY_RUN: ${{ inputs.alert_dry_run == true && 'true' || 'false' }}
 
 jobs:
   fetch:
@@ -90,7 +87,7 @@ jobs:
       contents: write
       issues: write      # 行事曆 horizon／資料過期告警
     concurrency:
-      group: ${{ github.event_name == 'push' && 'data-pipeline-dryrun' || 'data-pipeline' }}
+      group: data-pipeline
       cancel-in-progress: false
     outputs:
       publish-exit: ${{ steps.cp.outputs.publish-exit }}
