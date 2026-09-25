@@ -307,3 +307,16 @@ def resolve_terms(rule: TermRule, explicit: Sequence[str],
         if raw.strip():
             return list(expand_terms(raw.strip()))
     return [current()]
+
+
+# ------------------------------------------------------------------ commit 範圍
+
+# 登錄表以外、commit-publish job 也要 commit 的檔：fetch-state（merge 寫）與逐週進度報告（derive 寫）。
+_EXTRA_COMMITTED = ("_meta/fetch-state.json", "reports/{term}/weekly-progress.json")
+
+
+def committable(rel: str) -> bool:
+    """data branch 相對路徑是否在 commit 範圍內（spec §2：`git add` 範圍由登錄表 `writes` 產生，
+    workflow 內不再手寫 glob）。學期一律當萬用——commit 的是合併後的整棵 canonical。"""
+    patterns = [p for ds in DATASETS.values() for p in ds.writes + ds.append_only]
+    return matches_any(rel, patterns + list(_EXTRA_COMMITTED), None)

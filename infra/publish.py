@@ -500,7 +500,7 @@ def render_summary(*, bucket: str, dry_run: bool, via: str, uploads: List[str], 
             for p, (n, total) in sorted(deletions.skipped.items()):
                 lines.append(f"| `{p}` | {n} | {total} |")
             lines += ["", "確認無誤後以 `--allow-mass-delete <prefix>` 重跑放行"
-                      "（publish-v1 workflow 的 `allow_mass_delete` 輸入）。"
+                      "（maintenance workflow republish 的 `allow_mass_delete` 輸入）。"
                       "先用 dry-run 看完整待刪清單。"]
         if deletions.allowed:
             lines.append("- 已放行的大量刪除：" + ", ".join(f"`{p}`" for p in sorted(deletions.allowed)))
