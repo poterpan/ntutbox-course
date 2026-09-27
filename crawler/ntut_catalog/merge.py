@@ -9,7 +9,7 @@
      （Review Focus 2）。成功者也只收 `files` 中落在登錄表 `writes` 內的檔。
   2. 節點失敗（`failed_nodes`，spec §3「節點失敗的處理」）：失敗節點 > node_total × 5%
      （env `PARTIAL_FAILURE_MAX_RATIO` 可覆寫）→ 丟棄整筆；catalog 有任何失敗節點 → 丟棄該學期
-     （含人數快照）；standards／mprograms／details → 失敗節點逐一從 HEAD 沿用前一版，HEAD 也
+     （含人數快照）；standards／mprograms／details／rooms → 失敗節點逐一從 HEAD 沿用前一版，HEAD 也
      沒有的列為缺漏，發 warning 告警。
   3. catalog 品質檢查：0 課 → 丟棄該學期這一筆（含同次爬取的人數快照）並告警，其他照常
      （Review Focus 1）。上游殘缺不可覆寫 canonical——否則隔天的比較基準也跟著壞。
@@ -463,9 +463,37 @@ def _splice_details(stage_canon: Path, canonical: Path, term: Optional[str],
     return {rel: "".join(x + "\n" for x in lines).encode("utf-8")}, carried, missing
 
 
+def _splice_rooms(stage_canon: Path, canonical: Path, term: Optional[str],
+                  failed: List[Dict[str, object]], files: List[str]) -> Spliced:
+    """{term}/rooms.json 以教室 code 為鍵：失敗的教室整筆換成 HEAD 那一間（逐位元組相同）；
+    HEAD 也沒有 → 這間不寫（寫一間空課表等於謊稱「整週沒排課」，比缺一間更糟）。"""
+    from ntut_catalog.rooms import code_sort_key, dump_rooms, load_rooms
+
+    rel = f"{term}/rooms.json"
+    if rel not in files:
+        return {}, [], list(failed)
+    new = load_rooms(stage_canon / rel)
+    head_path = canonical / rel
+    head = {r.code: r for r in load_rooms(head_path).rooms} if head_path.is_file() else {}
+    fresh = {r.code for r in new.rooms}
+    carried: List[Dict[str, object]] = []
+    missing: List[Dict[str, object]] = []
+    rooms = list(new.rooms)
+    for n in failed:
+        code = str(n.get("room"))
+        if code in head and code not in fresh:
+            rooms.append(head[code])
+            carried.append(n)
+        else:
+            missing.append(n)
+    new.rooms = sorted(rooms, key=lambda r: code_sort_key(r.code))
+    return {rel: dump_rooms(new).encode("utf-8")}, carried, missing
+
+
 # 可逐節點沿用的資料集；不在此表者（catalog）有失敗節點一律整筆丟棄
 _SPLICERS: Dict[str, Callable[..., Spliced]] = {
     "standards": _splice_standards,
     "mprograms": _splice_mprograms,
     "details": _splice_details,
+    "rooms": _splice_rooms,
 }

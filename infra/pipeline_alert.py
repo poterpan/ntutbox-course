@@ -22,6 +22,13 @@ season 排程（`data/ops/season-schedule.json`，derive 產；issue #111）另�
                     全部對上（或窗口內沒有觸發格）→ 關閉。now 用 daily 自己的時間（GitHub cron
                     延遲幾小時也沒關係，窗口是相對的）。
 
+GIS 快照漂移（D23）由 weekly 的 alert job 呼叫：
+
+  gis-drift         `[pipeline] GIS 快照過期（updateSequence A→B）`：學校 GeoServer WFS GetCapabilities
+                    的 updateSequence ≠ repo 內 `crawler/ntut_catalog/reference/gis-rooms.json` 的
+                    → 開／更新（B 又變了就改標題）；相等 → 關閉。只打 1 個請求；學校憑證鏈 Python 驗不過時
+                    對這一個公開唯讀 URL 不驗證重試一次（log 註記）；其他失敗只發 warning、不開 issue。
+
 用法：
   python infra/pipeline_alert.py run --workflow daily --run-url URL --needs-json "$NEEDS" \
       [--stages DIR] [--merge-reports DIR] [--publish-exit N] [--deletions-skipped P,…] \
@@ -29,6 +36,7 @@ season 排程（`data/ops/season-schedule.json`，derive 產；issue #111）另�
   python infra/pipeline_alert.py stale --data data
   python infra/pipeline_alert.py season-catalog --data data
   python infra/pipeline_alert.py season-freshness --data data
+  python infra/pipeline_alert.py gis-drift [--snapshot PATH]
   python infra/pipeline_alert.py summary [--stages DIR] [--merge-reports DIR]   # 只寫 run summary 表
 
 需要 gh CLI 與 GH_TOKEN（作法同 calendar_horizon_alert.py）。`PIPELINE_ALERT_DRY_RUN=1` → 只印
@@ -40,8 +48,12 @@ import argparse
 import datetime as dt
 import json
 import os
+import re
+import ssl
 import subprocess
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple
 
@@ -332,6 +344,90 @@ def cmd_season_freshness(args, gh: Gh, now: Optional[dt.datetime] = None) -> int
 
 # ------------------------------------------------------------------ run summary
 
+# ------------------------------------------------------------------ GIS 快照漂移（D23）
+
+GIS_SNAPSHOT = Path(__file__).resolve().parents[1] / "crawler" / "ntut_catalog" / "reference" / "gis-rooms.json"
+GIS_CAPABILITIES_URL = "https://geoserver.oga.ntut.edu.tw/ows?service=WFS&version=2.0.0&request=GetCapabilities"
+GIS_DRIFT_PREFIX = "[pipeline] GIS 快照過期"
+_UPDATE_SEQUENCE_RE = re.compile(r'updateSequence\s*=\s*"(\d+)"')
+
+
+def gis_drift_title(snapshot_seq, live_seq) -> str:
+    return f"{GIS_DRIFT_PREFIX}（updateSequence {snapshot_seq}→{live_seq}）"
+
+
+def _is_ssl_error(e: BaseException) -> bool:
+    return isinstance(e, ssl.SSLError) or (
+        isinstance(e, urllib.error.URLError) and isinstance(e.reason, ssl.SSLError))
+
+
+def fetch_update_sequence(url: str = GIS_CAPABILITIES_URL, timeout: float = 60,
+                          urlopen=urllib.request.urlopen) -> Tuple[int, Optional[str]]:
+    """GetCapabilities → (updateSequence, 備註)。學校憑證鏈 Python 驗不過（campus-map 也遇過，
+    它對個別 URL 做 fallback）→ **只對這一個公開唯讀 URL** 不驗證重試一次，備註回傳給 log。"""
+    note = None
+    try:
+        with urlopen(url, timeout=timeout) as resp:
+            body = resp.read()
+    except Exception as e:  # noqa: BLE001
+        if not _is_ssl_error(e):
+            raise
+        note = f"TLS 驗證失敗（{e}），對 {url} 不驗證憑證重試一次（公開、唯讀、只讀 updateSequence）"
+        with urlopen(url, timeout=timeout, context=ssl._create_unverified_context()) as resp:
+            body = resp.read()
+    m = _UPDATE_SEQUENCE_RE.search(body[:4096].decode("utf-8", errors="replace"))
+    if m is None:
+        raise ValueError("GetCapabilities 回應找不到 updateSequence")
+    return int(m.group(1)), note
+
+
+def _gis_drift_body(snapshot_seq, live_seq) -> str:
+    return (
+        f"學校 GeoServer 的 `updateSequence` 已從 repo 快照的 **{snapshot_seq}** 變成 **{live_seq}**——"
+        "校園 GIS 圖資有更新，`crawler/ntut_catalog/reference/gis-rooms.json`（空教室的教室↔GIS 對應依據）"
+        "可能已過期：新蓋／改號的房間對不到、舊的對應可能指錯。\n\n"
+        "**這不阻斷發布**，現有對應照常使用。更新步驟（GIS 資料只在本機，CI 做不了）：\n"
+        "1. 在本機 `ntut-campus-map` 重抓並產生 v1（見該專案 README）。\n"
+        "2. `python infra/gis/build_snapshot.py <ntut-campus-map 路徑>`，確認 `source.update_sequence` 已是新值。\n"
+        "3. 本機 `python -m ntut_catalog derive --out <data>` 看 `gis_match` 分布與 override 驗證 warning；"
+        "必要時改 `reference/gis-room-overrides.json`。\n"
+        "4. 走 PR commit 快照；下一次 derive 自動重算對應（對應在 derive、不必重爬）。\n\n"
+        f"兩者相等後，weekly 的檢查會自動關閉此 issue。runbook：infra/README.md「GIS 快照更新」、D23。"
+    )
+
+
+def cmd_gis_drift(args, gh: Gh, fetch=None) -> int:
+    snapshot = json.loads(args.snapshot.read_text(encoding="utf-8"))
+    snapshot_seq = (snapshot.get("source") or {}).get("update_sequence")
+    fetch = fetch or fetch_update_sequence
+    try:
+        live_seq, note = fetch()
+    except Exception as e:  # noqa: BLE001 — 學校不通不是 GIS 漂移，不開 issue
+        print(f"::warning title=GIS 漂移檢查失敗::GetCapabilities 讀取失敗，本週略過：{type(e).__name__}: {e}")
+        return 0
+    if note:
+        print(f"::notice title=GIS 漂移檢查::{note}")
+    open_titles = open_titles_with_prefix(gh, GIS_DRIFT_PREFIX)
+    if live_seq == snapshot_seq:
+        for title in open_titles:
+            resolve_issue(gh, title, f"repo 快照已與線上一致（updateSequence {live_seq}），自動關閉。")
+        print(f"gis-drift: ok（updateSequence {live_seq}）")
+        return 0
+    title = gis_drift_title(snapshot_seq, live_seq)
+    stale = [t for t in open_titles if t != title]
+    if title not in open_titles and stale:
+        # 同一件事、線上又前進了：沿用舊 issue、改標題，不另開一張
+        number = find_issue(gh, stale[0])
+        if number:
+            gh(["issue", "edit", number, "--title", title])
+            gh(["issue", "comment", number, "--body", _gis_drift_body(snapshot_seq, live_seq)])
+            print(f"retitled #{number}: {stale[0]} → {title}")
+            return 0
+    raise_issue(gh, title, _gis_drift_body(snapshot_seq, live_seq))
+    print(f"gis-drift: 快照 {snapshot_seq} ≠ 線上 {live_seq}")
+    return 0
+
+
 def render_summary(stages: Optional[Path], merge_reports: Optional[Path]) -> str:
     """各資料集 fetch／merge 結果表（寫進 $GITHUB_STEP_SUMMARY；Actions 列表看不出哪個資料集
     失敗，spec §3 的對策之一）。"""
@@ -404,6 +500,8 @@ def main(argv: Optional[List[str]] = None, gh: Optional[Gh] = None) -> int:
     sc.add_argument("--data", type=Path, default=Path("data"))
     sf = sub.add_parser("season-freshness", help="season 未依排程執行告警（排程 × 觀測紀錄）")
     sf.add_argument("--data", type=Path, default=Path("data"))
+    gd = sub.add_parser("gis-drift", help="GIS 快照漂移檢查（GeoServer updateSequence vs repo 快照，D23）")
+    gd.add_argument("--snapshot", type=Path, default=GIS_SNAPSHOT)
     args = ap.parse_args(argv)
     if args.command == "summary":
         return cmd_summary(args)
@@ -414,6 +512,8 @@ def main(argv: Optional[List[str]] = None, gh: Optional[Gh] = None) -> int:
         return cmd_season_catalog(args, gh)
     if args.command == "season-freshness":
         return cmd_season_freshness(args, gh)
+    if args.command == "gis-drift":
+        return cmd_gis_drift(args, gh)
     return cmd_stale(args, gh)
 
 

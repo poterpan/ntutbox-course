@@ -1,8 +1,8 @@
 name: weekly
 
 # 每週一 05:30 Asia/Taipei（= 週日 21:30 UTC）：登錄表 cadence=weekly 的資料集（details 課綱、
-# standards 課程標準）。結構與 daily 相同（fetch 不上鎖＋commit-publish 上鎖），只差 cadence 與 timeout；
-# 行事曆與資料過期檢查只在 daily 跑。details 的學期規則是 current-term——學期交界時預設學期何時切換
+# standards 課程標準、rooms 教室課表）。結構與 daily 相同（fetch 不上鎖＋commit-publish 上鎖），只差 cadence 與 timeout；
+# 行事曆與資料過期檢查只在 daily 跑；GIS 快照漂移檢查只在這裡跑（alert job）。details 的學期規則是 current-term——學期交界時預設學期何時切換
 # 要人工確認（spec §2），需要時 dispatch 帶 terms。
 on:
   schedule:
@@ -140,3 +140,13 @@ jobs:
           deletions-skipped: ${{ needs.commit-publish.outputs.deletions-skipped }}
           web-redeploy: ${{ needs.commit-publish.outputs.web-redeploy }}
           dry-run: ${{ env.ALERT_DRY_RUN }}
+      # GIS 快照漂移（D23）：學校 GeoServer updateSequence ≠ repo 快照 → `[pipeline] GIS 快照過期（…）`
+      # issue、相等自動關。1 個請求、只用標準庫；學校不通只發 warning。告警失敗不讓管線紅燈。
+      - name: GIS 快照漂移檢查
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PIPELINE_ALERT_DRY_RUN: ${{ env.ALERT_DRY_RUN == 'true' && '1' || '' }}
+        run: python3 infra/pipeline_alert.py gis-drift

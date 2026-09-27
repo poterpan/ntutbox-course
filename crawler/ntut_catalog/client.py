@@ -146,6 +146,13 @@ class CatalogClient:
         return self._request("GET", "SearchMProgram.jsp",
                              params={"format": "-2", "year": str(year), "sem": str(sem), "code": code})
 
+    def croom(self, format: str, year: int, sem: int, code: Optional[str] = None) -> str:
+        """教室使用表 Croom.jsp。format=-2&year&sem（清單）／-3&year&sem&code（單一教室週課表）。"""
+        params = {"format": format, "year": str(year), "sem": str(sem)}
+        if code is not None:
+            params["code"] = code
+        return self._request("GET", "Croom.jsp", params=params)
+
     def cprog(self, format: str, **params) -> str:
         """課程標準 Cprog.jsp。format=-2&year / -3&year&matric / -4&year&matric&division。"""
         p = {"format": format, **{k: str(v) for k, v in params.items()}}

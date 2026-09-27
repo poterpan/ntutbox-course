@@ -510,6 +510,75 @@ class StandardDirectory(BaseModel):
     programs: List[ProgramStandard] = Field(default_factory=list)
 
 
+# ============================================================== 教室課表（Croom.jsp，D23）
+
+class RoomSlot(BaseModel):
+    """教室某一格（星期×節次）**有排課**。反過來不成立：沒有 slot ≠ 保證空著
+    （社團借用、補課、系上開會都不在課表裡）。同一格可有多門課（例：大學部／研究所合開）。"""
+    day: Weekday                                 # 0=日 1=一 … 6=六
+    period: PeriodToken
+    offering_ids: List[str] = Field(default_factory=list)   # 課號，排序後
+
+
+class Room(BaseModel):
+    """課程系統的一間教室（Croom -2 清單一列＋-3 週課表）。**只記學校給的**，不推斷。
+
+    `code` 是 Croom 的教室碼（跨學期穩定，2026-09-25 實測 110-1↔115-1 共 198 間 0 變動）；
+    `raw` 是校方的教室簡稱原文（如「六教526(e)」「綜科110_1」），App 做模糊比對／除錯用，永遠保留。
+    """
+    code: str
+    raw: str
+    full_name: Optional[str] = None
+    capacity: Optional[int] = None               # 容量（座位數）；來源空白 → None，不回退預設值
+    slots: List[RoomSlot] = Field(default_factory=list)
+
+
+class RoomDirectory(BaseModel):
+    """canonical `{term}/rooms.json`：逐學期全部教室（依 code 排序、確定性、不帶時間）。"""
+    schema_version: int = SCHEMA_VERSION
+    term_key: str
+    rooms: List[Room] = Field(default_factory=list)
+
+
+GisMatch = Literal["rule", "override", "building_only", "floor_only", "none"]
+
+
+class RoomGisRef(BaseModel):
+    """對到的 GIS 位置。GIS 房間鍵是 (building_id, class_number)——class_number 只在同一棟內唯一；
+    **不用** sourceFeatureId（gid 重新匯入就會變）。building_only／floor_only 時較細的欄位為 None。"""
+    building_id: str
+    floor_id: Optional[str] = None
+    class_number: Optional[str] = None
+
+
+class TermRoom(Room):
+    """v1 `terms/{t}/rooms.json` 的一間：canonical 的 Room ＋ derive 推的 GIS 對應。
+
+    `gis` 是 list：一個 class_number 可能對到多個多邊形／樓層。`gis_match`：
+      rule（簡稱規則對到）／override（`reference/gis-room-overrides.json`，GIS 名稱可驗證）／
+      building_only（只知道哪棟）／floor_only（只知道哪棟哪層）／none（對不到，gis=[]）。
+    """
+    gis: List[RoomGisRef] = Field(default_factory=list)
+    gis_match: GisMatch = "none"
+
+
+class GisSnapshotInfo(BaseModel):
+    """對應所依據的 GIS 快照版本（`crawler/ntut_catalog/reference/gis-rooms.json`）。"""
+    update_sequence: Optional[int] = None        # 學校 GeoServer WFS GetCapabilities 的 updateSequence
+    campus_map_manifest_sha256: Optional[str] = None
+
+
+class TermRooms(BaseModel):
+    """v1 `terms/{t}/rooms.json`（空教室查找，poterpan/NTUTBox#239）。
+
+    語意：slot＝「有排課」，不是「被占用」；沒有 slot 的時段不保證空著。
+    """
+    schema_version: int = SCHEMA_VERSION
+    term_key: str
+    gis_snapshot: GisSnapshotInfo = Field(default_factory=GisSnapshotInfo)
+    rooms: List[TermRoom] = Field(default_factory=list)
+
+
 # ============================================================== 行事曆（Google Calendar ics）
 
 # 行事曆的 schema 版本**刻意獨立於全域 SCHEMA_VERSION**。
@@ -730,7 +799,8 @@ class ManifestTerm(BaseModel):
     periods: Optional[ManifestEntry] = None
     mprograms: Optional[ManifestEntry] = None     # 微學程（逐學期）
     calendar: Optional[ManifestEntry] = None      # 學年度週次表（逐學期）
-    details: Optional[DetailsFreshness] = None    # 課程詳情新鮮度（無 url）
+    rooms: Optional[ManifestEntry] = None         # 教室課表＋GIS 對應（逐學期，D23；純新增不升版）
+    details:Optional[DetailsFreshness] = None    # 課程詳情新鮮度（無 url）
     dataset_version: Optional[str] = None         # payload 帶此值；App 過舊→提示重驗
 
 

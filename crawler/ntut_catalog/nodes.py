@@ -1,6 +1,6 @@
 """逐節點爬取的失敗統計（spec §3「節點失敗的處理」）。
 
-catalog／standards／mprograms／details 都是「一個上游請求＝一個節點」地逐一抓：單一節點在
+catalog／standards／mprograms／details／rooms 都是「一個上游請求＝一個節點」地逐一抓：單一節點在
 client 重試 5 次後仍失敗，fetcher **照舊跳過續跑**（不讓一個節點拖垮整輪），但必須把它記下來
 回報——否則殘缺的結果會被當成成功、覆寫完整的 canonical 並發佈出去，也不會有任何告警。
 

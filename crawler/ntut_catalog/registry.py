@@ -251,6 +251,20 @@ def fetch_details(ctx: FetchContext, term: str) -> FetchOutput:
     return FetchOutput(files=[ctx.rel(path)], failed_nodes=tally.failed, node_total=tally.total)
 
 
+def fetch_rooms(ctx: FetchContext, term: str) -> FetchOutput:
+    """教室課表（Croom -2 清單＋每間 -3 週課表，約 230 請求）。一間教室＝一個節點（D16／D23）：
+    清單頁失敗＝整個資料集失敗；單間失敗記 `{"room": code}`，merge 從 HEAD 沿用該間。"""
+    from ntut_catalog.rooms import crawl_rooms, write_rooms
+
+    tally = NodeTally()
+    directory = crawl_rooms(ctx.catalog_client, term, tally=tally)
+    path = write_rooms(directory, ctx.out_dir)
+    slots = sum(len(r.slots) for r in directory.rooms)
+    logger.info("[%s] rooms: %d 間（%d 格有排課），失敗 %d/%d", term, len(directory.rooms), slots,
+                len(tally.failed), tally.total)
+    return FetchOutput(files=[ctx.rel(path)], failed_nodes=tally.failed, node_total=tally.total)
+
+
 STANDARDS_YEARS_BACK = 5
 
 
@@ -292,6 +306,9 @@ DATASETS: Dict[str, Dataset] = {d.name: d for d in [
             writes=("{term}/details.ndjson",), content=("{term}/details.ndjson",)),
     Dataset("standards", "weekly", "none", fetch_standards,
             writes=("standards/*.json",), content=("standards/*.json",)),
+    # 空教室查找（D23）：教室課表一學期內幾乎不動 → weekly；學期規則同 catalog（含即將選課的學期）
+    Dataset("rooms", "weekly", "active", fetch_rooms,
+            writes=("{term}/rooms.json",), content=("{term}/rooms.json",)),
     Dataset("enrollment", "season", "current", fetch_enrollment,
             writes=(_ENROLLMENT_SNAPSHOTS,), append_only=(_OBSERVATIONS,)),
 ]}

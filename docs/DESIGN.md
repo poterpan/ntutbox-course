@@ -53,7 +53,8 @@
 | `ShowSyllabus.jsp?snum=<課號>&code=<教師碼>` | 教學大綱（目標/進度/評量/教材/SDGs/AI…） | 每位老師一份 |
 | `Subj.jsp?format=-2&year&sem` | 系所列表 | `format=-3` 某系班級、`-4` 某班課表(`code`=班級碼) |
 | `Teach.jsp?format=-3&year&sem&code=<教師碼>` | 教師課表 | |
-| `Croom.jsp?format=-3&year&sem&code=<教室碼>` | 教室課表（可做空教室查詢） | |
+| `Croom.jsp?format=-2&year&sem` | 教室清單（簡稱連結帶 `code=`、全名、容量、使用率） | `format=-3&code` = 單一教室週課表；見 §4.8 |
+| `Croom.jsp?format=-3&year&sem&code=<教室碼>` | 教室課表（空教室查找的資料源，`rooms` 資料集） | 見 §4.8 |
 | `SearchMProgram.jsp?format=-1&year&sem` | 微學程列表 | `format=-2&code` = 該學程課程 |
 | `Cprog.jsp?format=-1` | 課程標準/畢業標準（年→學制→系所下鑽） | `-2&year` / `-3&year&matric` / `-4&...&division` |
 | `Select.jsp?format=-2&code=<學號>&year&sem` | **個人**已選課表（**需登入** app SSO） | 我們的 `course.py` 用這支 |
@@ -333,6 +334,19 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 
 ---
 
+## 4.8 教室課表（Croom.jsp）→ `rooms` 資料集（D23，2026-09-27 live 實證）
+
+App 的「空教室查找」（poterpan/NTUTBox#239）要的是**每間教室的課表**，不是「現在哪些教室空著」（可離線、可查未來時段、吃現有 CDN＋ETag 管線）。
+
+- **清單** `Croom.jsp?format=-2&year=Y&sem=S`：一張表，表頭 `教室簡稱／教室全名／容量(座位數)／日間・夜間・週末使用狀況(節數, 使用率)`（前三欄 rowspan=2、後三組 colspan=2）。簡稱是 `<a href="Croom.jsp?format=-3&year&sem&code=438">六教526(e)</a>`。115-1 共 **231 間**；容量可空白（實驗室、講堂常見）→ `capacity: null`。
+- **週課表** `format=-3&year&sem&code=`：第一張表重複該教室的清單列（**沒有**連結）；第二張表表頭 `　 日 一 二 三 四 五 六`，列標 `第 N 節<BR>12:10 - 13:00`，節次 `1,2,3,4,N,5,6,7,8,9,A,B,C,D`。格子內每門課是 `(課號) [N人]<BR><a Curr.jsp>課名</a><BR><a Subj.jsp -4>班級</a><BR>`，**同一格可有多門**（115-1 有 228 格；例 code 438 六教526 週五 2–4 節 367018 工程學院(大)＋367019 工程學院(研) 合開）。空格是全形空白。
+- 錯誤參數回 HTTP 200 的錯誤頁（「網址格式錯誤或參數不完整，無法進行查詢！」，沒有「查詢選課資料出現錯誤」字樣 → client 不重試）；解析找不到「日..六」表頭即 raise → 記為失敗節點。
+- 本學期沒有排課的教室（例 110-1 在清單、115-1 不在的 code 141 設計501）照樣回完整的空課表 → 合法的「0 格」。
+- **code 跨學期穩定**：110-1（215 間）與 115-1（231 間）共同的 198 間簡稱 0 變動。canonical 以 code 為鍵、依 code 數值排序。
+- 115-1 實跑（2026-09-27）：233 請求（清單＋231 間＋current-term）、3 分 15 秒、0 失敗、4,419 格、1,726 個課號全在 catalog 內。
+- **課表只代表「有排課」**：社團借用、補課、會議、考試借教室都不在課表裡 → 沒有 slot ≠ 保證空著，App 文案不可講死。
+- **不是全校空間**：房間宇宙是課程系統的教室清單；校園 GIS（`ntut-campus-map`）連辦公室、實驗室、廁所都有，只拿來定位。GIS 對應規則與 `gis_match` 見 `crawler/ntut_catalog/room_gis.py` 與 D23。
+
 ## 5. 待辦 / 未解（之後回來做）
 
 - [x] ~~決定資料託管~~ → **定案：GitHub Actions 跑爬蟲 + Cloudflare(R2/Pages) 出口 + git 留歷史**（§4.3）。
@@ -346,7 +360,7 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 - [ ] `meetings.weekPattern/dateRange` 設 optional（來源無）；`capacity` 標恆 null（僅 cwish live 補）；衝堂只用 day×period 交集。
 - [ ] 課程標準補抓 `Cprog format=-4` 的 td[3] 課程編碼 → 建 `courseCode → requirement.category` 對照。
 - [ ] (v1.1) 爬各班課表頁取 `blockedSlots`（班週會/導師時間，QueryCourse 看不到）。
-- [ ] `Croom.jsp`（空教室）、`Cprog.jsp`（畢業標準/校曆）是否納入排課 MVP。
+- [x] ~~`Croom.jsp`（空教室）~~ → `rooms` 資料集（§4.8、D23）；`Cprog.jsp` 已做課程標準。
 - [ ] 確認 115/1（2026 秋）開課資料公布時間（搶課排程要對上）。
 - [x] ~~驗證 cunum/subj 配對行為~~ → **已 live 實證(§4.6)：後端嚴格驗 (cunum,subj)、cunum 綁本人授權、subj 必屬該 cunum；送件必依班級分組帶正確 cunum**。
 - [ ] App 送件層：每課存 `(cwishCunum, cwishSubj)`，cunum 取自 cwish live 本班/外班清單，依 cunum 分組批次送；實作錯誤翻譯表(§4.6)。

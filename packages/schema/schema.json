@@ -31,6 +31,9 @@
     },
     "TermCalendarFile": {
       "$ref": "#/$defs/TermCalendarFile"
+    },
+    "TermRooms": {
+      "$ref": "#/$defs/TermRooms"
     }
   },
   "$defs": {
@@ -1260,6 +1263,17 @@
           "default": null
         },
         "calendar": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ManifestEntry"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rooms": {
           "anyOf": [
             {
               "$ref": "#/$defs/ManifestEntry"
@@ -2538,6 +2552,224 @@
         "source"
       ],
       "title": "TermCalendarFile",
+      "type": "object"
+    },
+    "GisSnapshotInfo": {
+      "description": "對應所依據的 GIS 快照版本（`crawler/ntut_catalog/reference/gis-rooms.json`）。",
+      "properties": {
+        "update_sequence": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Update Sequence"
+        },
+        "campus_map_manifest_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Campus Map Manifest Sha256"
+        }
+      },
+      "title": "GisSnapshotInfo",
+      "type": "object"
+    },
+    "RoomGisRef": {
+      "description": "對到的 GIS 位置。GIS 房間鍵是 (building_id, class_number)——class_number 只在同一棟內唯一；\n**不用** sourceFeatureId（gid 重新匯入就會變）。building_only／floor_only 時較細的欄位為 None。",
+      "properties": {
+        "building_id": {
+          "title": "Building Id",
+          "type": "string"
+        },
+        "floor_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Floor Id"
+        },
+        "class_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Class Number"
+        }
+      },
+      "required": [
+        "building_id"
+      ],
+      "title": "RoomGisRef",
+      "type": "object"
+    },
+    "RoomSlot": {
+      "description": "教室某一格（星期×節次）**有排課**。反過來不成立：沒有 slot ≠ 保證空著\n（社團借用、補課、系上開會都不在課表裡）。同一格可有多門課（例：大學部／研究所合開）。",
+      "properties": {
+        "day": {
+          "enum": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6
+          ],
+          "title": "Day",
+          "type": "integer"
+        },
+        "period": {
+          "enum": [
+            "1",
+            "2",
+            "3",
+            "4",
+            "N",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "A",
+            "B",
+            "C",
+            "D"
+          ],
+          "title": "Period",
+          "type": "string"
+        },
+        "offering_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Offering Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "day",
+        "period"
+      ],
+      "title": "RoomSlot",
+      "type": "object"
+    },
+    "TermRoom": {
+      "description": "v1 `terms/{t}/rooms.json` 的一間：canonical 的 Room ＋ derive 推的 GIS 對應。\n\n`gis` 是 list：一個 class_number 可能對到多個多邊形／樓層。`gis_match`：\n  rule（簡稱規則對到）／override（`reference/gis-room-overrides.json`，GIS 名稱可驗證）／\n  building_only（只知道哪棟）／floor_only（只知道哪棟哪層）／none（對不到，gis=[]）。",
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "raw": {
+          "title": "Raw",
+          "type": "string"
+        },
+        "full_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Full Name"
+        },
+        "capacity": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Capacity"
+        },
+        "slots": {
+          "items": {
+            "$ref": "#/$defs/RoomSlot"
+          },
+          "title": "Slots",
+          "type": "array"
+        },
+        "gis": {
+          "items": {
+            "$ref": "#/$defs/RoomGisRef"
+          },
+          "title": "Gis",
+          "type": "array"
+        },
+        "gis_match": {
+          "default": "none",
+          "enum": [
+            "rule",
+            "override",
+            "building_only",
+            "floor_only",
+            "none"
+          ],
+          "title": "Gis Match",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "raw"
+      ],
+      "title": "TermRoom",
+      "type": "object"
+    },
+    "TermRooms": {
+      "description": "v1 `terms/{t}/rooms.json`（空教室查找，poterpan/NTUTBox#239）。\n\n語意：slot＝「有排課」，不是「被占用」；沒有 slot 的時段不保證空著。",
+      "properties": {
+        "schema_version": {
+          "default": 3,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "term_key": {
+          "title": "Term Key",
+          "type": "string"
+        },
+        "gis_snapshot": {
+          "$ref": "#/$defs/GisSnapshotInfo"
+        },
+        "rooms": {
+          "items": {
+            "$ref": "#/$defs/TermRoom"
+          },
+          "title": "Rooms",
+          "type": "array"
+        }
+      },
+      "required": [
+        "term_key"
+      ],
+      "title": "TermRooms",
       "type": "object"
     }
   }

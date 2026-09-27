@@ -1,0 +1,8 @@
+{
+ "_comment": "課程系統教室簡稱（raw 原文）→ GIS (building_id, class_number) 的人工對應。只收在 GIS 以名稱可驗證者：derive 檢查該房間的 GIS 名稱含 gis_name，不含就忽略這筆、改走規則並 warning。對不準的（科研哈佛講堂、共同演講廳、紡織*）不放這裡，交給規則標 building_only／none。見 docs/DECISIONS.md D23。",
+ "overrides": [
+  {"raw": "思源講堂", "building_id": "CB", "class_number": "417-2", "gis_name": "思源講堂", "note": "全名「電機系思源講堂」；GIS 綜合科館 4F 417-2「思源講堂」"},
+  {"raw": "綜二演講廳", "building_id": "CB", "class_number": "B19", "gis_name": "第二演講廳", "note": "全名「綜合科館第二演講廳」；GIS 綜合科館 B1 B19「第二演講廳」"},
+  {"raw": "綜三演講廳", "building_id": "CB", "class_number": "B20", "gis_name": "第三演講廳", "note": "全名「綜合科館第三演講廳」；GIS 綜合科館 B1 B20「第三演講廳」"}
+ ]
+}
