@@ -32,9 +32,11 @@ class FakeClient:
             return self.subj3
         return "<html><body></body></html>"
 
-    def query_course(self, year, sem, matric, unit):
+    def query_course(self, year, sem, matric, unit, **kw):
         if unit == "59" and matric == SCHOOL_MATRIC:
             return self.csie
+        if unit == ALL_UNITS and matric == SCHOOL_MATRIC:
+            return self.csie  # 全校一次查：只有一個系所，等於該系所的課
         if unit == ALL_UNITS and matric == "'7'":
             return self.csie  # 假設全部都是四技課
         return EMPTY_TABLE

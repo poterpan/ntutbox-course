@@ -170,6 +170,32 @@ def test_result_entry_shape(tmp_path):
     assert not (tmp_path / "canonical" / "115-1" / "enrollment" / es.OBSERVATIONS).exists()
 
 
+@pytest.mark.parametrize("school_fails, expected", [(False, "school"), (True, "per-dept")])
+def test_season_enrollment_records_source_and_merges(tmp_path, school_fails, expected):
+    """season 人數刷新：pipeline-result 記下走了哪條路（全校一次查／退回逐系所），merge 照常收。"""
+    from ntut_catalog.client import ALL_UNITS, SCHOOL_MATRIC
+
+    class Season(DailyFakeClient):
+        def query_course(self, year, sem, matric, unit, **kw):
+            if school_fails and unit == ALL_UNITS and matric == SCHOOL_MATRIC:
+                raise RuntimeError("request failed after 2 attempts: QueryCourse.jsp")
+            return super().query_course(year, sem, matric, unit, **kw)
+
+    clock = Clock(dt.datetime(2026, 10, 5, 9, 0, tzinfo=TAIPEI))
+    data = tmp_path / "data"
+    pipeline.run("manual", ["catalog"], ["115-1"], data, tmp_path / "s0", ctx=_ctx(data, clock))
+    merge_fetch_output(tmp_path / "s0", data)
+    clock.t = dt.datetime(2026, 10, 5, 10, 0, tzinfo=TAIPEI)
+    stage = tmp_path / "s1"
+    result = pipeline.run("season", None, ["115-1"], data, stage, ctx=_ctx(data, clock, Season))
+    (e,) = result.datasets
+    assert e["ok"] and e["enrollment_source"] == expected
+    written = json.loads((stage / "pipeline-result.json").read_text(encoding="utf-8"))
+    assert written["datasets"][0]["enrollment_source"] == expected
+    report = merge_fetch_output(stage, data)
+    assert not report.dropped and not report.alerts
+
+
 # ------------------------------------------------------------ 登錄表與學期規則
 
 def test_registry_cadences():

@@ -26,6 +26,7 @@ from models import (
     AcademicTerm,
     CalendarEvent,
     DateRange,
+    EnrollmentWindow,
     TermCalendarFile,
     TermCalendarSource,
     TermWeek,
@@ -35,7 +36,9 @@ from ntut_catalog.ics import TAIPEI
 
 logger = logging.getLogger(__name__)
 
-PARSER_VERSION = "calendar/1.0.0"
+# 1.1.0：新增 enrollment_windows（選課相關窗口，issue #111）；週次表規則不變。
+PARSER_VERSION = "calendar/1.1.0"
+DERIVED_FIELDS = ["weeks", "preparation", "enrollment_windows"]
 WEEK_TABLE_REFERENCE = Path(__file__).parent / "reference" / "pdf-week-tables-111-115.json"
 
 # 「開學」措辭逐年不同（115-1「開學暨註冊截止日、開學典禮」、115-2「開學正式上課、註冊截止日」），
@@ -165,7 +168,7 @@ def derive_term(events: Sequence[CalendarEvent], term_key: str) -> AcademicTerm:
     prep_start = dt.date.fromisoformat(weeks[0].start) - dt.timedelta(days=7)
     admin = pick_event(window, term_key, _ADMIN, required=False)
     flexible = pick_event(window, term_key, _FLEXIBLE, required=False)
-    return AcademicTerm(
+    term = AcademicTerm(
         administrative_start=event_start_date(admin).isoformat() if admin else None,
         preparation=DateRange(start=prep_start.isoformat(),
                               end=(prep_start + dt.timedelta(days=6)).isoformat()),
@@ -176,6 +179,253 @@ def derive_term(events: Sequence[CalendarEvent], term_key: str) -> AcademicTerm:
         flexible_learning=_range_of(flexible) if flexible else None,
         break_start=b_date.isoformat(),
     )
+    term.enrollment_windows = derive_enrollment_windows(events, window, term_key, term)
+    return term
+
+
+# ----------------------------------------------------------------- 選課相關窗口（issue #111）
+#
+# 行事曆的寫法逐年不同（空白、全形／半形括號、有無學年度、「17:00 截止」註記、日夜間拆不拆兩筆），
+# 所以一律關鍵字＋容錯比對。**推導不出來不讓週次表失敗**——窗口只給 season 排程用，
+# 空 list＋warning 就好；週次表錯了 App 整學期都是錯的，這兩者的風險不對等。
+
+_ONLINE_SELECTION = r"網路選課"            # 「新生網路預選」不含「網路選課」，不會誤中
+_FRESHMAN = r"新生網路預選"
+_ADD_DROP = r"加選及無紀錄退選"
+_WITHDRAW_OPEN = r"期中撤選開始"
+_WITHDRAW_CLOSE = r"撤選結束"
+
+# 事件沒寫時刻時的截止時間（校方慣例：日間部 17:00、進修部 21:00；未分部別照日間部）
+DAY_CLOSE = dt.time(17, 0)
+EVENING_CLOSE = dt.time(21, 0)
+_DEFAULT_CLOSE = {"day": DAY_CLOSE, "evening": EVENING_CLOSE, "all": DAY_CLOSE}
+# 例外：期中撤選的進修部也是 17:00 截止——110～115 學年度凡是寫了時刻的「進修部期中撤選結束」
+# 一律 17:00（標題註記或事件時刻），只有沒寫的幾年（111-1、112-1…）才會落到預設，照實證用 17:00。
+_KIND_DEFAULT_CLOSE = {"midterm_withdrawal": {"evening": DAY_CLOSE}}
+
+_KIND_ORDER = ("online_selection", "freshman_preselection", "add_drop", "midterm_withdrawal")
+_DIVISION_ORDER = ("all", "day", "evening")
+_DIVISION_WORD = {"day": "日間部", "evening": "進修部"}
+_CN_SEM = {"1": 1, "2": 2, "一": 1, "二": 2}
+_TITLE_TERM = re.compile(r"(\d{3})\s*學年度\s*第\s*([12一二])\s*學期|(\d{3})\s*-\s*([12])")
+_TITLE_SEM_ONLY = re.compile(r"第\s*([12一二])\s*學期")
+_TIME = r"(\d{1,2})\s*[:：]\s*(\d{2})"
+
+# 窗口不變量的容許範圍
+ADD_DROP_START_SLACK = dt.timedelta(days=7)      # 加退選開始日距開學日
+ADD_DROP_MAX_DAYS = 28                           # 加退選不會超過開學後 4 週
+
+
+def _divisions(summary: str) -> List[str]:
+    return [d for d, word in _DIVISION_WORD.items() if word in summary]
+
+
+def _start_at(ev: CalendarEvent) -> dt.datetime:
+    if ev.all_day:
+        return dt.datetime.combine(dt.date.fromisoformat(ev.start_date), dt.time(0), TAIPEI)
+    return dt.datetime.fromisoformat(ev.start_at).astimezone(TAIPEI)
+
+
+def _end_parts(ev: CalendarEvent) -> Tuple[dt.date, Optional[dt.time]]:
+    """事件的截止日與時刻（沒寫時刻 → None）。
+
+    有時刻的事件結束在 00:00 → 視為「前一天整天」（ics 的 end-exclusive 寫法），沒有時刻。
+    """
+    if ev.all_day:
+        return dt.date.fromisoformat(ev.end_date or ev.start_date), None
+    start = dt.datetime.fromisoformat(ev.start_at).astimezone(TAIPEI)
+    end = dt.datetime.fromisoformat(ev.end_at or ev.start_at).astimezone(TAIPEI)
+    if end.time() == dt.time(0):
+        return (end - dt.timedelta(days=1)).date() if end > start else end.date(), None
+    return end.date(), end.time()
+
+
+def _title_time(summary: str, division: str) -> Optional[dt.time]:
+    """標題裡的截止時刻註記：「(日間部 17:00 截止，進修部 21:00 截止)」「(17:00截止)」。"""
+    word = _DIVISION_WORD.get(division)
+    if word:
+        m = re.search(word + r"[^0-9日進]*?" + _TIME, summary)
+        if m:
+            return dt.time(int(m.group(1)), int(m.group(2)))
+    others = [w for d, w in _DIVISION_WORD.items() if d != division]
+    if any(w in summary for w in others):
+        return None        # 另一個部別的時刻不能拿來用
+    m = re.search(_TIME + r"\s*截止", summary)
+    return dt.time(int(m.group(1)), int(m.group(2))) if m else None
+
+
+def _close_at(ev: CalendarEvent, division: str, split: bool, kind: str = "") -> dt.datetime:
+    """截止時刻：事件本身的時刻 > 標題註記 > 預設（日 17:00／夜 21:00）。
+
+    一筆事件涵蓋兩個部別（`split`）時，事件的結束時刻是較晚那個（進修部）的，
+    日間部改取標題註記或預設。
+    """
+    day, t = _end_parts(ev)
+    if t is not None and not split:
+        return dt.datetime.combine(day, t, TAIPEI)
+    t2 = _title_time(ev.summary, division)
+    if t2 is None and t is not None and division == "evening":
+        t2 = t
+    default = _KIND_DEFAULT_CLOSE.get(kind, {}).get(division, _DEFAULT_CLOSE[division])
+    return dt.datetime.combine(day, t2 or default, TAIPEI)
+
+
+def _next_term(term_key: str) -> str:
+    year, sem = (int(x) for x in term_key.split("-"))
+    return f"{year}-2" if sem == 1 else f"{year + 1}-1"
+
+
+def _containing_term(d: dt.date) -> str:
+    """日期所在的學期（term_window：Y-08~(Y+1)-01 為上學期、02~07 為下學期）。"""
+    if d.month >= 8:
+        return f"{d.year - 1911}-1"
+    if d.month == 1:
+        return f"{d.year - 1912}-1"
+    return f"{d.year - 1912}-2"
+
+
+def selection_target_term(ev: CalendarEvent) -> str:
+    """網路選課事件是在選**哪個學期**的課。
+
+    標題有學年度學期（「115學年度第2學期網路選課」「108-2網路選課」）→ 照標題；
+    沒有 → 舉行日期所在學期的**下一學期**（初選在前一學期期末舉行）。
+    """
+    m = _TITLE_TERM.search(ev.summary)
+    if m:
+        year = m.group(1) or m.group(3)
+        sem = _CN_SEM[m.group(2) or m.group(4)]
+        return f"{int(year)}-{sem}"
+    return _next_term(_containing_term(event_start_date(ev)))
+
+
+def _assign_divisions(term_key: str, kind: str, events: Sequence[CalendarEvent],
+                      warnings: List[str]) -> List[Tuple[CalendarEvent, str, bool]]:
+    """每筆事件 → (事件, 部別, 是否一筆涵蓋兩個部別)。
+
+    標題有部別照標題（兩個都有 → 拆兩個窗口）；沒寫部別的：另一個部別已有明確事件 → 補那個部別；
+    兩筆都沒寫 → 較早截止者為日間部、較晚者為進修部；只有一筆 → `all`。同部別出現兩筆 → 不猜、丟棄。
+    """
+    out: List[Tuple[CalendarEvent, str, bool]] = []
+    unqualified: Dict[Tuple, CalendarEvent] = {}
+    for ev in events:
+        divs = _divisions(ev.summary)
+        if divs:
+            out += [(ev, d, len(divs) > 1) for d in divs]
+        else:
+            # 同日期同時刻的重複事件（113-2 有兩筆一模一樣的「期中撤選結束」）只算一筆
+            unqualified.setdefault((_start_at(ev), _end_parts(ev)), ev)
+    unq = sorted(unqualified.values(), key=lambda e: (_end_parts(e)[0], _start_at(e)))
+    taken = {d for _, d, _ in out}
+    missing = [d for d in ("day", "evening") if d not in taken]
+    if unq:
+        if taken and len(unq) <= len(missing):
+            out += [(ev, d, False) for ev, d in zip(unq, missing)]
+        elif not taken and len(unq) == 2:
+            out += [(unq[0], "day", False), (unq[1], "evening", False)]
+        elif not taken and len(unq) == 1:
+            out.append((unq[0], "all", False))
+        else:
+            warnings.append(f"{term_key} {kind}: 未標部別的事件無法歸屬："
+                            + "、".join(repr(e.summary) for e in unq))
+    seen: Dict[str, int] = {}
+    for _, d, _ in out:
+        seen[d] = seen.get(d, 0) + 1
+    dup = sorted(d for d, n in seen.items() if n > 1)
+    if dup:
+        warnings.append(f"{term_key} {kind}: 部別 {dup} 命中多筆事件，無法判定："
+                        + "、".join(repr(e.summary) for e, _, _ in out))
+        return []
+    return out
+
+
+def _window(kind: str, division: str, start: dt.datetime, end: dt.datetime,
+            uids: Sequence[str]) -> EnrollmentWindow:
+    return EnrollmentWindow(kind=kind, division=division,
+                            start=start.isoformat(timespec="seconds"),
+                            end=end.isoformat(timespec="seconds"),
+                            source_uids=list(dict.fromkeys(uids)))
+
+
+def _simple_windows(term_key: str, kind: str, events: Sequence[CalendarEvent],
+                    warnings: List[str]) -> List[EnrollmentWindow]:
+    return [_window(kind, d, _start_at(ev), _close_at(ev, d, split, kind), [ev.uid])
+            for ev, d, split in _assign_divisions(term_key, kind, events, warnings)]
+
+
+def _withdrawal_windows(term_key: str, window: Sequence[CalendarEvent],
+                        warnings: List[str]) -> List[EnrollmentWindow]:
+    """期中撤選：「期中撤選開始」（單日）＋各部別「…撤選結束」（單日）配對成區間。"""
+    opens = [e for e in window if re.search(_WITHDRAW_OPEN, e.summary)]
+    closes = [e for e in window if re.search(_WITHDRAW_CLOSE, e.summary)]
+    if not opens and not closes:
+        return []
+    if len(opens) != 1 or not closes:
+        warnings.append(f"{term_key} midterm_withdrawal: 開始 {len(opens)} 筆、結束 {len(closes)} 筆，"
+                        "無法配對")
+        return []
+    (op,) = opens
+    return [_window("midterm_withdrawal", d, _start_at(op),
+                    _close_at(ev, d, split, "midterm_withdrawal"),
+                    [op.uid, ev.uid])
+            for ev, d, split in _assign_divisions(term_key, "midterm_withdrawal", closes, warnings)]
+
+
+def window_violations(term_key: str, term: AcademicTerm, w: EnrollmentWindow) -> List[str]:
+    """單一窗口的不變量（空 list = 通過）。違反者由 derive_enrollment_windows 丟棄並 warning。"""
+    bad: List[str] = []
+    start, end = dt.datetime.fromisoformat(w.start), dt.datetime.fromisoformat(w.end)
+    label = f"{term_key} {w.kind}/{w.division}"
+    instr = dt.datetime.combine(dt.date.fromisoformat(term.instruction_start), dt.time(0), TAIPEI)
+    last = (dt.datetime.combine(dt.date.fromisoformat(term.weeks[-1].end), dt.time(0), TAIPEI)
+            + dt.timedelta(days=1)) if term.weeks else None
+    if end <= start:
+        bad.append(f"{label}: 截止 {w.end} 不晚於開始 {w.start}")
+    if w.kind in ("online_selection", "freshman_preselection") and end > instr:
+        bad.append(f"{label}: 截止 {w.end} 晚於開學日 {term.instruction_start}")
+    if w.kind == "freshman_preselection" and not term_key.endswith("-1"):
+        bad.append(f"{label}: 新生預選只在上學期")
+    if w.kind == "add_drop":
+        if abs(start - instr) > ADD_DROP_START_SLACK:
+            bad.append(f"{label}: 開始 {w.start} 距開學日 {term.instruction_start} 超過 "
+                       f"{ADD_DROP_START_SLACK.days} 天")
+        if end > instr + dt.timedelta(days=ADD_DROP_MAX_DAYS):
+            bad.append(f"{label}: 截止 {w.end} 超過開學後 {ADD_DROP_MAX_DAYS} 天")
+    if w.kind == "midterm_withdrawal" and (start < instr or (last and max(start, end) > last)):
+        bad.append(f"{label}: {w.start}~{w.end} 不在上課期間 {term.instruction_start}~"
+                   f"{term.weeks[-1].end if term.weeks else '?'} 內")
+    return bad
+
+
+def check_window_invariants(term_key: str, term: AcademicTerm) -> List[str]:
+    return [v for w in term.enrollment_windows for v in window_violations(term_key, term, w)]
+
+
+def derive_enrollment_windows(events: Sequence[CalendarEvent], window: Sequence[CalendarEvent],
+                              term_key: str, term: AcademicTerm) -> List[EnrollmentWindow]:
+    """推導學期的選課相關窗口；推導不出來或違反不變量的窗口丟棄並 warning，不拋錯。
+
+    `events` 是整份 feed（網路選課在前一學期舉行、要跨窗口找），`window` 是本學期窗口內的事件。
+    """
+    warnings: List[str] = []
+    online = [e for e in events if re.search(_ONLINE_SELECTION, e.summary)
+              and selection_target_term(e) == term_key]
+    found = _simple_windows(term_key, "online_selection", online, warnings)
+    found += _simple_windows(term_key, "freshman_preselection",
+                             [e for e in window if re.search(_FRESHMAN, e.summary)], warnings)
+    found += _simple_windows(term_key, "add_drop",
+                             [e for e in window if re.search(_ADD_DROP, e.summary)], warnings)
+    found += _withdrawal_windows(term_key, window, warnings)
+    keep: List[EnrollmentWindow] = []
+    for w in found:
+        bad = window_violations(term_key, term, w)
+        if bad:
+            warnings += bad
+        else:
+            keep.append(w)
+    for msg in warnings:
+        logger.warning("選課窗口：%s（該窗口不產出，週次表照常）", msg)
+    return sorted(keep, key=lambda w: (w.start, _KIND_ORDER.index(w.kind),
+                                       _DIVISION_ORDER.index(w.division)))
 
 
 def check_invariants(term_key: str, term: AcademicTerm,
@@ -259,7 +509,7 @@ def build_term_calendar(
             url=source_url, content_sha256=content_sha256,
             parsed_at=dt.datetime.now(TAIPEI).isoformat(timespec="seconds"),
             parser_version=PARSER_VERSION,
-            derived_fields=["weeks", "preparation"],
+            derived_fields=list(DERIVED_FIELDS),
         ),
         terms={term_key: term},
     )
@@ -321,7 +571,7 @@ def build_all_term_calendars(
         k: TermCalendarFile(
             source=TermCalendarSource(
                 url=source_url, content_sha256=content_sha256, parsed_at=now,
-                parser_version=PARSER_VERSION, derived_fields=["weeks", "preparation"]),
+                parser_version=PARSER_VERSION, derived_fields=list(DERIVED_FIELDS)),
             terms={k: term},
         )
         for k, term in terms.items()

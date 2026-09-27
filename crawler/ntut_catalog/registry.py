@@ -196,18 +196,24 @@ def fetch_catalog(ctx: FetchContext, term: str) -> FetchOutput:
 
 
 def fetch_enrollment(ctx: FetchContext, term: str) -> FetchOutput:
-    """選課季輕量人數刷新（原 `refresh-enrollment`）：只抓人/撤，寫候選快照。"""
+    """選課季輕量人數刷新（原 `refresh-enrollment`）：只抓人/撤，寫候選快照。
+
+    先全校一次查、失敗退回逐系所（orchestrator.crawl_enrollment）；用了哪條記進 `extra`。
+    """
     from ntut_catalog.orchestrator import crawl_enrollment
 
     if not (_catalog_term_dir(ctx, term) / "catalog.ndjson").exists():
         raise RuntimeError(f"[{term}] no canonical catalog — 先跑 catalog 再刷人數")
     observed_at = ctx.now_iso()
-    enr = crawl_enrollment(ctx.catalog_client, term, observed_at)
+    enr, source = crawl_enrollment(ctx.catalog_client, term, observed_at)
     snap = enrollment_store.write_candidate(
         _catalog_term_dir(ctx, term), enrollment_store.rows_from_enrollment(enr), observed_at)
-    logger.info("[%s] enrollment: %d courses @ %s", term, len(enr.counts), observed_at)
+    logger.info("[%s] enrollment: %d courses @ %s（來源 %s）", term, len(enr.counts), observed_at,
+                source)
+    # enrollment_source：school＝全校一次查、per-dept＝全校查詢失敗後退回逐系所（issue #111）
     return FetchOutput(files=[ctx.rel(snap)],
-                       extra={"enrollment": {"observed_at": observed_at, "snapshot": snap.stem}})
+                       extra={"enrollment": {"observed_at": observed_at, "snapshot": snap.stem},
+                              "enrollment_source": source})
 
 
 def fetch_mprograms(ctx: FetchContext, term: str) -> FetchOutput:

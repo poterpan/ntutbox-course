@@ -2282,6 +2282,13 @@
         "break_start": {
           "title": "Break Start",
           "type": "string"
+        },
+        "enrollment_windows": {
+          "items": {
+            "$ref": "#/$defs/EnrollmentWindow"
+          },
+          "title": "Enrollment Windows",
+          "type": "array"
         }
       },
       "required": [
@@ -2310,6 +2317,53 @@
         "end"
       ],
       "title": "DateRange",
+      "type": "object"
+    },
+    "EnrollmentWindow": {
+      "description": "選課相關窗口（issue #111）：由 ics 具名事件推導，season 排程（ops/season-schedule.json）的來源。\n\n- `online_selection`（網路選課／初選）歸屬**被選的學期**：「115學年度第2學期網路選課」在\n  12 月舉行、落在 115-1 的日期範圍內，但它屬於 115-2 的 calendar.json。\n- `freshman_preselection`／`add_drop`／`midterm_withdrawal` 歸屬它發生的學期。\n- `division`：日間部 `day`、進修部 `evening`、標題未分部別 `all`。\n- `start`／`end`：ISO-8601 +08:00 的**時刻**（不是日期）。事件沒寫時刻時，截止日間部\n  17:00、進修部 21:00（標題「(17:00 截止)」這類註記優先）。",
+      "properties": {
+        "kind": {
+          "enum": [
+            "online_selection",
+            "freshman_preselection",
+            "add_drop",
+            "midterm_withdrawal"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "division": {
+          "enum": [
+            "day",
+            "evening",
+            "all"
+          ],
+          "title": "Division",
+          "type": "string"
+        },
+        "start": {
+          "title": "Start",
+          "type": "string"
+        },
+        "end": {
+          "title": "End",
+          "type": "string"
+        },
+        "source_uids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Uids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "division",
+        "start",
+        "end"
+      ],
+      "title": "EnrollmentWindow",
       "type": "object"
     },
     "TermCalendarSource": {

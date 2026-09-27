@@ -90,3 +90,11 @@ merge（鎖內、對最新 HEAD）的規則：
 
 ## D17 — runner 釘 `ubuntu-24.04`
 所有資料管線 workflow 的 `runs-on` 釘 `ubuntu-24.04`，不用 `ubuntu-latest`。觸發點：GitHub 公告 `ubuntu-latest` 自 2026-10-19 起分批改指向 Ubuntu 26（runner-images#14748），切換期剛好撞上管線 v2 上線與 12/07 的 115-2 選課季；而 publish 依賴映像預裝的 AWS CLI、告警依賴預裝的 `gh`、commit job 依賴預裝的 `git`，映像一換，這些工具的版本或有無可能在程式碼沒動的某一天改變，且分批切換會讓同一支 workflow 前後跑在不同映像上、難以歸因。映像升級排在選課季之後（115-2 選課結束後）另開 PR 統一升，升完手動跑一次 daily／weekly 驗證；屆時一併評估 AWS CLI 改以 pip 安裝並固定版本，降低對預裝工具的依賴。
+
+## D18 — season 自動觸發：排程在 Python、Worker 只觸發；人數改全校一次查（issue #111）
+- **觸發不用 GitHub cron**：2026-08-25～09-25 實測每小時排程只觸發 196/744 次、每日排程延遲中位 2.4 小時。改由 Cloudflare Worker Cron 每小時醒來 → GitHub API `workflow_dispatch` `season.yml`。
+- **邏輯全在 Python，Worker 只比對與觸發**：derive 產 `data/ops/season-schedule.json`（明確列出每個整點觸發格＋`terms`／`windows`／`reason`），publish 傳到 `course/ops/season-schedule.json`；Worker 只看「現在這個整點在不在 `slots` 裡」。頻率規則、窗口解析、學期歸屬都能在 pytest 驗證，Worker 沒有要測的邏輯。排程檔在 v1 之外、不列進 manifest、不參與過期刪除；範圍＝manifest `calendars` 的學期，不讀系統時間（D11 的確定性）。
+- **行事曆只有一個 parser**：選課窗口（網路選課／新生網路預選／加選及無紀錄退選／期中撤選）由 `term_calendar.py` 推導、寫進週次表 `{term}/calendar.json` 的 `enrollment_windows`（新增欄位，D15 不升 `CALENDAR_SCHEMA_VERSION`），`season_schedule.py` 只展開、不再解析事件——App 與排程看到的是同一份窗口。網路選課歸**被選的學期**（「115學年度第2學期網路選課」在 12 月、落在 115-1 日期內，但屬 115-2）；其餘歸發生的學期。推不出來的窗口丟棄＋warning，不讓週次表失敗。
+- **頻率**（常數在 `season_schedule.py`）：窗口開啟後 24 小時每小時、截止前 24 小時每小時、截止時刻（日間部 17:00、進修部 21:00，取窗口實際截止）補一次、其餘每 3 小時（台北 00／03／06…對齊）；不做深夜暫停。同一整點跨窗口／學期合併成一格。115-1 期中撤選（10/05→11/20、11/21）431 格、115-2 網路選課（12/07→12/18、12/19）153 格。
+- **人數改全校一次查**：`QueryCourse(matric=全校13碼, unit=＊)` 一個請求取代逐系所約 62 個（2026-09-27 實測 115-1：2,778 課、1.86 MB、84.6 秒，課號集合與人／撤數 0 差異；「全校＋所有系所會被擋」早在 2026-06-13 就證實只是前端 JS）。獨立 timeout 180 秒（預設 60 秒會在首個 byte 前逾時）、最多 2 次；失敗（含無表頭、0 課）退回逐系所，來源記進 pipeline-result 的 `enrollment_source`。merge 的人數品質閘門不變。catalog 仍逐系所（要 unit 歸屬）。
+- **告警**（daily 檢查）：`[pipeline] season 窗口學期缺 catalog：<term>`（14 天內有觸發格但該學期沒有 catalog → 提示設 `ACTIVE_TERMS`）；`[pipeline] season 未依排程執行`（12 小時內、已過 1 小時寬限的觸發格在 [at, at+1h) 沒有觀測紀錄）。

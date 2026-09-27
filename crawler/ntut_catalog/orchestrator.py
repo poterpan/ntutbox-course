@@ -58,29 +58,62 @@ def _opt_int(raw: Optional[str]) -> Optional[int]:
         return None
 
 
-def crawl_enrollment(client, term_key: str, now_iso: str) -> EnrollmentLatest:
-    """選課季輕量路徑：只重打各系所 QueryCourse 讀人/撤，不碰 catalog/classes。
+# 全校一次查（matric=全校13碼、unit=＊）：2026-09-27 實測 115-1 回 2,778 課、1.86 MB、學校回應
+# 84.6 秒，課號集合與人／撤數和逐系所 62 請求完全一致。client 預設 60 秒會在首個 byte 前逾時，
+# 所以獨立給 180 秒；重試只給 2 次（總嘗試數）——重打一個 85 秒的重查詢不如直接退回逐系所。
+SCHOOL_QUERY_TIMEOUT = 180.0
+SCHOOL_QUERY_ATTEMPTS = 2
+ENROLLMENT_SOURCE_SCHOOL = "school"
+ENROLLMENT_SOURCE_PER_DEPT = "per-dept"
 
-    來源完整性走 per-dept（與 crawl_term 主來源同），跳過 Subj-3 與 13 學制查詢。
+
+def _enrollment_from_rows(rows: List[RawCourseRow], counts: Dict[str, Enrollment],
+                          now_iso: str) -> None:
+    for row in rows:
+        if row.offering_id in counts:
+            continue
+        counts[row.offering_id] = Enrollment(
+            enrolled_count=_opt_int(row.enrolled_raw),
+            capacity=None,
+            withdrawn_count=_opt_int(row.withdrawn_raw),
+            observed_at=now_iso,
+        )
+
+
+def _school_rows(client, year: int, sem: int) -> List[RawCourseRow]:
+    """全校一次查；失敗（重試後仍失敗、無課程表頭、0 課）一律拋錯，交給呼叫端退回逐系所。"""
+    html = client.query_course(year, sem, SCHOOL_MATRIC, ALL_UNITS,
+                               timeout=SCHOOL_QUERY_TIMEOUT, attempts=SCHOOL_QUERY_ATTEMPTS)
+    rows = parse_course_rows(html)          # 無表頭 → ValueError
+    if not rows:
+        raise ValueError("全校查詢回 0 課")
+    return rows
+
+
+def crawl_enrollment(client, term_key: str, now_iso: str) -> Tuple[EnrollmentLatest, str]:
+    """選課季輕量路徑：只讀人/撤，不碰 catalog/classes。回傳 (人數表, 來源)。
+
+    先試全校一次查（1 個請求）；失敗 → 退回逐系所 QueryCourse（與 crawl_term 主來源同，
+    跳過 Subj-3 與 13 學制查詢）。來源（`school`／`per-dept`）由 fetcher 記進 pipeline-result。
+    人數只需「課號 → 人/撤」、不需系所歸屬，所以全校查詢足夠；catalog 仍逐系所查（要 unit）。
     """
     year, sem = parse_term_key(term_key)
-    depts = parse_departments(client.subj("-2", year, sem))
     counts: Dict[str, Enrollment] = {}
-    for code, _name in depts:
-        try:
-            rows = parse_course_rows(client.query_course(year, sem, SCHOOL_MATRIC, code))
-        except ValueError:
-            continue  # 該系所無課程表頭
-        for row in rows:
-            if row.offering_id in counts:
-                continue
-            counts[row.offering_id] = Enrollment(
-                enrolled_count=_opt_int(row.enrolled_raw),
-                capacity=None,
-                withdrawn_count=_opt_int(row.withdrawn_raw),
-                observed_at=now_iso,
-            )
-    return EnrollmentLatest(term_key=term_key, observed_at=now_iso, counts=counts)
+    try:
+        _enrollment_from_rows(_school_rows(client, year, sem), counts, now_iso)
+        source = ENROLLMENT_SOURCE_SCHOOL
+    except Exception as e:  # noqa: BLE001 — 任何失敗都退回逐系所
+        logger.warning("[%s] 全校人數查詢失敗，退回逐系所：%s", term_key, e)
+        counts.clear()
+        source = ENROLLMENT_SOURCE_PER_DEPT
+        depts = parse_departments(client.subj("-2", year, sem))
+        for code, _name in depts:
+            try:
+                rows = parse_course_rows(client.query_course(year, sem, SCHOOL_MATRIC, code))
+            except ValueError:
+                continue  # 該系所無課程表頭
+            _enrollment_from_rows(rows, counts, now_iso)
+    return EnrollmentLatest(term_key=term_key, observed_at=now_iso, counts=counts), source
 
 
 def crawl_term(client: CatalogClient, term_key: str, now_iso: str) -> TermResult:

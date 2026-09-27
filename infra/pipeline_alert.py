@@ -10,10 +10,23 @@
          `checked_at` 超過 2 天、weekly 超過 9 天（取該資料集各學期中最新的一筆——只補爬過的
          舊學期不該讓整個資料集算過期）。恢復 → 關閉。由 daily 的 commit-publish job 呼叫。
 
+season 排程（`data/ops/season-schedule.json`，derive 產；issue #111）另有兩種，同樣由 daily 呼叫：
+
+  season-catalog    `[pipeline] season 窗口學期缺 catalog：<term>`：排程裡的學期在未來
+                    SEASON_CATALOG_LEAD_DAYS 天內有觸發格、但 canonical 沒有 `{term}/catalog.ndjson`
+                    → season 一定會失敗（fetch_enrollment 要先有 catalog）。提示把學期加進
+                    `ACTIVE_TERMS`。補上（或窗口過了）→ 關閉。
+  season-freshness  `[pipeline] season 未依排程執行`：`at` 落在 [now−12h, now−1h] 的觸發格，
+                    每個學期都要有 `observed_at` 在 [at, at+1h) 的觀測紀錄；缺任何一格 → 開／更新，
+                    全部對上（或窗口內沒有觸發格）→ 關閉。now 用 daily 自己的時間（GitHub cron
+                    延遲幾小時也沒關係，窗口是相對的）。
+
 用法：
   python infra/pipeline_alert.py run --workflow daily --run-url URL --needs-json "$NEEDS" \
       [--stages DIR] [--merge-reports DIR] [--publish-exit N] [--deletions-skipped P,…]
   python infra/pipeline_alert.py stale --data data
+  python infra/pipeline_alert.py season-catalog --data data
+  python infra/pipeline_alert.py season-freshness --data data
   python infra/pipeline_alert.py summary [--stages DIR] [--merge-reports DIR]   # 只寫 run summary 表
 
 需要 gh CLI 與 GH_TOKEN（作法同 calendar_horizon_alert.py）。`PIPELINE_ALERT_DRY_RUN=1` → 只印
@@ -28,7 +41,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Callable, Dict, List, Optional
+from typing import Callable, Dict, List, Optional, Tuple
 
 LABEL = "pipeline-alert"
 STALE_DAYS = {"daily": 2, "weekly": 9}
@@ -186,6 +199,128 @@ def cmd_stale(args, gh: Gh, cadences: Optional[Dict[str, str]] = None,
     return 0
 
 
+# ------------------------------------------------------------------ season 排程（issue #111）
+
+SEASON_SCHEDULE_REL = "ops/season-schedule.json"
+SEASON_CATALOG_PREFIX = "[pipeline] season 窗口學期缺 catalog："
+# 只對「快到了」的窗口告警：下學期的課程目錄要等學校公布（通常選課前數週），
+# 太早開 issue 只是噪音、也無從處理。
+SEASON_CATALOG_LEAD_DAYS = 14
+SEASON_FRESHNESS_TITLE = "[pipeline] season 未依排程執行"
+FRESHNESS_LOOKBACK = dt.timedelta(hours=12)
+FRESHNESS_GRACE = dt.timedelta(hours=1)        # 觸發後給 run 跑完的時間
+OBSERVATION_TOLERANCE = dt.timedelta(hours=1)  # 觀測時間須落在 [at, at+1h)
+
+
+def season_catalog_title(term: str) -> str:
+    return f"{SEASON_CATALOG_PREFIX}{term}"
+
+
+def load_season_schedule(data: Path) -> Optional[dict]:
+    path = data / SEASON_SCHEDULE_REL
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+
+
+def _slot_terms(slot: dict) -> List[str]:
+    return [t for t in str(slot.get("terms") or "").split(",") if t]
+
+
+def open_titles_with_prefix(gh: Gh, prefix: str) -> List[str]:
+    out = gh(["issue", "list", "--state", "open", "--label", LABEL, "--search",
+              f"{prefix} in:title", "--json", "number,title"])
+    return sorted(i["title"] for i in json.loads(out or "[]") if i.get("title", "").startswith(prefix))
+
+
+def season_terms_missing_catalog(schedule: dict, canonical: Path,
+                                 now: dt.datetime) -> Dict[str, str]:
+    """{term: 最近一個觸發格}：未來 LEAD 天內有觸發格、但沒有 catalog.ndjson 的學期。"""
+    horizon = now + dt.timedelta(days=SEASON_CATALOG_LEAD_DAYS)
+    out: Dict[str, str] = {}
+    for slot in schedule.get("slots", []):
+        at = dt.datetime.fromisoformat(slot["at"])
+        if not (now <= at <= horizon):
+            continue
+        for term in _slot_terms(slot):
+            if term not in out and not (canonical / term / "catalog.ndjson").is_file():
+                out[term] = slot["at"]
+    return out
+
+
+def cmd_season_catalog(args, gh: Gh, now: Optional[dt.datetime] = None) -> int:
+    schedule = load_season_schedule(args.data)
+    if schedule is None:
+        print(f"{args.data / SEASON_SCHEDULE_REL} 不存在（derive 沒跑？），skip")
+        return 0
+    now = now or dt.datetime.now(TAIPEI)
+    missing = season_terms_missing_catalog(schedule, args.data / "canonical", now)
+    for term, first in sorted(missing.items()):
+        raise_issue(gh, season_catalog_title(term), (
+            f"season 排程在 `{first}` 要刷新 `{term}` 的人數，但 data branch 沒有 "
+            f"`{term}/catalog.ndjson`——season 的 enrollment 會直接失敗（要先有 catalog）。\n\n"
+            f"把 `{term}` 加進 repo var `ACTIVE_TERMS`（例如 `115-1,{term}`），讓 daily 先建出該學期 "
+            "catalog（步驟見 infra/README.md runbook「新學期」）。學校尚未公布課程時 catalog 會是 0 課、"
+            "被 merge 丟棄，屆時再等一兩天。補上（或窗口過了）自動關閉。"))
+    for title in open_titles_with_prefix(gh, SEASON_CATALOG_PREFIX):
+        if title[len(SEASON_CATALOG_PREFIX):] not in missing:
+            resolve_issue(gh, title, "該學期已有 catalog（或窗口已過），自動關閉。")
+    print(f"season-catalog: missing {sorted(missing) or 'none'}")
+    return 0
+
+
+def _observations(canonical: Path, term: str) -> List[dt.datetime]:
+    path = canonical / term / "enrollment" / "observations.ndjson"
+    if not path.exists():
+        return []
+    out = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            out.append(dt.datetime.fromisoformat(json.loads(line)["observed_at"]))
+    return out
+
+
+def unmatched_season_slots(schedule: dict, canonical: Path,
+                           now: dt.datetime) -> List[Tuple[str, List[str]]]:
+    """[(at, [沒觀測到的學期])]：`at` ∈ [now−12h, now−1h] 且有學期沒有 [at, at+1h) 的觀測。"""
+    lo, hi = now - FRESHNESS_LOOKBACK, now - FRESHNESS_GRACE
+    cache: Dict[str, List[dt.datetime]] = {}
+    out: List[Tuple[str, List[str]]] = []
+    for slot in schedule.get("slots", []):
+        at = dt.datetime.fromisoformat(slot["at"])
+        if not (lo <= at <= hi):
+            continue
+        missed = []
+        for term in _slot_terms(slot):
+            obs = cache.setdefault(term, _observations(canonical, term))
+            if not any(at <= o < at + OBSERVATION_TOLERANCE for o in obs):
+                missed.append(term)
+        if missed:
+            out.append((slot["at"], missed))
+    return out
+
+
+def cmd_season_freshness(args, gh: Gh, now: Optional[dt.datetime] = None) -> int:
+    schedule = load_season_schedule(args.data)
+    if schedule is None:
+        print(f"{args.data / SEASON_SCHEDULE_REL} 不存在（derive 沒跑？），skip")
+        return 0
+    now = now or dt.datetime.now(TAIPEI)
+    missed = unmatched_season_slots(schedule, args.data / "canonical", now)
+    if missed:
+        lines = "\n".join(f"- `{at}`：{', '.join(terms)}" for at, terms in missed)
+        raise_issue(gh, SEASON_FRESHNESS_TITLE, (
+            f"檢查時間 `{now.isoformat(timespec='seconds')}`（看 {FRESHNESS_LOOKBACK.seconds // 3600} "
+            f"小時內、已過 {FRESHNESS_GRACE.seconds // 3600} 小時的觸發格）。以下觸發格在 [at, at+1h) "
+            f"內沒有人數觀測紀錄：\n\n{lines}\n\n排查：\n"
+            "- Worker 有沒有觸發：`npx wrangler tail ntutbox-season-scheduler`\n"
+            "- Worker 的 GitHub token（fine-grained、actions: write）是否過期\n"
+            "- `season` workflow 最近的 run：是否失敗、或 merge 丟棄了人數快照（另見 "
+            "`[pipeline] season 失敗`）\n\n最近的觸發格全部對上時自動關閉。"))
+    else:
+        resolve_issue(gh, SEASON_FRESHNESS_TITLE, "最近的 season 觸發格都有觀測紀錄，自動關閉。")
+    print(f"season-freshness: {len(missed)} unmatched slot(s)")
+    return 0
+
+
 # ------------------------------------------------------------------ run summary
 
 def render_summary(stages: Optional[Path], merge_reports: Optional[Path]) -> str:
@@ -255,12 +390,20 @@ def main(argv: Optional[List[str]] = None, gh: Optional[Gh] = None) -> int:
     sm.add_argument("--merge-reports", type=Path, default=None)
     s = sub.add_parser("stale", help="資料過期告警（讀 fetch-state）")
     s.add_argument("--data", type=Path, default=Path("data"))
+    sc = sub.add_parser("season-catalog", help="season 窗口學期缺 catalog 告警（讀 ops/season-schedule.json）")
+    sc.add_argument("--data", type=Path, default=Path("data"))
+    sf = sub.add_parser("season-freshness", help="season 未依排程執行告警（排程 × 觀測紀錄）")
+    sf.add_argument("--data", type=Path, default=Path("data"))
     args = ap.parse_args(argv)
     if args.command == "summary":
         return cmd_summary(args)
     gh = gh or default_gh()
     if args.command == "run":
         return cmd_run(args, gh)
+    if args.command == "season-catalog":
+        return cmd_season_catalog(args, gh)
+    if args.command == "season-freshness":
+        return cmd_season_freshness(args, gh)
     return cmd_stale(args, gh)
 
 

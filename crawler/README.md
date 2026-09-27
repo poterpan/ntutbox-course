@@ -16,7 +16,8 @@
 - **`_meta/fetch-state.json`**：每個 (資料集, 學期) 的 `checked_at`／`changed_at`／`content_sha256`（無學期維度用 `_global` 鍵）。由鎖內的 merge 對最新 HEAD 更新；derive 把它帶進 manifest 各產物的 `checked_at`／`changed_at`。
 - **v1（R2、gitignore、由 canonical 重建）**：`v1/terms/{term}/{catalog,classes,periods,enrollment,mprograms}.json` + `v1/terms/{term}/course/{offeringId}.json`（詳情，隨點隨取）+ `v1/standards/{year}.json` + `v1/manifest.json`。**只有 `derive` 產 v1**（先清空再從 canonical 完整重生、確定性、不讀系統時間）；`pipeline` 只寫 canonical。
 - **跨學期 top-level**：`canonical/calendar/{events.ndjson,meta.json}` → `v1/calendar/events.json`（行事曆事件 feed，契約四）。內容沒變就不重寫。
-- **週次表（逐學期）**：`canonical/{term}/calendar.json` → `v1/terms/{term}/calendar.json`（契約三）。**不綁課程目錄是否已爬**——下學期的週次表往往早於課程目錄就能產。
+- **週次表（逐學期）**：`canonical/{term}/calendar.json` → `v1/terms/{term}/calendar.json`（契約三）。**不綁課程目錄是否已爬**——下學期的週次表往往早於課程目錄就能產。含 `enrollment_windows`（網路選課／新生網路預選／加選及無紀錄退選／期中撤選，日夜分開；網路選課歸**被選的學期**）。
+- **season 排程**：derive 把 manifest `calendars` 範圍內學期的 `enrollment_windows` 展開成整點觸發格 → `data/ops/season-schedule.json`（v1 之外、確定性）→ publish 傳 `course/ops/season-schedule.json`，Cloudflare Worker 讀它觸發 `season.yml`（`ntut_catalog/season_schedule.py`、D18）。
 - **逐週進度**：derive 產 `course/{id}.json` 時由課綱原文 × 週次表即時計算（契約一），行事曆或 parser 改了下次 derive 自動生效；三態統計寫 `canonical/reports/{term}/weekly-progress.json`（commit 進 data branch，數字沒變就不 commit）。
 - `requirement.category` 由符號圖例（Cprog -5）於 normalize 補。
 
@@ -75,7 +76,7 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 - `ntut_catalog/parse_course_table.py` — 24 欄解析（**表頭文字定位**，勿寫死索引）
 - `ntut_catalog/parse_subj.py` / `classes_builder.py` — 系所/班級 + pool kind 分類
 - `ntut_catalog/normalize.py` — → `CourseOffering`（內嵌班級 kind/unit/grade 由 directory lookup 填充）
-- `ntut_catalog/orchestrator.py` — 每學期：61 系所×QueryCourse + 13 學制碼×全系所；先建 directory 再 normalize
+- `ntut_catalog/orchestrator.py` — 每學期：61 系所×QueryCourse + 13 學制碼×全系所；先建 directory 再 normalize。season 人數（`crawl_enrollment`）先全校一次查（`matric=全校13碼, unit=＊`，timeout 180 秒、最多 2 次），失敗退回逐系所，來源記進 pipeline-result 的 `enrollment_source`
 - `ntut_catalog/artifacts.py` — `structural_*`（去 volatile，非 mutate）/ `write_canonical` / `derive`（清空 v1 → `build_v1` 從全部 canonical 重建）/ `write_manifest`（dataset_version=結構 sha；freshness 取自 fetch-state）
 - `ntut_catalog/parse_detail.py` / `detail.py` — Curr(描述/EN)+ShowSyllabus(大綱)解析；`crawl_detail`（Curr 依 course_code 去重）+ `write_details`（只寫 canonical）
 - `ntut_catalog/parse_program.py` / `programs.py` — 微學程(SearchMProgram)+課程標準(Cprog -2→-3→-4)解析與爬取
@@ -84,7 +85,8 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 - `ntut_catalog/registry.py` — 資料集登錄表（唯一宣告處，見上）；`pipeline.py`（fetch）、`merge.py`（上鎖合併＋節點失敗規則）、`fetch_state.py`、`enrollment_store.py`、`nodes.py`（節點失敗計數）
 - `ntut_catalog/periods.py` — 節次↔牆鐘（官方頁尾表，靜態+爬取時驗證）
 - `ntut_catalog/ics.py` / `calendar_client.py` / `calendar_events.py` — 校網 Google Calendar ics 解析（全天 end-exclusive→inclusive、缺 DTEND、UTC→+08:00、穩定排序）+ 外部主機 client + feed 組裝與 horizon 監測
-- `ntut_catalog/term_calendar.py` — 學年度週次表：從 ics 具名事件推導（第 1 週＝開學日所在週、週日起算；末週＝假期起日前一個週六所在週）+ 10 條不變量。**不解析 PDF**；`reference/pdf-week-tables-111-115.json` 是從校方公告 PDF 抽出的 10 學期回歸基準，在**發佈時**跑
+- `ntut_catalog/term_calendar.py` — 學年度週次表：從 ics 具名事件推導（第 1 週＝開學日所在週、週日起算；末週＝假期起日前一個週六所在週）+ 10 條不變量。**不解析 PDF**；`reference/pdf-week-tables-111-115.json` 是從校方公告 PDF 抽出的 10 學期回歸基準，在**發佈時**跑。另推導 `enrollment_windows`（關鍵字＋容錯；撤選「開始」與日夜「結束」配對；沒寫時刻 → 日 17:00／夜 21:00，撤選夜間照實證 17:00；推不出來或違反窗口不變量 → 丟棄該窗口＋warning，週次表照常）
+- `ntut_catalog/season_schedule.py` — `enrollment_windows` → season 觸發時刻表（頻率常數、同整點合併；derive 呼叫）
 
 ### 自動化 / 發佈
 依頻率分 4 支（資料管線 v2，spec `docs/superpowers/specs/2026-09-26-data-pipeline-refactor-design.md` §3）；
@@ -92,15 +94,15 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 跑哪些資料集由 `ntut_catalog/registry.py` 的 cadence 決定，新增資料集不改 workflow。
 - `../.github/workflows/daily.yml` — 每日 cron 04:00：calendar、catalog＋人數、mprograms；另跑行事曆 horizon／coverage 與資料過期檢查。
 - `../.github/workflows/weekly.yml` — 每週一 05:30：details（課綱）、standards。
-- `../.github/workflows/season.yml` — 僅 dispatch：選課季人數刷新（`terms` 必填）。
+- `../.github/workflows/season.yml` — 僅 dispatch（Cloudflare Worker 依 `course/ops/season-schedule.json` 觸發）：選課季人數刷新（`terms` 必填）。
 - `../.github/workflows/maintenance.yml` — 僅 dispatch：`backfill`（任何資料集＋學期，details 走 matrix）／`republish`（derive＋publish，含 dry-run、`allow_mass_delete`）。操作手冊見 `../infra/README.md`「維運 runbook」。
 - `../.github/workflows/test.yml` — push/PR 跑 pytest + 檢查 `packages/schema` 產物與 `models.py` 同步。**在此之前 repo 沒有任何跑測試的 CI。**
-- `../infra/publish.py`（純上傳：線上 manifest 品質閘門 + 全量 MD5 比對 + manifest 最後推 + 過期刪除與 10% 保險，見檔頭）、`redline_scan.py`（free-text 跳過 student-id 啟發）、`calendar_horizon_alert.py`（行事曆涵蓋不足→開 issue，補上→自動關；告警不阻斷發布）、`pipeline_alert.py`（`pipeline-alert` issue：run 失敗與資料過期）、`data_commit.py`（commit 訊息／範圍）、`SETUP.md`。
+- `../infra/publish.py`（純上傳：線上 manifest 品質閘門 + 全量 MD5 比對 + manifest 最後推 + 過期刪除與 10% 保險，見檔頭）、`redline_scan.py`（free-text 跳過 student-id 啟發）、`calendar_horizon_alert.py`（行事曆涵蓋不足→開 issue，補上→自動關；告警不阻斷發布）、`pipeline_alert.py`（`pipeline-alert` issue：run 失敗、資料過期、season 窗口學期缺 catalog、season 未依排程執行）、`data_commit.py`（commit 訊息／範圍）、`SETUP.md`。
 
 ## 後續（非本輪）
 - 對外 `.ics` 匯出（讓使用者訂閱自己的課表）。
 - 退選率分析（衍生自 enrollment 時序 snapshots）。
-- season 的 Cloudflare Cron 觸發＋選課窗口從行事曆自動判斷（目前 `season.yml` 只能手動 dispatch；115-2 網路選課前完成）。
+- season 的 Cloudflare Worker（排程與告警的 Python 端已完成，issue #111）。
 - 空教室（rooms）資料集——登錄表的一筆。
 
 ## 注意

@@ -11,6 +11,8 @@ publish 層只做「v1 → R2」（spec §1）：**不重建 v1**。輸入是 `p
      只傳不同者（multipart ETag `<md5>-<n>` 一律視為不同）。`--no-skip-unchanged` 全部重傳。
   3. manifest 上傳前寫入 `published_at` = `generated_at` = 現在（+08:00），永遠最後推（原子性）。
      時間只蓋在上傳的副本上，`v1/manifest.json` 維持 derive 的確定性產物。
+  2b. `ops/season-schedule.json`（derive 產、v1 之外）→ `course/ops/season-schedule.json`，
+     max-age=300、ETag 相同就跳過；不在任何可刪 prefix 內，永不刪除。
   4. 過期刪除：只在 `terms/<t>/`、`standards/`、`calendar/` 這些 prefix 內（**永不動 v1 根目錄**，
      其他目錄也不動），R2 有而本地沒有 → 刪除。manifest 推完才刪，client 不會被指向已刪的物件。
      保險：單一 prefix 刪除量 > 該 prefix 遠端物件數 10% → **跳過該 prefix 的刪除**，其餘照常
@@ -62,6 +64,10 @@ _CALENDAR_CACHE = "public, max-age=86400, stale-while-revalidate=604800"
 TAIPEI = dt.timezone(dt.timedelta(hours=8))
 V1_PREFIX = "course/v1/"
 MANIFEST_REL = "v1/manifest.json"
+# season 觸發時刻表（derive 產、v1 之外；Worker 讀 cdn.ntutbox.com/course/ops/season-schedule.json）。
+# 不屬於任何可刪 prefix（deletion_prefix 對 course/v1/ 以外一律回 None）→ 永遠不會被當過期刪掉。
+OPS_PREFIX = "course/ops/"
+OPS_FILES = ("ops/season-schedule.json",)
 DEFAULT_MIN_RATIO = 0.95
 MASS_DELETE_RATIO = 0.10
 
@@ -94,7 +100,7 @@ def r2_key(rel_path: str) -> str:
 
 def cache_control_for(rel_path: str) -> str:
     name = rel_path.rsplit("/", 1)[-1]
-    if name == "manifest.json" or name == "enrollment.json":
+    if name in ("manifest.json", "enrollment.json", "season-schedule.json"):
         return _SHORT_CACHE
     if name == "calendar.json":          # terms/{term}/calendar.json（週次表）
         return _CALENDAR_CACHE
@@ -159,6 +165,11 @@ def local_files(out_dir: Path) -> List[str]:
         if p.is_file() and not any(part.startswith(".") for part in rel.parts):
             rels.append(rel.as_posix())
     return sorted(rels)
+
+
+def ops_files(out_dir: Path) -> List[str]:
+    """derive 產出、v1 以外也要上傳的檔（存在者）。"""
+    return [rel for rel in OPS_FILES if (out_dir / rel).is_file()]
 
 
 def _md5(path: Path) -> str:
@@ -572,8 +583,9 @@ def main(argv: Optional[List[str]] = None) -> int:
                          + "\n".join(f"- `{t}`：{why}" for t, why in failures) + "\n")
         return EXIT_GATE_FAILED
 
-    # 2. 全量比對
-    files = local_files(out_dir)
+    # 2. 全量比對（v1 ＋ ops/season-schedule.json；後者同樣 ETag 相同就跳過）
+    ops = ops_files(out_dir)
+    files = local_files(out_dir) + ops
     body = [f for f in files if f != MANIFEST_REL]
     published_at = now_iso()
     deletions: Optional[DeletionPlan] = None
@@ -581,6 +593,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if use_s3:
         remote = remote_etags(args.bucket, endpoint)
         print(f"remote: {len(remote)} object(s) under {V1_PREFIX}; local: {len(files)} file(s)")
+        if ops:
+            remote.update(remote_etags(args.bucket, endpoint, OPS_PREFIX))
         if not args.no_skip_unchanged:
             skip = unchanged_rels(out_dir, body, remote)
             unchanged = len(skip)
