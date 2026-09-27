@@ -11,6 +11,8 @@
 
 export interface Env {
   GITHUB_TOKEN?: string;
+  /** Workers Builds Deploy Hook（ntutbox-course-web、main）；未設＝不做自動重新部署（D22）。 */
+  DEPLOY_HOOK_URL?: string;
 }
 
 export const SCHEDULE_URL = "https://cdn.ntutbox.com/course/ops/season-schedule.json";
@@ -256,4 +258,124 @@ export async function keepalive(scheduledTime: number, env: Env, opts: RunOption
     if (!(await enableWorkflow(wf, token, retryDelayMs))) failed.push(wf);
   }
   return failed.length ? { status: "failed", failed } : { status: "enabled", workflows: [...KEEPALIVE_WORKFLOWS] };
+}
+
+// ------------------------------------------------------------------ web 自動重新部署（D22）
+//
+// `/browse/**` hub 是 build 期產生的靜態頁（apps/web/src/lib/hub/build-catalog.ts），
+// 預設學期切換的那一刻若沒有重新 build，hub 會一直停在舊學期。manifest 的
+// `term_schedule.default[].from` 是預設學期生效的時刻（Python 端從行事曆產出），
+// 所以每小時看一次：這個整點就是某個 `from` 的生效整點 → POST Workers Builds Deploy Hook。
+// 與 season slot、保活互不相干；缺 secret 或 manifest 沒有 term_schedule 都只是跳過。
+
+export const MANIFEST_URL = "https://cdn.ntutbox.com/course/v1/manifest.json";
+
+export interface TermScheduleEntry {
+  term: string;
+  from: string;
+}
+
+export type RedeployResult =
+  | { status: "no-hook" }
+  | { status: "no-term-schedule" }
+  | { status: "manifest-error" }
+  | { status: "no-switch"; hour: string }
+  | { status: "triggered"; hour: string; terms: string[] }
+  | { status: "trigger-failed"; hour: string; terms: string[] };
+
+/**
+ * `from` 對應的觸發整點：`from` 截到整點；若 `from` 不在整點上則取下一個整點
+ * （cron 只在整點醒來，提早 build 會在切換前產出、hub 仍是舊學期）。
+ * 整點上的 `from`（行事曆推導的都是）兩種算法相同。
+ */
+export function effectiveHour(fromMs: number): number {
+  const h = truncateToHour(fromMs);
+  return h === fromMs ? h : h + HOUR_MS;
+}
+
+/** 取出 manifest 的 `term_schedule.default`；缺欄位或形狀不對回傳 null（容忍另一邊尚未上線）。 */
+export function defaultTermSchedule(manifest: unknown): TermScheduleEntry[] | null {
+  if (typeof manifest !== "object" || manifest === null) return null;
+  const ts = (manifest as Record<string, unknown>).term_schedule;
+  if (typeof ts !== "object" || ts === null) return null;
+  const def = (ts as Record<string, unknown>).default;
+  if (!Array.isArray(def)) return null;
+  return def.filter(
+    (e): e is TermScheduleEntry =>
+      typeof e === "object" &&
+      e !== null &&
+      typeof (e as Record<string, unknown>).term === "string" &&
+      typeof (e as Record<string, unknown>).from === "string" &&
+      !Number.isNaN(Date.parse((e as Record<string, unknown>).from as string)),
+  );
+}
+
+/** 這個整點生效的預設學期切換（通常 0 或 1 筆）。 */
+export function findSwitches(entries: TermScheduleEntry[], hourMs: number): TermScheduleEntry[] {
+  return entries.filter((e) => effectiveHour(Date.parse(e.from)) === hourMs);
+}
+
+async function loadManifest(retryDelayMs: number): Promise<unknown | "error"> {
+  let res: Response;
+  try {
+    res = await fetchWithRetry(
+      MANIFEST_URL,
+      { headers: { "User-Agent": USER_AGENT }, cache: "no-store" },
+      "redeploy",
+      retryDelayMs,
+    );
+  } catch (err) {
+    console.error(`[redeploy] 讀取 manifest 失敗：${String(err)}`);
+    return "error";
+  }
+  if (!res.ok) {
+    console.error(`[redeploy] 讀取 manifest 失敗：HTTP ${res.status} ${await safeText(res)}`);
+    return "error";
+  }
+  try {
+    return await res.json();
+  } catch (err) {
+    console.error(`[redeploy] manifest 不是合法 JSON：${String(err)}`);
+    return "error";
+  }
+}
+
+/** 預設學期切換整點 → POST Deploy Hook（5xx／網路錯誤重試一次）。 */
+export async function redeploy(scheduledTime: number, env: Env, opts: RunOptions = {}): Promise<RedeployResult> {
+  const hook = env.DEPLOY_HOOK_URL;
+  if (!hook) {
+    console.log("[redeploy] no deploy hook, skip（未設 DEPLOY_HOOK_URL secret）");
+    return { status: "no-hook" };
+  }
+  const retryDelayMs = opts.retryDelayMs ?? 2000;
+  const manifest = await loadManifest(retryDelayMs);
+  if (manifest === "error") return { status: "manifest-error" };
+  const entries = defaultTermSchedule(manifest);
+  if (entries === null) {
+    console.log("[redeploy] manifest 沒有 term_schedule.default，skip");
+    return { status: "no-term-schedule" };
+  }
+
+  const hourMs = truncateToHour(scheduledTime);
+  const hour = new Date(hourMs).toISOString();
+  const switches = findSwitches(entries, hourMs);
+  if (switches.length === 0) return { status: "no-switch", hour };
+  const terms = [...new Set(switches.map((s) => s.term))];
+  console.log(`[redeploy] ${hour} 預設學期切換：${switches.map((s) => `${s.term}@${s.from}`).join("、")}`);
+
+  let res: Response;
+  try {
+    // Deploy Hook 不需要 Authorization（URL 本身就是憑證）、不需要 body；回 200 + {success, result.build_uuid}。
+    res = await fetchWithRetry(hook, { method: "POST", headers: { "User-Agent": USER_AGENT } }, "redeploy", retryDelayMs);
+  } catch (err) {
+    console.error(`[redeploy] Deploy Hook 網路錯誤（已重試）：${String(err)}`);
+    return { status: "trigger-failed", hour, terms };
+  }
+  if (!res.ok) {
+    // 不印 hook URL：它就是憑證。
+    console.error(`[redeploy] Deploy Hook 失敗：HTTP ${res.status} ${await safeText(res)}`);
+    return { status: "trigger-failed", hour, terms };
+  }
+  console.log(`[redeploy] 已觸發 web 重新部署：${await safeText(res)}`);
+  return { status: "triggered", hour, terms };
 }

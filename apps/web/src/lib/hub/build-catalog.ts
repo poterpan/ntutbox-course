@@ -15,9 +15,12 @@
  * - 設為 CDN URL（prod）→ build 期 HTTP 抓最新資料，抓不到就退回 repo 內已 commit 的
  *   fixtures。**不讓 CDN 短暫失聯把部署整條擋下**，退回的也是真資料（只是可能舊一版）。
  *
- * 已知限制（誠實記錄）：hub 頁的課程清單凍結在「最後一次部署」的資料。新學期發佈但
- * 沒有 code 部署時，hub 仍列上一學期——連結不會壞（課程頁吃任何 term），只是不夠新。
- * 要即時就得讓 publish pipeline 觸發部署，或改由 worker 動態產（見下方 rejected 註記）。
+ * 限制與緩解：hub 頁的課程清單凍結在「最後一次部署」的資料——連結不會壞（課程頁吃任何
+ * term），只是可能不夠新。已由自動重新部署緩解（docs/DECISIONS.md D22、infra/README.md
+ * 「web 自動重新部署」）：資料管線在預設學期 catalog 有變時、season-scheduler Worker 在
+ * manifest `term_schedule.default[].from` 生效的整點，各自 POST Workers Builds Deploy Hook。
+ * 仍有的落差：hook secret 未設或觸發失敗時照舊停在上一次 build（管線會告警），以及 build
+ * 本身的幾分鐘延遲。要完全即時才需要改由 worker 動態產 hub（未採用：失去純靜態部署的簡單性）。
  */
 import { readFile } from "node:fs/promises";
 import path from "node:path";

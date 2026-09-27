@@ -16,3 +16,4 @@ enabled = true
 
 # 機密：GITHUB_TOKEN（fine-grained PAT，僅 poterpan/ntutbox-course、Actions: read & write）
 # 用 `npx wrangler secret put GITHUB_TOKEN` 設定，不寫進這裡。
+# 選填：DEPLOY_HOOK_URL（ntutbox-course-web 的 Workers Builds Deploy Hook，D22）同樣用 secret put。

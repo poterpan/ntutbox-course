@@ -1,11 +1,13 @@
 // Worker entry：只匯出 handler（具名匯出會被 workerd 當成 handler 而啟動失敗），邏輯見 scheduler.ts。
-import { keepalive, run, type Env } from "./scheduler";
+import { keepalive, redeploy, run, type Env } from "./scheduler";
 
 export default {
   async scheduled(controller: ScheduledController, env: Env): Promise<void> {
     const result = await run(controller.scheduledTime, env);
     // 每週保活 daily／weekly（與 season 無關；season 失敗也照做）。
     const ka = await keepalive(controller.scheduledTime, env);
+    // 預設學期切換整點 → 觸發 web 重新部署（D22；與 season、保活無關，缺 secret／term_schedule 只跳過）。
+    const rd = await redeploy(controller.scheduledTime, env);
     // 真正的失敗丟出例外，讓 Cloudflare 的 Cron Events 標成失敗、方便在 dashboard 看到。
     // 404（尚未發佈）與無 slot 是正常狀態，不丟。
     const errors: string[] = [];
@@ -14,6 +16,7 @@ export default {
     }
     if (ka.status === "failed") errors.push(`keepalive-failed（${ka.failed.join(",")}）`);
     if (ka.status === "no-token" && result.status !== "no-token") errors.push("no-token");
+    if (rd.status === "manifest-error" || rd.status === "trigger-failed") errors.push(`redeploy-${rd.status}`);
     if (errors.length) throw new Error(`season-scheduler 失敗：${errors.join("、")}`);
   },
 } satisfies ExportedHandler<Env>;

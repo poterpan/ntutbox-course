@@ -1,7 +1,7 @@
 name: pipeline commit-publish
 description: >-
   上鎖 job 的全部步驟（spec §3 job 2）：merge → redline → pua-scan → derive → commit（canonical＋reports）
-  → push → publish，daily 另跑行事曆與資料過期檢查。呼叫端負責：job 層
+  → push → publish → （預設學期 catalog 有變時）觸發 web 重新部署，daily 另跑行事曆與資料過期檢查。呼叫端負責：job 層
   `concurrency: data-pipeline`（cancel-in-progress: false）、先 checkout 主 repo 與 setup
   （**鎖內**重新 checkout 最新 data branch）、job env 帶 R2 憑證。
 inputs:
@@ -32,6 +32,11 @@ inputs:
   alert-dry-run:
     description: "'true' → 告警只印不動 issue（演練用）"
     default: "false"
+  web-deploy-hook-url:
+    description: >-
+      Workers Builds Deploy Hook（呼叫端傳 secrets.WEB_DEPLOY_HOOK_URL；composite action 讀不到 secrets）。
+      空＝不做自動重新部署（D22）
+    default: ""
   github-token:
     description: 告警用（gh）
     default: ${{ github.token }}
@@ -45,6 +50,9 @@ outputs:
   committed:
     description: 是否有 commit
     value: ${{ steps.commit.outputs.committed }}
+  web-redeploy:
+    description: web 重新部署結果（空＝沒跑到／skipped／no-hook／triggered／failed …）；failed 開頭由告警列進 issue
+    value: ${{ steps.redeploy.outputs.status }}
 runs:
   using: composite
   steps:
@@ -157,6 +165,41 @@ runs:
           exit 0
         fi
         exit "$code"
+
+    # D22：`/browse/**` hub 是 build 期靜態頁 → 預設學期 catalog 有變就 POST Deploy Hook 重新 build。
+    # 決策在 infra/web_redeploy.py（有單元測試）；這裡只做 curl。失敗只發 warning＋交給告警，不讓資料 job 紅燈。
+    # publish 失敗（exit 非 0／3）時整個 job 已中止、不會跑到這裡；dry-run 不部署。
+    - name: Trigger web redeploy (Workers Builds Deploy Hook)
+      id: redeploy
+      shell: bash
+      env:
+        HOOK: ${{ inputs.web-deploy-hook-url }}
+        DRY_RUN: ${{ inputs.publish-dry-run }}
+      run: |
+        set +e -uo pipefail   # 這一步永遠不讓 job 失敗
+        if [ "$DRY_RUN" = "true" ]; then
+          echo "publish dry-run — skip web redeploy"; echo "status=skipped" >> "$GITHUB_OUTPUT"; exit 0
+        fi
+        python infra/web_redeploy.py --merge-reports "$RUNNER_TEMP/merge-reports" --manifest data/v1/manifest.json
+        if [ "$(grep -s '^redeploy=' "$GITHUB_OUTPUT" | tail -1)" != "redeploy=true" ]; then
+          echo "status=skipped" >> "$GITHUB_OUTPUT"; exit 0
+        fi
+        if [ -z "$HOOK" ]; then
+          echo "::notice title=web 重新部署::未設 secret WEB_DEPLOY_HOOK_URL，略過（見 infra/README.md）"
+          echo "status=no-hook" >> "$GITHUB_OUTPUT"; exit 0
+        fi
+        # 不印 URL（它就是憑證）；5xx／逾時 curl 自己重試一次。
+        body="$RUNNER_TEMP/deploy-hook.json"
+        rm -f "$body"
+        code="$(curl -sS -o "$body" -w '%{http_code}' --max-time 30 --retry 1 --retry-delay 5 -X POST "$HOOK")"
+        if [ "${code:0:1}" = "2" ]; then
+          echo "web redeploy triggered（HTTP ${code}）：$(head -c 500 "$body")"
+          echo "status=triggered" >> "$GITHUB_OUTPUT"
+        else
+          echo "::warning title=web 重新部署失敗::Deploy Hook HTTP ${code:-000}：$(head -c 300 "$body" 2>/dev/null)"
+          echo "status=failed（HTTP ${code:-000}）" >> "$GITHUB_OUTPUT"
+        fi
+        exit 0
 
     - name: Daily checks (行事曆 horizon／coverage、資料過期、season 排程)
       if: inputs.daily-checks == 'true' && !cancelled()

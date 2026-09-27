@@ -17,6 +17,11 @@ GitHub Actions 的 cron 不可靠（實測每小時排程約 74% 被吞、每日
    `PUT /repos/poterpan/ntutbox-course/actions/workflows/{daily.yml,weekly.yml}/enable`（期待 204；已啟用也是 204、冪等），
    防公開 repo 的排程 workflow 在 60 天無活動後被 GitHub 自動停用。與 season slot 無關、season 失敗也照做。
 
+5. **web 自動重新部署**（D22）：設了 `DEPLOY_HOOK_URL` 時，每小時另讀 `https://cdn.ntutbox.com/course/v1/manifest.json`，
+   若這個整點＝某筆 `term_schedule.default[].from`（預設學期生效時刻；不在整點上則取下一個整點）→ `POST DEPLOY_HOOK_URL`
+   （Workers Builds Deploy Hook，無 body、無 Authorization；期待 2xx）。讓 build 期產生的 `/browse/**` hub 在預設學期切換當下換成新學期。
+   與 season slot、保活無關（沒有 `GITHUB_TOKEN` 也照做）。資料變動觸發的重新部署在管線端（`infra/README.md`「web 自動重新部署」）。
+
 窗口與頻率全部由排程表決定，worker 不懂行事曆。排程表格式：
 
 ```json
@@ -33,6 +38,10 @@ GitHub Actions 的 cron 不可靠（實測每小時排程約 74% 被吞、每日
 | GitHub 5xx 或網路錯誤 | 重試一次 |
 | GitHub 非 204 | log status＋body、該次 cron 標失敗 |
 | 缺 `GITHUB_TOKEN` | log error、不發任何請求、該次 cron 標失敗 |
+| 缺 `DEPLOY_HOOK_URL` | log `no deploy hook, skip`、不讀 manifest，不算失敗 |
+| manifest 沒有 `term_schedule.default` | log 一行、跳過（相容尚未加上該欄位的 manifest） |
+| manifest 讀取失敗／非 JSON | log `[redeploy]` error、該次 cron 標失敗（`redeploy-manifest-error`） |
+| Deploy Hook 非 2xx（5xx／網路錯誤先重試一次） | log status＋body（不印 URL，它就是憑證）、該次 cron 標失敗（`redeploy-trigger-failed`） |
 | 保活 enable 非 204（5xx／網路錯誤先重試一次） | log `[keepalive]` status＋body、另一支照做、該次 cron 標失敗 |
 
 ## 與 zone 的關係
@@ -56,6 +65,7 @@ npx wrangler deploy
 
 ```sh
 npx wrangler secret put GITHUB_TOKEN
+npx wrangler secret put DEPLOY_HOOK_URL   # 選填：ntutbox-course-web 的 Deploy Hook（D22），建立方式見 infra/README.md
 ```
 
 token 用 **fine-grained PAT**：Repository access 只選 `poterpan/ntutbox-course`，
