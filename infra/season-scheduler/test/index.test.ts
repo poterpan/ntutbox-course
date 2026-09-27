@@ -101,7 +101,7 @@ describe("dispatch", () => {
 
   it("逗號分隔的 terms 原樣傳遞", async () => {
     const fn = mockFetch(
-      () => json(schedule([{ at: "2026-12-07T09:00:00+08:00", terms: "115-1,115-2", windows: ["網路選課"], reason: "open-burst" }])),
+      () => json(schedule([{ at: "2026-12-07T09:00:00+08:00", terms: "115-1,115-2", windows: ["預選"], reason: "open-burst" }])),
       [() => new Response(null, { status: 204 })],
     );
     await run(Date.parse("2026-12-07T01:00:00Z"), env, opts);

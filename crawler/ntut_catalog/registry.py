@@ -306,7 +306,7 @@ def for_cadence(cadence: str) -> List[Dataset]:
 
 # ------------------------------------------------------------------ 學期規則
 
-# 選課窗口開始前幾天起，`active` 就把「被選的學期」一起納入（D19）。網路選課（例如 115-2 在
+# 選課窗口開始前幾天起，`active` 就把「被選的學期」一起納入（D19）。預選（校方稱「網路選課」，例如 115-2 在
 # 12/07）發生在上一學期期末、學校 current-term 還沒翻之前；提前一個月建 catalog，season 才有
 # 基準可刷人數。env `SELECTION_LEAD_DAYS` 可覆寫（空字串＝預設）。
 SELECTION_LEAD_DAYS = 30
@@ -332,11 +332,13 @@ def _term_sort_key(term: str):
 
 def upcoming_window_terms(canonical_dir: Path, now: dt.datetime,
                           lead_days: int = SELECTION_LEAD_DAYS) -> List[str]:
-    """有「即將開始或進行中」選課窗口的學期：某個窗口 start ≤ now+lead_days 且 end ≥ now。
+    """有「即將開始或進行中」選課窗口的**被選學期**：某個窗口 start ≤ now+lead_days 且 end ≥ now，
+    回傳該窗口的 `target_term`。
 
-    窗口來源目前是 canonical `{term}/calendar.json` 的 `enrollment_windows`（行事曆解析只有一份，
-    D18）。窗口歸屬＝被選的學期（115-2 網路選課 → 115-2），所以 115-1 期末時回傳的是 115-2。
-    日後窗口若另有來源（例如 season 排程），在這裡併入即可，呼叫端不變。
+    窗口來源是 canonical 各學期 `{term}/calendar.json` 的 `enrollment_windows`（行事曆解析只有一份，
+    D18）；窗口放在**發生的學期**的檔裡、`target_term` 是被選的學期，所以 115-1 期末（115-1 的檔裡
+    有 115-2 預選）回傳 115-2，2027-05 回傳 116-1（116-1 還沒有自己的週次表也一樣）。
+    日後窗口若另有來源，在這裡併入即可，呼叫端不變。
     讀不到或壞掉的 calendar.json 跳過並 warning——這只是「多爬哪些學期」的提示，不該讓 daily 失敗。
     """
     from models import TermCalendarFile
@@ -347,21 +349,20 @@ def upcoming_window_terms(canonical_dir: Path, now: dt.datetime,
     horizon = now + dt.timedelta(days=lead_days)
     out = set()
     for path in sorted(canonical_dir.glob("*/calendar.json")):
-        term = path.parent.name
-        if not TERM_KEY_RE.match(term):
+        host = path.parent.name
+        if not TERM_KEY_RE.match(host):
             continue
         try:
             cal = TermCalendarFile.model_validate_json(path.read_text(encoding="utf-8"))
         except Exception as e:  # noqa: BLE001
             logger.warning("upcoming_window_terms: %s 讀取失敗，跳過：%s", path, e)
             continue
-        entry = cal.terms.get(term)
+        entry = cal.terms.get(host)
         for w in entry.enrollment_windows if entry else []:
             start = dt.datetime.fromisoformat(w.start)
             end = dt.datetime.fromisoformat(w.end)
-            if start <= horizon and end >= now:
-                out.add(term)
-                break
+            if start <= horizon and end >= now and TERM_KEY_RE.match(w.target_term):
+                out.add(w.target_term)
     return sorted(out, key=_term_sort_key)
 
 

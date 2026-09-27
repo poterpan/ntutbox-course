@@ -16,8 +16,8 @@
 - **`_meta/fetch-state.json`**：每個 (資料集, 學期) 的 `checked_at`／`changed_at`／`content_sha256`（無學期維度用 `_global` 鍵）。由鎖內的 merge 對最新 HEAD 更新；derive 把它帶進 manifest 各產物的 `checked_at`／`changed_at`。
 - **v1（R2、gitignore、由 canonical 重建）**：`v1/terms/{term}/{catalog,classes,periods,enrollment,mprograms}.json` + `v1/terms/{term}/course/{offeringId}.json`（詳情，隨點隨取）+ `v1/standards/{year}.json` + `v1/manifest.json`。**只有 `derive` 產 v1**（先清空再從 canonical 完整重生、確定性、不讀系統時間）；`pipeline` 只寫 canonical。
 - **跨學期 top-level**：`canonical/calendar/{events.ndjson,meta.json}` → `v1/calendar/events.json`（行事曆事件 feed，契約四）。內容沒變就不重寫。
-- **週次表（逐學期）**：`canonical/{term}/calendar.json` → `v1/terms/{term}/calendar.json`（契約三）。**不綁課程目錄是否已爬**——下學期的週次表往往早於課程目錄就能產。含 `enrollment_windows`（網路選課／新生網路預選／加選及無紀錄退選／期中撤選，日夜分開；網路選課歸**被選的學期**）。
-- **season 排程**：derive 把 manifest `calendars` 範圍內學期的 `enrollment_windows` 展開成整點觸發格 → `data/ops/season-schedule.json`（v1 之外、確定性）→ publish 傳 `course/ops/season-schedule.json`，Cloudflare Worker 讀它觸發 `season.yml`（`ntut_catalog/season_schedule.py`、D18）。
+- **週次表（逐學期）**：`canonical/{term}/calendar.json` → `v1/terms/{term}/calendar.json`（契約三）。**不綁課程目錄是否已爬**——下學期的週次表往往早於課程目錄就能產。含 `enrollment_windows`（kind：`preselection` 預選＝校方「網路選課」／`freshman_preselection` 新生預選／`post_start_add_drop` 開學後加退選＝校方「加選及無紀錄退選」／`midterm_withdrawal` 期中撤選，日夜分開）。窗口放在**發生的學期**的檔（開始日所在學期），`target_term`＝被選的學期：115-2 預選 12/07 在 115-1 的檔、target 115-2；116-1 預選 2027-05-24 在 115-2 的檔、target 116-1。
+- **season 排程**：derive 把 manifest `calendars` 範圍內學期的 `enrollment_windows` 展開成整點觸發格（slot `terms`＝窗口的 `target_term`、`windows`＝顯示名 預選／新生預選／開學後加退選／期中撤選）→ `data/ops/season-schedule.json`（v1 之外、確定性）→ publish 傳 `course/ops/season-schedule.json`，Cloudflare Worker 讀它觸發 `season.yml`（`ntut_catalog/season_schedule.py`、D18）。
 - **逐週進度**：derive 產 `course/{id}.json` 時由課綱原文 × 週次表即時計算（契約一），行事曆或 parser 改了下次 derive 自動生效；三態統計寫 `canonical/reports/{term}/weekly-progress.json`（commit 進 data branch，數字沒變就不 commit）。
 - `requirement.category` 由符號圖例（Cprog -5）於 normalize 補。
 

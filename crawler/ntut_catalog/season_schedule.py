@@ -38,11 +38,11 @@ BURST_HOURS = 24              # 開啟後／截止前的高頻時長
 BASE_INTERVAL_HOURS = 3       # 其餘時段的基本間隔（台北 00 點起對齊）
 CLOSE_EXTRA_SLOT = True       # 截止時刻補跑一次
 
-# 輸出的窗口名（行事曆用語）
+# 輸出的窗口顯示名（不照抄校方用語：「網路選課」其實是預選，容易誤會）
 WINDOW_LABELS = {
-    "online_selection": "網路選課",
-    "freshman_preselection": "新生網路預選",
-    "add_drop": "加選及無紀錄退選",
+    "preselection": "預選",                  # 校方行事曆稱「網路選課」
+    "freshman_preselection": "新生預選",
+    "post_start_add_drop": "開學後加退選",    # 校方稱「加選及無紀錄退選」
     "midterm_withdrawal": "期中撤選",
 }
 _LABEL_ORDER = list(WINDOW_LABELS.values())
@@ -78,15 +78,17 @@ def window_slots(start: dt.datetime, end: dt.datetime) -> List[Slot]:
 
 def build_schedule(terms: Dict[str, AcademicTerm],
                    calendar_sha256: Optional[str]) -> dict:
-    """{term: AcademicTerm} → season-schedule.json 的內容（dict）。"""
+    """{所在學期: AcademicTerm} → season-schedule.json 的內容（dict）。slot 的 `terms` 是窗口的
+    `target_term`，不是所在學期；被選學期有沒有自己的週次表都不影響（116-1 預選在 115-2 的檔裡）。"""
     merged: Dict[dt.datetime, dict] = {}
-    for term_key, term in sorted(terms.items()):
+    for _host, term in sorted(terms.items()):
         for w in term.enrollment_windows:
             label = WINDOW_LABELS[w.kind]
             for at, reason in window_slots(dt.datetime.fromisoformat(w.start),
                                            dt.datetime.fromisoformat(w.end)):
                 slot = merged.setdefault(at, {"terms": set(), "windows": set(), "reason": reason})
-                slot["terms"].add(term_key)
+                # 刷的是**被選的學期**：115-1 期末的預選刷 115-2
+                slot["terms"].add(w.target_term)
                 slot["windows"].add(label)
                 if REASONS.index(reason) > REASONS.index(slot["reason"]):
                     slot["reason"] = reason
@@ -128,17 +130,17 @@ def load_schedule(out_dir: Path) -> Optional[dict]:
 
 
 def summarize(terms: Dict[str, AcademicTerm]) -> Dict[Tuple[str, str], dict]:
-    """(學期, 窗口名) → {count, first, last}：該窗口（日夜合併）自己的觸發格數（報告與測試用）。"""
+    """(被選學期, 窗口名) → {count, first, last}：該窗口（日夜合併）自己的觸發格數（報告與測試用）。"""
     out: Dict[Tuple[str, str], dict] = {}
-    for key, term in sorted(terms.items()):
-        by_label: Dict[str, set] = {}
+    by_key: Dict[Tuple[str, str], set] = {}
+    for _host, term in sorted(terms.items()):
         for w in term.enrollment_windows:
-            by_label.setdefault(WINDOW_LABELS[w.kind], set()).update(
+            by_key.setdefault((w.target_term, WINDOW_LABELS[w.kind]), set()).update(
                 at for at, _ in window_slots(dt.datetime.fromisoformat(w.start),
                                              dt.datetime.fromisoformat(w.end)))
-        for label, ats in by_label.items():
-            ordered = sorted(ats)
-            out[(key, label)] = {"count": len(ordered),
-                                 "first": ordered[0].isoformat(timespec="seconds"),
-                                 "last": ordered[-1].isoformat(timespec="seconds")}
+    for key, ats in sorted(by_key.items()):
+        ordered = sorted(ats)
+        out[key] = {"count": len(ordered),
+                    "first": ordered[0].isoformat(timespec="seconds"),
+                    "last": ordered[-1].isoformat(timespec="seconds")}
     return out

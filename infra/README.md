@@ -44,11 +44,11 @@ Actions → **maintenance** → Run workflow：
 ### 選課季：season
 - **觸發**：Cloudflare Worker（`ntutbox-season-scheduler`）每小時 Cron 讀 `cdn.ntutbox.com/course/ops/season-schedule.json`，
   現在這個整點在 `slots` 裡 → 以該格的 `terms` dispatch `season.yml`（D18；GitHub cron 實測 74% 被吞，不用它）。
-  **排程由 Python 產、Worker 只觸發**：窗口來自週次表 `{term}/calendar.json` 的 `enrollment_windows`（行事曆解析只有
+  **排程由 Python 產、Worker 只觸發**：窗口來自週次表 `{term}/calendar.json` 的 `enrollment_windows`（放在發生的學期、slot 的 `terms` 取窗口的 `target_term`；`windows` 顯示名：預選／新生預選／開學後加退選／期中撤選。行事曆解析只有
   `term_calendar.py` 一份），derive 展開成整點觸發格寫 `data/ops/season-schedule.json`，publish 傳到
   `course/ops/`（max-age=300、不參與過期刪除）。頻率：開啟後／截止前 24 小時每小時、截止時刻補一次、其餘每 3 小時
   （台北 00／03／06…）；常數在 `crawler/ntut_catalog/season_schedule.py`。
-- 看排程：`curl -s https://cdn.ntutbox.com/course/ops/season-schedule.json | jq '.slots[] | select(.at >= "2026-12-07")' | head`；
+- 看排程：`curl -s https://cdn.ntutbox.com/course/ops/season-schedule.json | jq '.slots[] | select(.at >= "2026-12-07")' | head   # 115-2 預選：terms=115-2`；
   本機：`python -m ntut_catalog derive --out data && jq '.slots | length' data/ops/season-schedule.json`。
 - 手動補跑仍可直接 dispatch `season.yml`，**`terms` 必填**（如 `115-2`）：選課季時 `current-term` 可能還是上一學期，默默用它會刷錯學期（pipeline 沒給 `--terms` 會 exit 2）。
 - **人數來源**：先 `QueryCourse(matric=全校13碼, unit=＊)` 一次查（timeout 180 秒、最多 2 次），失敗退回逐系所；
@@ -56,8 +56,9 @@ Actions → **maintenance** → Run workflow：
   代表全校查詢變慢或被擋，人數仍正確、只是請求數回到約 60 個。
 - **新學期的前置條件（自動，D19）**：season 只刷人數，需要該學期的 canonical catalog 已存在（否則該資料集失敗：`no canonical catalog — 先跑 catalog 再刷人數`）。
   daily 的 `active` 規則＝`current-term` ∪ **有選課窗口 `start ≤ 現在+30 天` 且 `end ≥ 現在` 的學期**（窗口讀 `{term}/calendar.json` 的
-  `enrollment_windows`，歸屬被選的學期）。例：115-2 網路選課 12/07 開始 → 11/07 起 daily 的 catalog／mprograms 自動多爬 115-2；
-  115-1 期末 season 監看 115-2；網路選課結束、學校 current-term 翻成 115-2 後只剩 115-2。**不必再手動設 `ACTIVE_TERMS`**。
+  `enrollment_windows`，看窗口的 `target_term`＝被選的學期）。例：115-2 預選（校方稱「網路選課」）12/07 開始、放在 115-1 的檔 →
+  11/07 起 daily 的 catalog／mprograms 自動多爬 115-2；115-1 期末 season 監看 115-2；預選結束、學校 current-term 翻成 115-2 後只剩 115-2。
+  116-1 預選（2027-05-24）在 115-2 的檔裡，116-1 還沒有週次表也會排程、4/24 起自動納入。**不必再手動設 `ACTIVE_TERMS`**。
   提前天數常數 `SELECTION_LEAD_DAYS = 30`（`crawler/ntut_catalog/registry.py`），可用 repo var `SELECTION_LEAD_DAYS` 覆寫。
   看 daily 這輪納入哪些學期：fetch job log 的 `upcoming selection-window terms: …`。
 - **要立刻補、或自動沒生效時**（例如收到下面的「缺 catalog」告警），擇一：

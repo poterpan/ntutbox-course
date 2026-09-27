@@ -517,71 +517,87 @@ def test_published_calendar_bytes_survive_a_rerun(tmp_path, events):
 # ----------------------------------------------------------------- 選課相關窗口（issue #111）
 
 def _windows(events, term_key):
-    return [(w.kind, w.division, w.start, w.end)
+    return [(w.kind, w.target_term, w.division, w.start, w.end)
             for w in derive_term(events, term_key).enrollment_windows]
 
 
 def test_enrollment_windows_115_1(events):
-    """115-1：新生預選、加退選日夜拆兩筆；期中撤選「開始」10/05 與日夜「結束」11/20、11/21 配對。"""
+    """115-1 的檔：新生預選、開學後加退選日夜拆兩筆；期中撤選「開始」10/05 與日夜「結束」11/20、
+    11/21 配對；12/07 的「115學年度第2學期網路選課」發生在 115-1 → 在這裡，target 115-2。"""
     assert _windows(events, "115-1") == [
-        ("online_selection", "day", "2026-06-08T00:00:00+08:00", "2026-06-19T17:00:00+08:00"),
-        ("online_selection", "evening", "2026-06-08T00:00:00+08:00", "2026-06-20T21:00:00+08:00"),
-        ("freshman_preselection", "day", "2026-08-19T00:00:00+08:00", "2026-09-01T17:00:00+08:00"),
-        ("freshman_preselection", "evening", "2026-08-19T00:00:00+08:00",
+        ("freshman_preselection", "115-1", "day", "2026-08-19T00:00:00+08:00",
+         "2026-09-01T17:00:00+08:00"),
+        ("freshman_preselection", "115-1", "evening", "2026-08-19T00:00:00+08:00",
          "2026-09-01T21:00:00+08:00"),
-        ("add_drop", "day", "2026-09-07T00:00:00+08:00", "2026-09-18T17:00:00+08:00"),
-        ("add_drop", "evening", "2026-09-07T00:00:00+08:00", "2026-09-19T21:00:00+08:00"),
-        ("midterm_withdrawal", "day", "2026-10-05T00:00:00+08:00", "2026-11-20T17:00:00+08:00"),
+        ("post_start_add_drop", "115-1", "day", "2026-09-07T00:00:00+08:00",
+         "2026-09-18T17:00:00+08:00"),
+        ("post_start_add_drop", "115-1", "evening", "2026-09-07T00:00:00+08:00",
+         "2026-09-19T21:00:00+08:00"),
+        ("midterm_withdrawal", "115-1", "day", "2026-10-05T00:00:00+08:00",
+         "2026-11-20T17:00:00+08:00"),
         # 進修部撤選也是 17:00 截止（事件本身寫 17:00）
-        ("midterm_withdrawal", "evening", "2026-10-05T00:00:00+08:00", "2026-11-21T17:00:00+08:00"),
+        ("midterm_withdrawal", "115-1", "evening", "2026-10-05T00:00:00+08:00",
+         "2026-11-21T17:00:00+08:00"),
+        ("preselection", "115-2", "day", "2026-12-07T00:00:00+08:00", "2026-12-18T17:00:00+08:00"),
+        ("preselection", "115-2", "evening", "2026-12-07T00:00:00+08:00",
+         "2026-12-19T21:00:00+08:00"),
     ]
 
 
-def test_enrollment_windows_115_2_online_selection_belongs_to_selected_term(events):
-    """「115學年度第2學期網路選課」在 12 月舉行、落在 115-1 的日期範圍，但歸 115-2。"""
+def test_enrollment_windows_115_2_hosts_116_1_preselection(events):
+    """116-1 預選（2027-05-24）發生在 115-2 → 放在 115-2 的檔、target 116-1。
+    改版前它歸 116-1，而 116-1 的週次表要到 2027-08 才推得出來 → 整個窗口被默默丟掉。"""
     got = _windows(events, "115-2")
-    assert got[:2] == [
-        ("online_selection", "day", "2026-12-07T00:00:00+08:00", "2026-12-18T17:00:00+08:00"),
-        ("online_selection", "evening", "2026-12-07T00:00:00+08:00", "2026-12-19T21:00:00+08:00"),
-    ]
-    assert ("add_drop", "evening", "2027-02-22T00:00:00+08:00", "2027-03-05T21:00:00+08:00") in got
-    assert ("midterm_withdrawal", "day", "2027-03-22T00:00:00+08:00",
+    assert ("post_start_add_drop", "115-2", "evening", "2027-02-22T00:00:00+08:00",
+            "2027-03-05T21:00:00+08:00") in got
+    assert ("midterm_withdrawal", "115-2", "day", "2027-03-22T00:00:00+08:00",
             "2027-05-07T17:00:00+08:00") in got
-    assert not any(k == "online_selection" and s.startswith("2026-12")
-                   for k, _, s, _ in _windows(events, "115-1"))
+    assert got[-2:] == [
+        ("preselection", "116-1", "day", "2027-05-24T00:00:00+08:00", "2027-06-04T17:00:00+08:00"),
+        ("preselection", "116-1", "evening", "2027-05-24T00:00:00+08:00",
+         "2027-06-05T21:00:00+08:00"),
+    ]
+    assert not any(k == "preselection" and t == "115-2" for k, t, *_ in got)
     uids = {w.kind: w.source_uids for w in derive_term(events, "115-2").enrollment_windows}
     assert len(uids["midterm_withdrawal"]) == 2          # 開始＋結束兩筆事件
 
 
 @pytest.mark.parametrize("term_key, expected", [
     # 標題分部別、一筆涵蓋兩部別（「日間部 17:00 截止，進修部 21:00 截止」）→ 拆兩窗口
-    ("114-2", {("add_drop", "day"): "2026-03-09T17:00:00+08:00",
-               ("add_drop", "evening"): "2026-03-09T21:00:00+08:00"}),
+    ("114-2", {("post_start_add_drop", "day"): "2026-03-09T17:00:00+08:00",
+               ("post_start_add_drop", "evening"): "2026-03-09T21:00:00+08:00"}),
     # 111-1：「進修部期中撤選結束(截止)」沒寫時刻 → 撤選的進修部預設也是 17:00
     ("111-1", {("midterm_withdrawal", "evening"): "2022-12-03T17:00:00+08:00",
-               ("online_selection", "all"): "2022-06-17T17:00:00+08:00"}),
+               ("preselection", "day"): "2023-01-06T17:00:00+08:00"}),
+    # 選 111-1 的預選（2022-06，未分部別的單筆）發生在 110-2 → 在 110-2 的檔裡
+    ("110-2", {("preselection", "all"): "2022-06-17T17:00:00+08:00"}),
     # 113-2：兩筆一模一樣的「期中撤選結束」去重；未標部別的兩筆 → 早者日間部、晚者進修部
     ("113-2", {("midterm_withdrawal", "day"): "2025-05-09T17:00:00+08:00",
                ("midterm_withdrawal", "evening"): "2025-05-10T17:00:00+08:00",
-               ("add_drop", "all"): "2025-03-03T17:00:00+08:00"}),
+               ("post_start_add_drop", "all"): "2025-03-03T17:00:00+08:00"}),
     # 112-1：「新生網路預選(日間部 17:00 截止) (進修部 21:00 截止)」
     ("112-1", {("freshman_preselection", "day"): "2023-09-05T17:00:00+08:00",
                ("freshman_preselection", "evening"): "2023-09-05T21:00:00+08:00"}),
 ])
 def test_enrollment_windows_tolerate_title_variants(events, term_key, expected):
-    got = {(k, d): e for k, d, _, e in _windows(events, term_key)}
+    got = {(k, d): e for k, _, d, _, e in _windows(events, term_key)}
     for key, end in expected.items():
         assert got.get(key) == end, (term_key, key)
 
 
 def test_enrollment_windows_every_term_110_to_115(events):
-    """110～115 學年度每學期：撤選日夜兩窗口、加退選、網路選課都推得出來，且全過不變量。"""
+    """110～115 學年度每學期：撤選日夜兩窗口、開學後加退選、（選下學期的）預選都推得出來，且全過不變量。"""
     for y in range(110, 116):
         for sem in (1, 2):
             key = f"{y}-{sem}"
             term = derive_term(events, key)
             kinds = {w.kind for w in term.enrollment_windows}
-            assert {"online_selection", "add_drop", "midterm_withdrawal"} <= kinds, key
+            assert {"preselection", "post_start_add_drop", "midterm_withdrawal"} <= kinds, key
+            nxt = f"{y}-2" if sem == 1 else f"{y + 1}-1"
+            assert {w.target_term for w in term.enrollment_windows
+                    if w.kind == "preselection"} == {nxt}, key
+            assert all(w.target_term == key for w in term.enrollment_windows
+                       if w.kind != "preselection"), key
             assert ("freshman_preselection" in kinds) == (sem == 1), key
             divs = [w.division for w in term.enrollment_windows if w.kind == "midterm_withdrawal"]
             assert divs == ["day", "evening"], key
@@ -624,7 +640,7 @@ def test_underivable_windows_are_dropped_with_warning_not_raised(events, caplog)
         term = derive_term(broken, "115-1")
     assert term.weeks and len(term.weeks) == 18
     assert "midterm_withdrawal" not in {w.kind for w in term.enrollment_windows}
-    assert "add_drop" in {w.kind for w in term.enrollment_windows}
+    assert "post_start_add_drop" in {w.kind for w in term.enrollment_windows}
     assert "無法配對" in caplog.text
 
 
@@ -632,14 +648,23 @@ def test_window_invariants_reject_out_of_range(events):
     from models import EnrollmentWindow
     from ntut_catalog.term_calendar import window_violations
     term = derive_term(events, "115-1")
-    bad = EnrollmentWindow(kind="midterm_withdrawal", division="day",
+    bad = EnrollmentWindow(kind="midterm_withdrawal", target_term="115-1", division="day",
                            start="2027-02-01T00:00:00+08:00", end="2027-01-01T00:00:00+08:00")
     got = window_violations("115-1", term, bad)
     assert any("不晚於開始" in v for v in got) and any("上課期間" in v for v in got)
-    late = EnrollmentWindow(kind="online_selection", division="day",
+    late = EnrollmentWindow(kind="freshman_preselection", target_term="115-1", division="day",
                             start="2026-09-01T00:00:00+08:00", end="2026-09-10T17:00:00+08:00")
     assert any("晚於開學日" in v for v in window_violations("115-1", term, late))
-    far = EnrollmentWindow(kind="add_drop", division="day",
+    wrong = EnrollmentWindow(kind="preselection", target_term="116-1", division="day",
+                             start="2026-12-07T00:00:00+08:00", end="2026-12-18T17:00:00+08:00")
+    assert any("不是 115-1 的下一學期" in v for v in window_violations("115-1", term, wrong))
+    early = EnrollmentWindow(kind="preselection", target_term="115-2", division="day",
+                             start="2026-06-08T00:00:00+08:00", end="2026-06-19T17:00:00+08:00")
+    assert any("早於所在學期開學日" in v for v in window_violations("115-1", term, early))
+    mism = EnrollmentWindow(kind="midterm_withdrawal", target_term="115-2", division="day",
+                            start="2026-10-05T00:00:00+08:00", end="2026-11-20T17:00:00+08:00")
+    assert any("應等於所在學期" in v for v in window_violations("115-1", term, mism))
+    far = EnrollmentWindow(kind="post_start_add_drop", target_term="115-1", division="day",
                            start="2026-10-01T00:00:00+08:00", end="2026-10-10T17:00:00+08:00")
     assert any("距開學日" in v for v in window_violations("115-1", term, far))
 

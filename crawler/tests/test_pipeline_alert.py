@@ -253,7 +253,7 @@ SEASON_NOW = dt.datetime(2026, 11, 25, 6, 30, tzinfo=TAIPEI)
 
 
 def test_season_catalog_alerts_only_for_imminent_windows(tmp_path):
-    """115-2 的網路選課 12/07 在 14 天內、沒有 catalog → 開；116-1 遠在半年後 → 不開（噪音）。"""
+    """115-2 的預選 12/07 在 14 天內、沒有 catalog → 開；116-1 遠在半年後 → 不開（噪音）。"""
     data = _season_data(tmp_path, [("2026-11-26T00:00:00+08:00", "115-1"),
                                    ("2026-12-07T00:00:00+08:00", "115-2"),
                                    ("2027-05-24T00:00:00+08:00", "116-1")], catalogs=["115-1"])

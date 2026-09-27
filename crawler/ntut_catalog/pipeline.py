@@ -64,7 +64,7 @@ def run(cadence: str, datasets: Optional[Sequence[str]], terms: Sequence[str], o
         current_term: Optional[Callable[[], str]] = None) -> PipelineResult:
     """跑一輪 fetch，寫 `{stage}/pipeline-result.json` 並回傳結果。"""
     if cadence == "season" and not terms:
-        # 12 月 115-2 網路選課時 current-term 可能仍是 115-1——默默用它會刷錯學期（Review Focus 5）。
+        # 12 月 115-2 預選時 current-term 可能仍是 115-1——默默用它會刷錯學期（Review Focus 5）。
         raise UsageError("cadence=season 必須明確指定 --terms（current-term 在選課季可能是錯的學期）")
     selected = select_datasets(cadence, datasets)
     ctx = ctx or FetchContext(out)
