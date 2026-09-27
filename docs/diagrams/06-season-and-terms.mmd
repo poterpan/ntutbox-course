@@ -27,7 +27,7 @@ flowchart TB
     end
 
     subgraph TERMSIDE["本學期 / 預設學期：manifest term_schedule"]
-        ts["derive · term_schedule → manifest<br/>current：8/1–1/31 = Y-1、2/1–7/31 = Y-2<br/>default：本學期期中撤選截止 (日/夜取晚者) 起切到下學期<br/>(無撤選窗口 → 下學期預選開始 −14 天)<br/>例：115-2 自 2026-11-21 17:00 起為預設"]
+        ts["derive · term_schedule → manifest<br/>current：行事曆「第N學期開始」起<br/>(無行事曆 → 8/1 = Y-1、2/1 = Y-2)<br/>default：本學期期中撤選截止 (日/夜取晚者) 起切到下學期<br/>(無撤選窗口 → 下學期預選開始 −14 天)<br/>例：115-2 自 2026-11-21 17:00 起為預設"]
         rt["Web resolveTerms(manifest, now)<br/>預設學期無 catalog → 本學期 → 最新學期<br/>檢視 ≠ 本學期 → 顯示「回到本學期」"]
         hub["/browse hub (build 期產，hub-term.json)<br/>sitemap-courses (請求當下的預設學期)"]
         dh["Deploy Hook auto-rebuild-hub<br/>→ Workers Builds 重建 ntutbox-course-web"]

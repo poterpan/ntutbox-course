@@ -56,7 +56,7 @@ kind：預選（校方稱「網路選課」）、新生預選、開學後加退�
   season 的人數先全校一次 `QueryCourse`，失敗（逾時、無表頭、0 課）才退回逐系所。
 - **daily 跑哪些學期**（D19）：`active`＝本學期 ∪ 有窗口 `start ≤ now+30 天` 且 `end ≥ now` 的 `target_term`；`ACTIVE_TERMS` 有值則完全照它。
 - **本學期／預設學期**（D21）：derive 在 manifest 產 `term_schedule`（`current`、`default` 兩條 `{term, from}` 時間軸，取 `from ≤ now` 最後一筆）。
-  本學期＝8/1～1/31 上學期、2/1～7/31 下學期；預設學期從本學期**期中撤選截止**（日／夜取晚者）起改為下學期（推不出撤選窗口 → 下學期預選開始 −14 天）。
+  本學期＝各學期自行事曆「學年度第N學期開始」（calendar.json `administrative_start`）起，沒有該學期行事曆 → 固定 8/1 上學期、2/1 下學期；預設學期從本學期**期中撤選截止**（日／夜取晚者）起改為下學期（推不出撤選窗口 → 下學期預選開始 −14 天）。
   例：115-2 自 2026-11-21 17:00 起為預設。web 的 `resolveTerms(manifest, now)`（`apps/web/src/lib/terms/term-schedule.ts`）決定預設選取，
   預設學期還沒 catalog → 本學期 → 最新學期；檢視學期 ≠ 本學期時顯示「回到本學期」。`/sitemap-courses.xml` 依請求當下的預設學期產；
   `/browse/**` hub 在 build 期產（連結讀 `/hub-term.json`），所以 Worker 在每筆 `default[].from` 的整點觸發 Deploy Hook 重建。
