@@ -316,6 +316,7 @@ QueryCourse.jsp 等   ──►   Python 爬蟲 → 乾淨 JSON   ──►   co
 **來源根本沒有的資訊（雙方都拿不到，schema 別假裝有）**：
 - **單雙週/半學期**：全 2,539 課結構化欄位 0 命中（僅 5 筆出現在敘述文字）→ `meetings.weekPattern/dateRange` 改 **optional、預設每週**，文件註明「來源限制、非我方未實作」；衝堂引擎只用 `day×period 交集`，不假裝更高精度。
 - **教室↔星期的對應**：QueryCourse 列內教室是並排 `<a>`、與星期**無對應**（如 346719 一(3,4)+五(4) 配「六教526/726」無法對位）→ `classroomCodes` 放**課程層級**或標 nullable，要 meeting 級需另爬 `Croom.jsp`。
+  - **2026-09-28 更新（D24）**：`Croom.jsp` 已爬（`rooms` 資料集，§4.8）。derive 以教室課表反查 (課號, 星期, 節次) → 教室碼，填 v1 catalog 的 `meetings[].classroom_codes`（canonical 仍恆空）。115-1：有時段的 2,472 課中 1,726 課每節都對得到（含 130 門多教室課）、0 partial、746 課不在任何教室課表上（無資料 → 留空，web 退回課程層級）、12 課同一時段各節不同教室（split，取聯集）、課程層級教室集合與反查結果 0 衝突。例：360745 週四 5–6 六教526、週五 7 六教626。一致性報告 `reports/{term}/meeting-rooms.json`。
 - **容量上限 capacity**：目錄只有「已選人數+撤選數」，**沒有上限**→ catalog 端 `capacity` 恆 null，只有 cwish live 訊息（「選課人數已達上限(45)」）能補。
 - **班週會/導師時間**：不在 QueryCourse、只在各班課表頁（`Subj.jsp?format=-4`）→ v1 排課 grid 看不見每班被週會佔走的時段；v1.1 再爬 ~246 班級頁做 `classes.json.blockedSlots`。
 
@@ -345,6 +346,7 @@ App 的「空教室查找」（poterpan/NTUTBox#239）要的是**每間教室的
 - **code 跨學期穩定**：110-1（215 間）與 115-1（231 間）共同的 198 間簡稱 0 變動。canonical 以 code 為鍵、依 code 數值排序。
 - 115-1 實跑（2026-09-27）：233 請求（清單＋231 間＋current-term）、3 分 15 秒、0 失敗、4,419 格、1,726 個課號全在 catalog 內。
 - **課表只代表「有排課」**：社團借用、補課、會議、考試借教室都不在課表裡 → 沒有 slot ≠ 保證空著，App 文案不可講死。
+- **逐時段教室（D24）**：課程列的教室只有課程層級（§4.7），反查這份課表即可得每個上課時段的教室；derive 填進 v1 `meetings[].classroom_codes`。
 - **不是全校空間**：房間宇宙是課程系統的教室清單；校園 GIS（`ntut-campus-map`）連辦公室、實驗室、廁所都有，只拿來定位。GIS 對應規則與 `gis_match` 見 `crawler/ntut_catalog/room_gis.py` 與 D23。
 
 ## 5. 待辦 / 未解（之後回來做）

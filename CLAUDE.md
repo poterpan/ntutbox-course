@@ -39,7 +39,7 @@
 ## 關鍵事實（實作必看；細節在 `docs/DESIGN.md`）
 - **課號 vs 課程編碼**：`offering_id`(課號)＝每學期選課代碼、跳動、**= cwish subj**；`course_code`(課程編碼)＝跨學期固定，**同編碼可對多課號(多班)**。主鍵 `(term_key, offering_id)`。
 - **節次模型（非直覺）**：不是 1..14，是 `1,2,3,4,N(中午),5,6,7,8,9,A,B,C,D(晚上)`。
-- **來源根本沒有的（schema 別假裝有）**：單雙週/半學期、教室↔節次對應、容量上限（catalog 端 `capacity` 恆 null，只 cwish live 有）。`meetings.week_pattern` 預設 weekly。衝堂只用 day×period 交集。
+- **來源根本沒有的（schema 別假裝有）**：單雙週/半學期、容量上限（catalog 端 `capacity` 恆 null，只 cwish live 有）。`meetings.week_pattern` 預設 weekly。衝堂只用 day×period 交集。教室↔節次：課程列沒有，v1 的 `meetings[].classroom_codes` 由 derive 以 Croom 教室課表反查（D24；查不到＝空、退回課程層級）。
 - **班級碼**：== cwish `cunum`（同命名空間）、**逐年重編** → `classes.json` 要**逐學期**產；研究所單一碼不分年級、大學部分「年級+甲乙」。
 - **選課階段分類（P0）**：`preselection`(本班直接：本班+同系較低年級選修+授權外班) / `preference_ballot`(志願分發：博雅·體育·共同英文) / `add_drop`(oads：創新創業·國際觀·跨校·三四年級體育·自主學習·跨域專題) / `program_registration`(微學程·學程·輔系·雙主修，非選課系統) / `planning_only` / `unknown`。
 - **pool 班級地雷**：博雅/體育/英文掛「pool 班級碼」，學生班級碼永不在其中 → naive 本班/外班會**誤判 ~12%**。`classes.json` 標 `kind: regular|pool|virtual`；佔位課（「請選…」/credit0 無師資）標 `is_placeholder`。

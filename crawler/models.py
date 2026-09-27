@@ -147,10 +147,12 @@ class ClassRef(BaseModel):
 
 
 class Meeting(BaseModel):
-    """單一上課時段。weekPattern/dateRange/教室對應＝來源未提供（§4.7）→ optional。"""
+    """單一上課時段。weekPattern/dateRange＝來源未提供（§4.7）→ optional；教室對應由 derive 反查（D24）。"""
     day: Weekday
     periods: List[PeriodToken]                   # 該日節次（已排序）
-    classroom_codes: List[str] = Field(default_factory=list)  # 來源無法對應到每節，多為課程層級
+    # 該時段的教室碼：canonical 恆空（課程列只給課程層級教室）；v1 由 derive 以 Croom 教室課表
+    # 反查填入（D24，meeting_rooms.py）。空 list＝查不到 → 用課程層級 `classrooms`。
+    classroom_codes: List[str] = Field(default_factory=list)
     week_pattern: WeekPattern = WeekPattern.weekly            # 來源無單雙週資訊→預設 weekly
     date_range: Optional[str] = None
     group: Optional[str] = None                  # 分組（實習/講課綁定）

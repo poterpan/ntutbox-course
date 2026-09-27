@@ -416,8 +416,9 @@ def resolve_terms(rule: TermRule, explicit: Sequence[str],
 
 # ------------------------------------------------------------------ commit 範圍
 
-# 登錄表以外、commit-publish job 也要 commit 的檔：fetch-state（merge 寫）與逐週進度報告（derive 寫）。
-_EXTRA_COMMITTED = ("_meta/fetch-state.json", "reports/{term}/weekly-progress.json")
+# 登錄表以外、commit-publish job 也要 commit 的檔：fetch-state（merge 寫）、逐週進度報告與逐時段教室報告（derive 寫）。
+_EXTRA_COMMITTED = ("_meta/fetch-state.json", "reports/{term}/weekly-progress.json",
+                    "reports/{term}/meeting-rooms.json")
 
 
 def committable(rel: str) -> bool:

@@ -110,9 +110,18 @@ runs:
         python -m ntut_catalog pua-scan --terms "$TERMS" --out data \
           || echo "::error title=PUA 新造字::pua-scan 發現未收錄碼位（$TERMS），不擋發佈；見上方清單"
 
+    # derive 層 warning（逐時段教室 conflict，D24）寫成 derive-report.json → artifact → alert job 列進 issue
     - name: Derive v1 (+ reports)
       shell: bash
-      run: python -m ntut_catalog derive --out data
+      run: python -m ntut_catalog derive --out data --alerts "$RUNNER_TEMP/derive-reports/derive-report.json"
+
+    - name: Upload derive reports
+      uses: actions/upload-artifact@v7
+      with:
+        name: derive-reports-${{ github.job }}
+        path: ${{ runner.temp }}/derive-reports
+        if-no-files-found: ignore
+        retention-days: 7
 
     - name: Commit canonical + reports
       id: commit

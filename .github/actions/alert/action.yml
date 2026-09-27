@@ -39,6 +39,14 @@ runs:
         pattern: merge-reports-*
         path: ${{ runner.temp }}/alert/reports
 
+    # derive 層 warning（D24）；放進同一個目錄，pipeline_alert 以檔名 derive-report*.json 區分
+    - name: Download derive reports
+      continue-on-error: true
+      uses: actions/download-artifact@v8
+      with:
+        pattern: derive-reports-*
+        path: ${{ runner.temp }}/alert/reports
+
     - name: Open / update / close pipeline-alert issue
       shell: bash
       env:

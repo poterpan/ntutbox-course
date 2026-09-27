@@ -34,6 +34,7 @@
 - **canonical `{term}/rooms.json`**：只記學校給的——`code`（Croom 教室碼，跨學期穩定）、`raw`（簡稱原文，如「六教526(e)」）、`full_name`、`capacity`（空白 → null）、`slots: [{day 0..6（0=日）, period, offering_ids（排序）}]`。依 code 排序、不帶時間、一列一間。同一格可有多門課（合開）。
 - **節點失敗**：失敗的那一間由 merge 從 HEAD 沿用（逐位元組相同）；HEAD 也沒有就**不寫**（空課表會被當成整週沒課）；> 5% 整筆丟棄。
 - **v1 `terms/{term}/rooms.json`（derive）**：每間加 `gis: [{building_id, floor_id, class_number}]` 與 `gis_match`（`rule`／`override`／`building_only`／`floor_only`／`none`），頂層 `gis_snapshot`（GIS 快照的 updateSequence）。規則在 `ntut_catalog/room_gis.py`；GIS 快照 `reference/gis-rooms.json`（由 `../infra/gis/build_snapshot.py` 從本機 ntut-campus-map 產，勿手改）；人工對應 `reference/gis-room-overrides.json`（只收 GIS 查得到者，`gis_name` 為 GIS 上的名稱、derive 會驗）。`raw` 永遠保留。
+- **逐時段教室（D24，`ntut_catalog/meeting_rooms.py`）**：derive 把 rooms 的 slots 反查成 (課號, 星期, 節次) → 教室碼，填 v1 catalog 每個 `meetings[].classroom_codes`（該時段各節的聯集、依 code 排序）；canonical `catalog.ndjson` 不動、該學期沒有 rooms.json 就維持空 list。一致性報告 `canonical/reports/{term}/meeting-rooms.json`：`full`／`partial`／`missing`／`split`／`conflict` 計數＋`partial_ids`／`conflict_ids`（最多 50 筆），不帶時間、內容沒變就不重寫、隨 commit-publish 進 data branch。`conflict` > 0 且報告有變 → `derive --alerts` 寫 `derive-report.json`（artifact `derive-reports-*`），alert job 以 warning 列進 `[pipeline] <workflow> 失敗` issue（不擋發佈）。
 - **語意**：slot＝「**有排課**」，不是「被占用」。沒有 slot ≠ 保證空著——社團借用、補課、會議都不在課表裡；App 文案不可講死。房間只有課程系統的教室（不是 GIS 全部空間）。
 
 ### 資料集登錄表（`ntut_catalog/registry.py`）
@@ -116,5 +117,5 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 - season 的 Cloudflare Worker（排程與告警的 Python 端已完成，issue #111）。
 
 ## 注意
-- 來源無：單雙週、教室↔節次、容量上限 → 對應欄位 optional/None。
+- 來源無：單雙週、容量上限 → 對應欄位 optional/None。教室↔節次：課程列沒有，由 derive 以 Croom 教室課表反查（D24）。
 - 依賴：`pydantic>=2`、`httpx`、`beautifulsoup4`、`html5lib`（見 `pyproject.toml`）。

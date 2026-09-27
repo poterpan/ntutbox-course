@@ -131,6 +131,8 @@ def main(argv: List[str] | None = None) -> int:
     dv = sub.add_parser("derive",
                         help="canonical → v1（全量、確定性；先清空 v1/）。publish 前必跑")
     dv.add_argument("--out", default="../data", help="資料根目錄（含 canonical/；預設 ../data）")
+    dv.add_argument("--alerts", default=None,
+                    help="derive 層 warning 告警的輸出路徑（JSON {\"alerts\": [...]}，交給 pipeline_alert；D24）")
     ps = sub.add_parser("pua-scan",
                         help="監測新造字(PUA)碼位：canonical 出現 PUA_MAP 未收錄碼位 → 列出並 exit 1")
     ps.add_argument("--terms", required=True, help="學期，如 115-1（可逗號/範圍）")
@@ -157,7 +159,15 @@ def main(argv: List[str] | None = None) -> int:
 
     if args.command == "derive":
         started = time.monotonic()
-        manifest = derive(out_dir)
+        alerts: list = []
+        manifest = derive(out_dir, alerts=alerts)
+        if args.alerts:
+            ap = Path(args.alerts)
+            ap.parent.mkdir(parents=True, exist_ok=True)
+            ap.write_text(json.dumps({"alerts": alerts}, ensure_ascii=False, indent=1) + "\n",
+                          encoding="utf-8")
+        for a in alerts:
+            print(f"::warning title=derive 警告 {a['name']} {a.get('term') or ''}::{a['message']}")
         n_files = sum(1 for p in (out_dir / "v1").rglob("*") if p.is_file())
         print(f"derive done: {len(manifest.terms)} terms, {len(manifest.calendars)} calendars, "
               f"{n_files} files in {time.monotonic() - started:.1f}s")
