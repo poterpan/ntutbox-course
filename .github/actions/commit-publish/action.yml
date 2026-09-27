@@ -27,7 +27,7 @@ inputs:
     description: "'true' → publish.py --no-skip-unchanged"
     default: "false"
   daily-checks:
-    description: "'true' → 行事曆 horizon／coverage 與資料過期檢查（daily）"
+    description: "'true' → 行事曆 horizon／coverage、資料過期與 season 排程檢查（daily）"
     default: "false"
   alert-dry-run:
     description: "'true' → 告警只印不動 issue（演練用）"
@@ -151,7 +151,7 @@ runs:
         fi
         exit "$code"
 
-    - name: Daily checks (行事曆 horizon／coverage、資料過期)
+    - name: Daily checks (行事曆 horizon／coverage、資料過期、season 排程)
       if: inputs.daily-checks == 'true' && !cancelled()
       shell: bash
       env:
@@ -167,3 +167,6 @@ runs:
         fi
         python infra/calendar_coverage_check.py data || echo "::warning::calendar_coverage_check 失敗"
         python infra/pipeline_alert.py stale --data data || echo "::warning::資料過期檢查失敗"
+        # season 排程（derive 產的 data/ops/season-schedule.json）：窗口學期缺 catalog、未依排程執行
+        python infra/pipeline_alert.py season-catalog --data data || echo "::warning::season 缺 catalog 檢查失敗"
+        python infra/pipeline_alert.py season-freshness --data data || echo "::warning::season 排程執行檢查失敗"

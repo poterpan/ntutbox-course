@@ -9,6 +9,7 @@
   data/v1/terms/{term}/course/{id}.json     CourseDetail（逐週進度在 derive 即時計算）
   data/v1/manifest.json                     sha256/size/dataset_version＋來源新鮮度
   data/canonical/reports/{term}/weekly-progress.json   逐週進度精度報告（derive 產、commit 回 data branch）
+  data/ops/season-schedule.json             season 觸發時刻表（derive 產、v1 之外 → R2 course/ops/）
 """
 from __future__ import annotations
 
@@ -92,13 +93,19 @@ def derive(out_dir: Path) -> Manifest:
 
     - **確定性**：同一份 canonical → 逐位元組相同的 v1。不讀系統時間、不連網；
       manifest 的 `generated_at`／`published_at` 留空，由 publish 在上傳前寫入。
+    - 另產 `ops/season-schedule.json`（season 觸發時刻表，範圍＝manifest `calendars` 的學期；
+      見 season_schedule.py）。它在 v1 之外、每次整份重寫。
     - **先清空 `v1/`**：publish 以「本地 v1 有沒有這個檔」判斷 R2 上的物件是否過期，
       殘留的舊產物（例如已消失的課號）會讓它永遠刪不掉。v1 是純衍生物，重建即可。
     """
     v1 = out_dir / "v1"
     if v1.exists():
         shutil.rmtree(v1)
-    return build_v1(out_dir, None)
+    manifest = build_v1(out_dir, None)
+    # season 排程（v1 之外，publish 另傳到 course/ops/）：範圍＝manifest 的週次表窗口
+    from ntut_catalog.season_schedule import write_season_schedule
+    write_season_schedule(out_dir, manifest.calendars)
+    return manifest
 
 
 def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:

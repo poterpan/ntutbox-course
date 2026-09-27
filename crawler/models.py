@@ -580,6 +580,27 @@ class TermWeek(BaseModel):
     end: str                                     # 週六，inclusive
 
 
+EnrollmentWindowKind = Literal["online_selection", "freshman_preselection", "add_drop",
+                               "midterm_withdrawal"]
+
+
+class EnrollmentWindow(BaseModel):
+    """選課相關窗口（issue #111）：由 ics 具名事件推導，season 排程（ops/season-schedule.json）的來源。
+
+    - `online_selection`（網路選課／初選）歸屬**被選的學期**：「115學年度第2學期網路選課」在
+      12 月舉行、落在 115-1 的日期範圍內，但它屬於 115-2 的 calendar.json。
+    - `freshman_preselection`／`add_drop`／`midterm_withdrawal` 歸屬它發生的學期。
+    - `division`：日間部 `day`、進修部 `evening`、標題未分部別 `all`。
+    - `start`／`end`：ISO-8601 +08:00 的**時刻**（不是日期）。事件沒寫時刻時，截止日間部
+      17:00、進修部 21:00（標題「(17:00 截止)」這類註記優先）。
+    """
+    kind: EnrollmentWindowKind
+    division: Literal["day", "evening", "all"]
+    start: str
+    end: str
+    source_uids: List[str] = Field(default_factory=list)   # 推導所用的 ics 事件 UID
+
+
 class AcademicTerm(BaseModel):
     """單一學期的行事曆。
 
@@ -595,6 +616,9 @@ class AcademicTerm(BaseModel):
     final_exam: DateRange
     flexible_learning: Optional[DateRange] = None  # 115 學年度才有 → 必須 optional
     break_start: str                             # 寒假／暑假開始
+    # 選課相關窗口（新增欄位，D15：不升 CALENDAR_SCHEMA_VERSION）。推導不出來 → 空 list＋warning，
+    # 不讓整個學期的週次表失敗。
+    enrollment_windows: List[EnrollmentWindow] = Field(default_factory=list)
 
 
 class TermCalendarSource(BaseModel):

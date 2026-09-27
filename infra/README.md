@@ -12,9 +12,9 @@
 
 | workflow | 觸發 | 跑什麼 |
 |---|---|---|
-| `.github/workflows/daily.yml` | cron 每日 04:00（台北）＋dispatch（`datasets`／`terms`） | calendar、catalog＋人數、mprograms；另跑行事曆 horizon／coverage 與資料過期檢查 |
+| `.github/workflows/daily.yml` | cron 每日 04:00（台北）＋dispatch（`datasets`／`terms`） | calendar、catalog＋人數、mprograms；另跑行事曆 horizon／coverage、資料過期與 season 排程檢查 |
 | `.github/workflows/weekly.yml` | cron 每週一 05:30（台北）＋dispatch | details（課綱）、standards |
-| `.github/workflows/season.yml` | **僅 dispatch**，`terms` 必填 | enrollment（選課季人數刷新） |
+| `.github/workflows/season.yml` | **僅 dispatch**（Cloudflare Worker 依 `course/ops/season-schedule.json` 觸發，見下），`terms` 必填 | enrollment（選課季人數刷新；全校一次查、失敗退回逐系所） |
 | `.github/workflows/maintenance.yml` | 僅 dispatch，`task` ∈ `backfill`／`republish` | 補爬、只 derive＋publish |
 | `.github/workflows/test.yml` | push／PR | pytest＋schema 同步檢查 |
 
@@ -42,7 +42,18 @@ Actions → **maintenance** → Run workflow：
 3. 改的是 metadata（Cache-Control 等）、內容沒變 → 勾 `no_skip_unchanged` 全部重傳（約 3.3 萬物件、數十分鐘）。
 
 ### 選課季：season
-- `season.yml` 只能手動 dispatch，**`terms` 必填**（如 `115-2`）：選課季時 `current-term` 可能還是上一學期，默默用它會刷錯學期（pipeline 沒給 `--terms` 會 exit 2）。
+- **觸發**：Cloudflare Worker（`ntutbox-season-scheduler`）每小時 Cron 讀 `cdn.ntutbox.com/course/ops/season-schedule.json`，
+  現在這個整點在 `slots` 裡 → 以該格的 `terms` dispatch `season.yml`（D18；GitHub cron 實測 74% 被吞，不用它）。
+  **排程由 Python 產、Worker 只觸發**：窗口來自週次表 `{term}/calendar.json` 的 `enrollment_windows`（行事曆解析只有
+  `term_calendar.py` 一份），derive 展開成整點觸發格寫 `data/ops/season-schedule.json`，publish 傳到
+  `course/ops/`（max-age=300、不參與過期刪除）。頻率：開啟後／截止前 24 小時每小時、截止時刻補一次、其餘每 3 小時
+  （台北 00／03／06…）；常數在 `crawler/ntut_catalog/season_schedule.py`。
+- 看排程：`curl -s https://cdn.ntutbox.com/course/ops/season-schedule.json | jq '.slots[] | select(.at >= "2026-12-07")' | head`；
+  本機：`python -m ntut_catalog derive --out data && jq '.slots | length' data/ops/season-schedule.json`。
+- 手動補跑仍可直接 dispatch `season.yml`，**`terms` 必填**（如 `115-2`）：選課季時 `current-term` 可能還是上一學期，默默用它會刷錯學期（pipeline 沒給 `--terms` 會 exit 2）。
+- **人數來源**：先 `QueryCourse(matric=全校13碼, unit=＊)` 一次查（timeout 180 秒、最多 2 次），失敗退回逐系所；
+  用了哪條記在 `pipeline-result.json` 該筆的 `enrollment_source`（`school`／`per-dept`）。連續出現 `per-dept`
+  代表全校查詢變慢或被擋，人數仍正確、只是請求數回到約 60 個。
 - **新學期的前置條件**：season 只刷人數，需要該學期的 canonical catalog 已存在（否則該資料集失敗：`no canonical catalog — 先跑 catalog 再刷人數`）。所以第一次 dispatch season 之前，擇一：
   - 把 repo var `ACTIVE_TERMS` 設成包含新學期，例如 `gh variable set ACTIVE_TERMS --body 115-1,115-2`，讓 daily 的 catalog／mprograms 一起爬新學期，等一次 daily 跑完；
   - 或手動 dispatch **daily** 並帶 `terms`（例如 `115-2`；可加 `datasets=catalog`），先把該學期 catalog 建出來。
@@ -56,6 +67,11 @@ Actions → **maintenance** → Run workflow：
     maintenance 的 issue 依 task 命名（`maintenance-backfill`／`maintenance-republish`）。
   - `[pipeline] 資料過期：<dataset>`：`_meta/fetch-state.json` 中 daily 資料集 `checked_at` 超過 2 天、weekly 超過 9 天（由 daily 的 commit-publish 檢查）。
     資料恢復確認後自動關閉；daily 本身沒跑時這個檢查也不會跑（已知限制）。
+  - `[pipeline] season 窗口學期缺 catalog：<term>`：season 排程在 14 天內要刷某學期、但 data branch 沒有該學期的 `catalog.ndjson`
+    （season 必失敗）→ 把學期加進 `ACTIVE_TERMS`（見上）。補上或窗口過了自動關閉（daily 檢查）。
+  - `[pipeline] season 未依排程執行`：12 小時內、已過 1 小時寬限的觸發格，有學期在 [at, at+1h) 沒有觀測紀錄
+    （`{term}/enrollment/observations.ndjson`）。排查：`npx wrangler tail ntutbox-season-scheduler`（Worker 有沒有觸發、GitHub API 回什麼）、
+    Worker 的 GitHub token 是否過期、`season` 最近的 run。最近的觸發格全部對上時自動關閉（daily 檢查）。
 - **publish exit code**：`0` 成功；`1` 品質閘門擋下（某學期課數 < 線上 manifest `count` × 門檻，或為 0）→ 什麼都沒發，job 紅燈；
   `3` **刪除保險觸發**：某 prefix 待刪物件 > 該 prefix 遠端物件數 10% → 跳過該 prefix 的刪除、其餘（含 manifest）照常上線。
   commit-publish 不讓 3 紅燈、改由告警開 issue；**放行前每次 run 都會再觸發**。清除：maintenance `republish` 先 dry-run 看刪除清單，
@@ -74,7 +90,7 @@ Actions → **maintenance** → Run workflow：
 所有 workflow 釘 `runs-on: ubuntu-24.04`（D17）；映像升級排在選課季之後另開 PR 統一升，升完手動跑一次 daily／weekly 驗證。
 
 ## 待辦
-- season 的 Cloudflare Cron 觸發＋選課窗口從行事曆解析（115-2 網路選課前）；屆時也可順帶檢查線上 manifest 的 `checked_at`，補「daily 沒跑就不會告警」的缺口。
+- season Worker（`ntutbox-season-scheduler`，Cloudflare Cron → `workflow_dispatch`）的部署；排程與告警的 Python 端已完成（issue #111）。也可順帶檢查線上 manifest 的 `checked_at`，補「daily 沒跑就不會告警」的缺口。
 - App 端省頻寬：按學期切檔、gzip/br、ETag 條件式請求、裝置快取。
 
 > 不要把 `.env`、R2 金鑰、任何個資進 repo（公開）。憑證走 GitHub Secrets / Cloudflare 環境變數。

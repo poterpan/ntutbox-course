@@ -223,15 +223,17 @@ class FakeS3:
 
     def run_aws_json(self, cmd):
         assert cmd[:3] == ["aws", "s3api", "list-objects-v2"]
-        assert cmd[cmd.index("--prefix") + 1] == "course/v1/"
+        prefix = cmd[cmd.index("--prefix") + 1]
+        assert prefix in ("course/v1/", "course/ops/")
+        objects = [(k, v) for k, v in self.objects if k.startswith(prefix)]
         page_size = int(cmd[cmd.index("--max-items") + 1])
         token = cmd[cmd.index("--starting-token") + 1] if "--starting-token" in cmd else None
         self.list_calls.append(token)
         start = 0 if token is None else int(token.removeprefix("tok-").removesuffix("-x"))
-        chunk = self.objects[start:start + min(page_size, self.page_size)]
+        chunk = objects[start:start + min(page_size, self.page_size)]
         page = {"Contents": [{"Key": k, "ETag": f'"{v}"'} for k, v in chunk]}
         nxt = start + len(chunk)
-        if nxt < len(self.objects):
+        if nxt < len(objects):
             page["NextToken"] = f"tok-{nxt}-x"
         return page
 
@@ -480,6 +482,42 @@ def test_main_uploads_diff_then_manifest_then_deletes(monkeypatch, tmp_path):
     summary = fake.summary.read_text(encoding="utf-8")
     assert "course/v1/terms/115-1/course/old.json" in summary
     assert "deletions_skipped=\n" in fake.output.read_text()
+
+
+def _seed_schedule(out, text='{"schema_version":1,"calendar_sha256":null,"slots":[]}'):
+    p = out / "ops" / "season-schedule.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.write_text(text, encoding="utf-8")
+    return "ops/season-schedule.json"
+
+
+def test_season_schedule_key_and_cache():
+    assert r2_key("ops/season-schedule.json") == "course/ops/season-schedule.json"
+    assert publish.cache_control_for("ops/season-schedule.json") == "public, max-age=300"
+    assert publish.deletion_prefix("course/ops/season-schedule.json") is None
+
+
+def test_main_uploads_season_schedule_outside_v1(monkeypatch, tmp_path):
+    out, rels = _local_v1(tmp_path)
+    rel = _seed_schedule(out)
+    remote = {r2_key(r): _md5_of(out, r) for r in rels}
+    fake = FakeAws(monkeypatch, tmp_path, remote, live=None)
+    assert publish.main(["--bucket", "bkt", "--out", str(out)]) == 0
+    assert fake.kinds() == ["upload", "manifest"]
+    up = fake.calls[0]
+    assert up[3] == str(out / "ops") and up[4] == "s3://bkt/course/ops/"
+    assert up[up.index("--cache-control") + 1] == "public, max-age=300"
+    assert rel not in publish.local_files(out)          # 不屬於 v1
+
+
+def test_main_skips_unchanged_season_schedule_and_never_deletes_ops(monkeypatch, tmp_path):
+    out, rels = _local_v1(tmp_path)
+    rel = _seed_schedule(out)
+    remote = {r2_key(r): _md5_of(out, r) for r in rels + [rel]}
+    remote["course/ops/other.json"] = "f" * 32                     # ops 下本地沒有的 → 也不刪
+    fake = FakeAws(monkeypatch, tmp_path, remote, live=None)
+    assert publish.main(["--bucket", "bkt", "--out", str(out)]) == 0
+    assert fake.kinds() == ["manifest"]
 
 
 def test_main_mass_delete_guard_still_uploads_manifest_and_signals(monkeypatch, tmp_path, capsys):

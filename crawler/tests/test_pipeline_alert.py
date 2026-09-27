@@ -213,3 +213,111 @@ def test_summary_lists_partial_nodes(tmp_path, monkeypatch):
     assert "| standards | _global | ⚠️ 2/400 節點失敗 | 已確認、未變；⚠️ 2 個節點沿用 HEAD／缺漏 |" in text
     assert "| catalog | 115-1 | ⚠️ 1/200 節點失敗 | 丟棄：1/200 個節點失敗 |" in text
     assert "| standards | _global | 2/400 | year=115/matric=7/division=59 | year=115/matric=5 |" in text
+
+
+# ------------------------------------------------------------ season 排程（issue #111）
+
+from infra.pipeline_alert import (  # noqa: E402
+    SEASON_FRESHNESS_TITLE,
+    cmd_season_catalog,
+    cmd_season_freshness,
+    season_catalog_title,
+    unmatched_season_slots,
+)
+
+
+class _Args:
+    def __init__(self, data):
+        self.data = data
+
+
+def _season_data(tmp_path, slots, catalogs=(), observations=None):
+    data = tmp_path / "data"
+    (data / "ops").mkdir(parents=True)
+    (data / "ops" / "season-schedule.json").write_text(json.dumps(
+        {"schema_version": 1, "calendar_sha256": "x", "slots": [
+            {"at": at, "terms": terms, "windows": ["期中撤選"], "reason": "base"}
+            for at, terms in slots]}), encoding="utf-8")
+    for term in catalogs:
+        (data / "canonical" / term).mkdir(parents=True, exist_ok=True)
+        (data / "canonical" / term / "catalog.ndjson").write_text("{}\n", encoding="utf-8")
+    for term, stamps in (observations or {}).items():
+        d = data / "canonical" / term / "enrollment"
+        d.mkdir(parents=True, exist_ok=True)
+        (d / "observations.ndjson").write_text("".join(
+            json.dumps({"observed_at": s, "snapshot": "x"}) + "\n" for s in stamps), encoding="utf-8")
+    return data
+
+
+SEASON_NOW = dt.datetime(2026, 11, 25, 6, 30, tzinfo=TAIPEI)
+
+
+def test_season_catalog_alerts_only_for_imminent_windows(tmp_path):
+    """115-2 的網路選課 12/07 在 14 天內、沒有 catalog → 開；116-1 遠在半年後 → 不開（噪音）。"""
+    data = _season_data(tmp_path, [("2026-11-26T00:00:00+08:00", "115-1"),
+                                   ("2026-12-07T00:00:00+08:00", "115-2"),
+                                   ("2027-05-24T00:00:00+08:00", "116-1")], catalogs=["115-1"])
+    gh = FakeGh()
+    assert cmd_season_catalog(_Args(data), gh, now=SEASON_NOW) == 0
+    assert set(gh.open) == {season_catalog_title("115-2")}
+    create = next(a for a in gh.calls if a[:2] == ["issue", "create"])
+    body = create[create.index("--body") + 1]
+    assert "ACTIVE_TERMS" in body and "2026-12-07T00:00:00+08:00" in body
+
+
+def test_season_catalog_auto_closes_when_catalog_appears(tmp_path):
+    data = _season_data(tmp_path, [("2026-12-07T00:00:00+08:00", "115-2")], catalogs=["115-2"])
+    gh = FakeGh({season_catalog_title("115-2"): 7, "[pipeline] daily 失敗": 8})
+    cmd_season_catalog(_Args(data), gh, now=SEASON_NOW)
+    assert gh.open == {"[pipeline] daily 失敗": 8}              # 只關自己那一類
+    assert gh.verbs() == ["comment", "close"]
+
+
+def test_season_catalog_without_schedule_is_noop(tmp_path):
+    gh = FakeGh()
+    assert cmd_season_catalog(_Args(tmp_path), gh, now=SEASON_NOW) == 0
+    assert gh.calls == []
+
+
+def test_season_freshness_matches_observations_within_an_hour(tmp_path):
+    slots = [("2026-11-24T15:00:00+08:00", "115-1"),         # 窗口外（> 12h 前）
+             ("2026-11-24T21:00:00+08:00", "115-1"),         # 有觀測
+             ("2026-11-25T00:00:00+08:00", "115-1,115-2"),   # 115-2 沒有
+             ("2026-11-25T03:00:00+08:00", "115-1"),         # 只有更晚（> at+1h）的觀測 → 不算
+             ("2026-11-25T06:00:00+08:00", "115-1")]         # 未滿 1h 寬限 → 不看
+    data = _season_data(tmp_path, slots, observations={
+        "115-1": ["2026-11-24T21:02:10+08:00", "2026-11-25T00:01:30+08:00",
+                  "2026-11-25T05:30:00+08:00"],
+        "115-2": ["2026-11-24T23:59:00+08:00"]})             # 早於 at → 不算
+    got = unmatched_season_slots(json.loads((data / "ops" / "season-schedule.json").read_text()),
+                                 data / "canonical", SEASON_NOW)
+    assert got == [("2026-11-25T00:00:00+08:00", ["115-2"]),
+                   ("2026-11-25T03:00:00+08:00", ["115-1"])]
+    gh = FakeGh()
+    cmd_season_freshness(_Args(data), gh, now=SEASON_NOW)
+    assert set(gh.open) == {SEASON_FRESHNESS_TITLE}
+    create = next(a for a in gh.calls if a[:2] == ["issue", "create"])
+    body = create[create.index("--body") + 1]
+    assert "2026-11-25T03:00:00+08:00" in body and "wrangler tail ntutbox-season-scheduler" in body
+    assert "token" in body
+
+
+def test_season_freshness_resolves_when_all_matched_or_no_slots(tmp_path):
+    data = _season_data(tmp_path, [("2026-11-25T03:00:00+08:00", "115-1")],
+                        observations={"115-1": ["2026-11-25T03:04:00+08:00"]})
+    gh = FakeGh({SEASON_FRESHNESS_TITLE: 9})
+    cmd_season_freshness(_Args(data), gh, now=SEASON_NOW)
+    assert gh.open == {}
+    # 窗口內沒有觸發格（選課季以外）→ 沒有 issue 就什麼都不做
+    gh2 = FakeGh()
+    later = SEASON_NOW + dt.timedelta(days=30)
+    cmd_season_freshness(_Args(data), gh2, now=later)
+    assert gh2.verbs() == []
+
+
+def test_season_subcommands_via_main(tmp_path, monkeypatch):
+    data = _season_data(tmp_path, [])
+    gh = FakeGh()
+    assert main(["season-catalog", "--data", str(data)], gh=gh) == 0
+    assert main(["season-freshness", "--data", str(data)], gh=gh) == 0
+    assert gh.verbs() == []

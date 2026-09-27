@@ -262,6 +262,12 @@ export type Start1 = string;
 export type End1 = string;
 export type Weeks1 = TermWeek[];
 export type BreakStart = string;
+export type Kind = "online_selection" | "freshman_preselection" | "add_drop" | "midterm_withdrawal";
+export type Division1 = "day" | "evening" | "all";
+export type Start2 = string;
+export type End2 = string;
+export type SourceUids = string[];
+export type EnrollmentWindows = EnrollmentWindow[];
 
 export interface NtutboxCourseV1 {
   TermCatalog?: TermCatalog;
@@ -794,6 +800,7 @@ export interface AcademicTerm {
   final_exam: DateRange1;
   flexible_learning?: DateRange1 | null;
   break_start: BreakStart;
+  enrollment_windows?: EnrollmentWindows;
   [k: string]: unknown;
 }
 /**
@@ -812,5 +819,23 @@ export interface TermWeek {
   number: Number;
   start: Start1;
   end: End1;
+  [k: string]: unknown;
+}
+/**
+ * 選課相關窗口（issue #111）：由 ics 具名事件推導，season 排程（ops/season-schedule.json）的來源。
+ *
+ * - `online_selection`（網路選課／初選）歸屬**被選的學期**：「115學年度第2學期網路選課」在
+ *   12 月舉行、落在 115-1 的日期範圍內，但它屬於 115-2 的 calendar.json。
+ * - `freshman_preselection`／`add_drop`／`midterm_withdrawal` 歸屬它發生的學期。
+ * - `division`：日間部 `day`、進修部 `evening`、標題未分部別 `all`。
+ * - `start`／`end`：ISO-8601 +08:00 的**時刻**（不是日期）。事件沒寫時刻時，截止日間部
+ *   17:00、進修部 21:00（標題「(17:00 截止)」這類註記優先）。
+ */
+export interface EnrollmentWindow {
+  kind: Kind;
+  division: Division1;
+  start: Start2;
+  end: End2;
+  source_uids?: SourceUids;
   [k: string]: unknown;
 }

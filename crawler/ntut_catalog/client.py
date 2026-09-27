@@ -88,10 +88,18 @@ class CatalogClient:
     def close(self) -> None:
         self._client.close()
 
-    def _request(self, method: str, path: str, **kw) -> str:
-        """送出 + 限流 + 退避。錯誤頁（200 但含錯誤訊息）也視為可重試失敗。"""
+    def _request(self, method: str, path: str, *, timeout: Optional[float] = None,
+                 attempts: Optional[int] = None, **kw) -> str:
+        """送出 + 限流 + 退避。錯誤頁（200 但含錯誤訊息）也視為可重試失敗。
+
+        `timeout`／`attempts`（總嘗試次數）是**單次呼叫**的覆寫，不改 client 預設：
+        全校一次查（85 秒）要更長的 timeout、更少的重試，其他請求照舊。
+        """
+        total = attempts if attempts is not None else self.max_retries + 1
+        if timeout is not None:
+            kw["timeout"] = timeout
         last_err: Optional[Exception] = None
-        for attempt in range(self.max_retries + 1):
+        for attempt in range(total):
             time.sleep(random.uniform(*self.delay_range) * (1 if attempt == 0 else 2 ** attempt))
             try:
                 resp = self._client.request(method, path, **kw)
@@ -103,12 +111,14 @@ class CatalogClient:
                 return text
             except (httpx.HTTPError, RuntimeError) as e:
                 last_err = e
-                logger.warning("attempt %d/%d failed: %s", attempt + 1, self.max_retries + 1, e)
-        raise RuntimeError(f"request failed after {self.max_retries + 1} attempts: {path}") from last_err
+                logger.warning("attempt %d/%d failed: %s", attempt + 1, total, e)
+        raise RuntimeError(f"request failed after {total} attempts: {path}") from last_err
 
-    def query_course(self, year: int, sem: int, matric: str, unit: str) -> str:
+    def query_course(self, year: int, sem: int, matric: str, unit: str, *,
+                     timeout: Optional[float] = None, attempts: Optional[int] = None) -> str:
         return self._request(
-            "POST", "QueryCourse.jsp", data=build_query_payload(year, sem, matric, unit)
+            "POST", "QueryCourse.jsp", data=build_query_payload(year, sem, matric, unit),
+            timeout=timeout, attempts=attempts,
         )
 
     def subj(self, format: str, year: int, sem: int, code: Optional[str] = None) -> str:
