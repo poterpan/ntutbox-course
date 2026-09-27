@@ -46,3 +46,18 @@ jobs:
             git --no-pager diff --stat -- schema.json index.d.ts
             exit 1
           fi
+
+  # infra/season-scheduler（Cloudflare cron Worker）的 vitest＋型別檢查。
+  season-scheduler:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: infra/season-scheduler
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "24"
+      - run: npm ci
+      - run: npm test
+      - run: npm run typecheck
