@@ -93,6 +93,7 @@ jobs:
     outputs:
       publish-exit: ${{ steps.cp.outputs.publish-exit }}
       deletions-skipped: ${{ steps.cp.outputs.deletions-skipped }}
+      web-redeploy: ${{ steps.cp.outputs.web-redeploy }}
     env:
       R2_BUCKET: ${{ vars.R2_BUCKET }}
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -115,6 +116,7 @@ jobs:
       - id: cp
         uses: ./.github/actions/commit-publish
         with:
+          web-deploy-hook-url: ${{ secrets.WEB_DEPLOY_HOOK_URL }}
           cadence: daily
           stages: ${{ runner.temp }}/stages
           data-ref: ${{ env.DATA_REF }}
@@ -137,4 +139,5 @@ jobs:
           needs-json: ${{ toJSON(needs) }}
           publish-exit: ${{ needs.commit-publish.outputs.publish-exit }}
           deletions-skipped: ${{ needs.commit-publish.outputs.deletions-skipped }}
+          web-redeploy: ${{ needs.commit-publish.outputs.web-redeploy }}
           dry-run: ${{ env.ALERT_DRY_RUN }}

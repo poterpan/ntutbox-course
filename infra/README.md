@@ -20,10 +20,11 @@
 
 每支資料 workflow 都是 fetch job（不上鎖）→ commit-publish job（`concurrency: data-pipeline`）→ alert job，
 共用 `.github/actions/{setup,commit-publish,alert}`。commit-publish 的順序：checkout 最新 data branch →
-`python -m ntut_catalog merge` → `redline_scan.py`（命中即中止）→ `pua-scan` → `derive` → commit＋push → `publish.py`。
+`python -m ntut_catalog merge` → `redline_scan.py`（命中即中止）→ `pua-scan` → `derive` → commit＋push → `publish.py`
+→（預設學期 catalog 有變時）POST web 的 Deploy Hook（D22，見 runbook「web 自動重新部署」）。
 
 相關腳本：`publish.py`（上傳）、`data_commit.py`（commit 範圍與訊息）、`redline_scan.py`（擋個資/機密）、
-`pipeline_alert.py`（`pipeline-alert` issue）、`calendar_horizon_alert.py`／`calendar_coverage_check.py`（行事曆）、
+`pipeline_alert.py`（`pipeline-alert` issue）、`web_redeploy.py`（要不要重新部署 web，D22）、`calendar_horizon_alert.py`／`calendar_coverage_check.py`（行事曆）、
 `r2-cors.json`。首次開通步驟見 `SETUP.md`。
 
 ## 維運 runbook
@@ -67,10 +68,30 @@ Actions → **maintenance** → Run workflow：
     **`ACTIVE_TERMS` 有值＝明確覆寫**：完全照它、不再併 current-term 與窗口學期——事後記得清空（`gh variable set ACTIVE_TERMS --body ""`）。
 - weekly 的 details 走 `current-term`；學期交界時學校預設學期何時切換要人工確認，需要時 dispatch weekly 帶 `terms`。
 
+### web 自動重新部署（Workers Builds Deploy Hook，D22）
+`/browse/**` hub 是 **build 期**產生的靜態頁（`apps/web/src/lib/hub/build-catalog.ts`），課程清單凍結在最後一次 build。
+為了不讓它過期，兩個地方會 `POST` Deploy Hook（無 body、無 Authorization；URL 本身就是憑證）叫 `ntutbox-course-web` 重新 build：
+
+| 觸發者 | 何時 | secret |
+|---|---|---|
+| 資料管線（commit-publish action，daily／weekly／season／maintenance-backfill） | publish 成功（exit 0／3、非 dry-run）後，merge 報告顯示**預設學期**的 `catalog` 內容有變。預設學期＝`data/v1/manifest.json` 的 `term_schedule.default` 中 `from ≤ 現在` 最晚的一筆；manifest 還沒有 `term_schedule` → 退而求其次，**任一學期** catalog 有變就部署。人數、課綱變動不觸發（hub 只列課程目錄）；republish 沒有 merge 報告，不觸發 | GitHub Actions secret **`WEB_DEPLOY_HOOK_URL`** |
+| season Worker（`ntutbox-season-scheduler`，每小時） | 這個整點＝某筆 `term_schedule.default[].from` 生效的整點（不在整點上的 `from` 取下一個整點）——例如 115-2 `from` 2026-11-21T17:00+08:00 → 當天 17:00 那次 cron 觸發。與 season slot、保活無關 | Worker secret **`DEPLOY_HOOK_URL`** |
+
+- **建立 hook**：Cloudflare dashboard → Workers & Pages → `ntutbox-course-web` → Settings → Builds → Deploy Hooks → 輸入名稱、
+  branch 選 **`main`** → Create → 複製 URL（只顯示這一次）。建議建兩個（例如 `pipeline`、`season-scheduler`）各給一邊，外洩時可以單獨刪除重建。
+- **設定**：`gh secret set WEB_DEPLOY_HOOK_URL`（貼 URL）；Worker 在 `infra/season-scheduler/` 下 `npx wrangler secret put DEPLOY_HOOK_URL`。
+  **兩邊都是選填**：GitHub 端未設 → 該步印 `::notice` 略過；Worker 未設 → log `no deploy hook, skip`，都不算失敗。
+- **失敗處理**：管線端 curl（5xx／逾時重試一次）非 2xx → `::warning` ＋列進 `[pipeline] <workflow> 失敗` issue，**不擋資料上線**；
+  Worker 端失敗 → 該次 cron 標失敗（`redeploy-trigger-failed`／`redeploy-manifest-error`）。補救：dashboard 的 Deployments 手動重跑，
+  或 `curl -X POST "$HOOK"`。
+- **限制**（Cloudflare 文件）：每個 Worker 每分鐘 10 次 build；已有 build 在 queued／initializing 時重複 POST 會回同一個 `build_uuid`（`already_exists: true`），不會疊加。
+- 看結果：GitHub step `Trigger web redeploy` 的 log 印出 API 回應（`build_uuid`）；Worker log 搜 `[redeploy]`。
+
 ### 告警與 exit code
 - **`pipeline-alert` issue**（`infra/pipeline_alert.py`，label `pipeline-alert`）：
   - `[pipeline] <workflow> 失敗`：任一 job 失敗、`pipeline-result.json` 有失敗的資料集、merge 丟棄或部分節點沿用（見 D16）、publish exit 3。
     內容列出資料集、學期與 run 連結。**同一 workflow 下一次全部成功 → 自動留言並關閉**；修好原因後 dispatch 同一支 workflow 即可清除（fetch 冪等）。
+    web 的 Deploy Hook 失敗（D22）也列在這裡（資料已上線、hub 停在上一次 build）。
     maintenance 的 issue 依 task 命名（`maintenance-backfill`／`maintenance-republish`）。
   - `[pipeline] 資料過期：<dataset>`：`_meta/fetch-state.json` 中 daily 資料集 `checked_at` 超過 2 天、weekly 超過 9 天（由 daily 的 commit-publish 檢查）。
     資料恢復確認後自動關閉；daily 本身沒跑時這個檢查也不會跑（已知限制）。
@@ -113,5 +134,5 @@ Actions → **maintenance** → Run workflow：
 
 ## season 自動觸發（Cloudflare Cron）
 `infra/season-scheduler/`：cron-only Worker `ntutbox-season-scheduler`，每小時讀 CDN 的
-`course/ops/season-schedule.json`，命中該整點的 slot 就 dispatch `season.yml`。無 route／Custom Domain。
+`course/ops/season-schedule.json`，命中該整點的 slot 就 dispatch `season.yml`；另外每週保活 daily／weekly（D19）、在預設學期切換的整點觸發 web 重新部署（D22）。無 route／Custom Domain。
 部署、secret、測試與 log 見該資料夾 README（issue #111）。

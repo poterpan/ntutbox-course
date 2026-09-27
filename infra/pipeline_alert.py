@@ -4,7 +4,8 @@
 
   run    `[pipeline] <workflow> 失敗`：任一 job 失敗、`pipeline-result.json` 有失敗的資料集、
          merge 報告有告警（例如 catalog 課數跌破門檻被丟棄；部分節點失敗、已從 HEAD 沿用者，以及
-         非當前學期課數／人數驟減但照樣採用者（D20）是 warning 等級，同樣列進 issue——要有人知道）、publish 刪除保險觸發（exit 3）。
+         非當前學期課數／人數驟減但照樣採用者（D20）是 warning 等級，同樣列進 issue——要有人知道）、publish 刪除保險觸發（exit 3）、
+         web 重新部署的 Deploy Hook 失敗（D22；不擋資料上線，但 hub 會停在舊資料）。
          下一次同 workflow 全部成功 → 留言並關閉。
   stale  `[pipeline] 資料過期：<dataset>`：`_meta/fetch-state.json` 中 cadence=daily 的資料集
          `checked_at` 超過 2 天、weekly 超過 9 天（取該資料集各學期中最新的一筆——只補爬過的
@@ -23,7 +24,8 @@ season 排程（`data/ops/season-schedule.json`，derive 產；issue #111）另�
 
 用法：
   python infra/pipeline_alert.py run --workflow daily --run-url URL --needs-json "$NEEDS" \
-      [--stages DIR] [--merge-reports DIR] [--publish-exit N] [--deletions-skipped P,…]
+      [--stages DIR] [--merge-reports DIR] [--publish-exit N] [--deletions-skipped P,…] \
+      [--web-redeploy STATUS]
   python infra/pipeline_alert.py stale --data data
   python infra/pipeline_alert.py season-catalog --data data
   python infra/pipeline_alert.py season-freshness --data data
@@ -106,7 +108,8 @@ def run_title(workflow: str) -> str:
 
 
 def collect_problems(needs: Dict[str, dict], stages: Optional[Path], merge_reports: Optional[Path],
-                     publish_exit: Optional[int], deletions_skipped: str) -> List[str]:
+                     publish_exit: Optional[int], deletions_skipped: str,
+                     web_redeploy: str = "") -> List[str]:
     problems: List[str] = []
     for job, info in sorted(needs.items()):
         result = (info or {}).get("result")
@@ -127,6 +130,10 @@ def collect_problems(needs: Dict[str, dict], stages: Optional[Path], merge_repor
                         "——確認刪除清單後以 maintenance republish 的 allow_mass_delete 放行")
     elif publish_exit not in (None, 0):
         problems.append(f"publish exit {publish_exit}")
+    if web_redeploy.startswith("failed"):
+        problems.append(f"web 重新部署（Deploy Hook）{web_redeploy}——資料已上線，但 `/browse/**` hub "
+                        "停在上一次 build；到 Cloudflare dashboard 手動 Retry deployment，"
+                        "或檢查 secret `WEB_DEPLOY_HOOK_URL`（見 infra/README.md）")
     return problems
 
 
@@ -134,7 +141,7 @@ def cmd_run(args, gh: Gh) -> int:
     needs = json.loads(args.needs_json or "{}")
     publish_exit = int(args.publish_exit) if str(args.publish_exit or "").strip() else None
     problems = collect_problems(needs, args.stages, args.merge_reports, publish_exit,
-                                args.deletions_skipped or "")
+                                args.deletions_skipped or "", args.web_redeploy or "")
     title = run_title(args.workflow)
     if problems:
         body = (f"run：{args.run_url}\n\n" + "\n".join(f"- {p}" for p in problems)
@@ -387,6 +394,7 @@ def main(argv: Optional[List[str]] = None, gh: Optional[Gh] = None) -> int:
     r.add_argument("--merge-reports", type=Path, default=None, help="merge 報告目錄")
     r.add_argument("--publish-exit", default=None)
     r.add_argument("--deletions-skipped", default="")
+    r.add_argument("--web-redeploy", default="", help="commit-publish 的 web-redeploy 輸出（failed… → 告警）")
     sm = sub.add_parser("summary", help="資料集結果表 → $GITHUB_STEP_SUMMARY（不動 issue）")
     sm.add_argument("--stages", type=Path, default=None)
     sm.add_argument("--merge-reports", type=Path, default=None)

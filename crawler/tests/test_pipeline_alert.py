@@ -75,6 +75,7 @@ def test_failed_dataset_opens_labelled_issue_with_details(tmp_path):
     (["--needs-json", json.dumps({"fetch": {"result": "failure"}})], "job `fetch`：failure"),
     (["--publish-exit", "3", "--deletions-skipped", "terms/115-1/"], "刪除保險"),
     (["--publish-exit", "1"], "publish exit 1"),
+    (["--web-redeploy", "failed（HTTP 503）"], "Deploy Hook）failed（HTTP 503）"),
 ])
 def test_other_failure_kinds_open_issue(tmp_path, extra, needle):
     gh = FakeGh()
@@ -320,4 +321,11 @@ def test_season_subcommands_via_main(tmp_path, monkeypatch):
     gh = FakeGh()
     assert main(["season-catalog", "--data", str(data)], gh=gh) == 0
     assert main(["season-freshness", "--data", str(data)], gh=gh) == 0
+    assert gh.verbs() == []
+
+
+@pytest.mark.parametrize("status", ["", "skipped", "no-hook", "triggered"])
+def test_web_redeploy_non_failure_is_not_a_problem(status):
+    gh = FakeGh()
+    assert _run(gh, "--needs-json", OK_NEEDS, "--publish-exit", "0", "--web-redeploy", status) == 0
     assert gh.verbs() == []

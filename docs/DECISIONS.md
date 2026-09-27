@@ -113,3 +113,12 @@ merge（鎖內、對最新 HEAD）的規則：
 - **問題**：D19 讓 daily 在預選 30 天前（115-2 ≈ 2026-11-07）就爬下學期。學校此時放的是**草案課表**（115-2 實測 4,447 列、無教師、4,176 列沒有時段），正式版約 2.8k（約 −37%）。merge 的「課數 < HEAD × 0.95 → 丟棄」與 publish 閘門（基準＝線上 manifest `count`）會把之後每一次更新都擋掉，該學期永遠停在草案。
 - **規則**：驟減比例只對**當前學期**（學校 current-term 偵測結果）嚴格——丟棄／不發佈，行為不變。其他學期（即將選課、過去學期）：0 課／0 列仍丟棄＋告警；驟減 → **照樣採用**，發 warning 等級告警（進 `[pipeline] <workflow> 失敗` issue，人工確認）。人數快照同一套規則；publish 閘門同樣切分。
 - **當前學期在 run 內確定**：fetch job 把偵測結果記進 `pipeline-result.json` 的 `current_term`（學期規則沒用到時——明確 `--terms`／`ACTIVE_TERMS`——且有資料集成功，就跑完補偵測一次）；merge 讀它並寫進 merge 報告，commit-publish 從報告取值傳 `publish.py --current-term`。鎖內不再打學校。取不到（偵測失敗、舊 stage、republish、多份報告不一致）→ 全部學期都嚴格（保守，等同原行為）。
+
+## D22 — web 自動重新部署：資料變動與預設學期切換各自 POST Workers Builds Deploy Hook（Refs #111）
+- **問題**：`/browse/**` hub 在 build 期讀 catalog 產靜態 HTML（給不執行 JS 的爬蟲看真實 `<a>`，`apps/web/src/lib/hub/build-catalog.ts`），課程清單凍結在最後一次 code 部署。資料每天更新、預設學期每學期切換，但 web 只在有人 push `main` 時才 build → hub 會悄悄過期。
+- **做法**：Cloudflare Workers Builds 的 Deploy Hook（2026-04 起；綁 branch 的唯一 URL，`POST` 無 body、無 Authorization 就 build＋deploy `main`；限 10 builds／分鐘／Worker，已有 build 在 queued／initializing 時重複 POST 回同一個 `build_uuid`、不疊加）。兩個觸發點：
+  1. **資料管線**（commit-publish action）：publish 成功（exit 0／3、非 dry-run）後，merge 報告 `applied[]` 中 `name=catalog`、`changed=true` 的學期含**預設學期** → curl hook。預設學期＝`data/v1/manifest.json` 的 `term_schedule.default` 中 `from ≤ now` 最晚的一筆；manifest 尚無 `term_schedule`（或沒有已生效的項目）→ **任一學期** catalog 有變就部署——簡單、寧可多 build（hook 去重，多一次的代價只是一次 build），不另寫一套「hub 用哪個學期」的推論。決策在 `infra/web_redeploy.py`（pytest），shell step 只做 curl。人數／課綱變動不觸發（hub 只列目錄）。
+  2. **season-scheduler Worker**：每小時讀線上 manifest，這個整點＝某筆 `term_schedule.default[].from` 的生效整點 → POST。預設學期切換不伴隨資料變動（例：115-2 的 catalog 早在 11 月就上線、12 月才成為預設），管線端抓不到，只能靠時間觸發。`from` 不在整點上時取**下一個**整點（截整點會在切換前 build、產出舊學期）；行事曆推導的 `from` 都在整點上，兩者相同。與 season slot、保活無關。
+- **secret**：GitHub `WEB_DEPLOY_HOOK_URL`（composite action 讀不到 `secrets`，由各 workflow 以 input 傳入）、Worker `DEPLOY_HOOK_URL`；建議建兩個 hook 各用一邊，外洩時可單獨撤銷。**兩者皆選填**：未設 → 略過（notice／log），不算失敗。
+- **失敗不擋資料**：管線端非 2xx（curl 對 5xx／逾時重試一次）→ `::warning` ＋ commit-publish 輸出 `web-redeploy=failed（HTTP …）` → alert job 列進 `[pipeline] <workflow> 失敗` issue；資料 job 不紅燈。Worker 端 manifest 讀取失敗或 hook 失敗 → 該次 cron 標失敗（dashboard 看得到）。URL 本身是憑證，兩邊的 log 都不印。
+- **不做**：不改由 worker 動態產 hub（要多一套 runtime 路由與快取，換來的只是省掉幾分鐘 build 延遲）；不在 republish 觸發（沒有 merge 報告，需要時手動 POST 或在 dashboard 重跑）。

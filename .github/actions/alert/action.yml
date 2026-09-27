@@ -14,6 +14,9 @@ inputs:
     default: ""
   deletions-skipped:
     default: ""
+  web-redeploy:
+    description: commit-publish 的 web-redeploy 輸出（D22）
+    default: ""
   dry-run:
     description: "'true' → 只印不動 issue（演練用）"
     default: "false"
@@ -45,6 +48,7 @@ runs:
         NEEDS: ${{ inputs.needs-json }}
         PUBLISH_EXIT: ${{ inputs.publish-exit }}
         DELETIONS: ${{ inputs.deletions-skipped }}
+        WEB_REDEPLOY: ${{ inputs.web-redeploy }}
         DRY: ${{ inputs.dry-run }}
         RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
       run: |
@@ -53,4 +57,5 @@ runs:
         python3 infra/pipeline_alert.py run --workflow "$WORKFLOW" --run-url "$RUN_URL" \
           --needs-json "$NEEDS" --stages "$RUNNER_TEMP/alert/stages" \
           --merge-reports "$RUNNER_TEMP/alert/reports" \
-          --publish-exit "$PUBLISH_EXIT" --deletions-skipped "$DELETIONS"
+          --publish-exit "$PUBLISH_EXIT" --deletions-skipped "$DELETIONS" \
+          --web-redeploy "$WEB_REDEPLOY"
