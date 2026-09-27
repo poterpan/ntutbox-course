@@ -2,7 +2,7 @@ flowchart TD
     A["pipeline --cadence X<br/>[--datasets a,b] [--terms …]"] --> B["registry.py<br/>選出資料集 (未給 = 該 cadence 全部)"]
     B --> C{"逐資料集:<br/>學期規則"}
     C -->|"有 --terms"| T0["用指定學期<br/>(expand_terms, 支援 a:b)"]
-    C -->|"active"| T1["ACTIVE_TERMS<br/>未設 = current-term"]
+    C -->|"active"| T1["ACTIVE_TERMS 有值 = 照它<br/>未設 = current-term<br/>∪ 30 天內有選課窗口的學期"]
     C -->|"current"| T2["current-term"]
     C -->|"calendar / none"| T3["跑一次<br/>(_global)"]
     T0 --> F
