@@ -13,6 +13,7 @@ import datetime as dt
 import fnmatch
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Dict, List, Literal, Optional, Sequence
@@ -26,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 Cadence = Literal["daily", "weekly", "season", "manual"]
 TermRule = Literal["active", "current", "calendar", "none"]
+TERM_KEY_RE = re.compile(r"^\d{3}-[12]$")
 
 
 @dataclass
@@ -63,6 +65,9 @@ class FetchContext:
 
     def now_iso(self) -> str:
         return self._now().astimezone(TAIPEI).isoformat(timespec="seconds")
+
+    def now(self) -> dt.datetime:
+        return self._now().astimezone(TAIPEI)
 
     def today(self) -> dt.date:
         return self._now().astimezone(TAIPEI).date()
@@ -301,13 +306,75 @@ def for_cadence(cadence: str) -> List[Dataset]:
 
 # ------------------------------------------------------------------ 學期規則
 
+# 選課窗口開始前幾天起，`active` 就把「被選的學期」一起納入（D19）。網路選課（例如 115-2 在
+# 12/07）發生在上一學期期末、學校 current-term 還沒翻之前；提前一個月建 catalog，season 才有
+# 基準可刷人數。env `SELECTION_LEAD_DAYS` 可覆寫（空字串＝預設）。
+SELECTION_LEAD_DAYS = 30
+
+
+def selection_lead_days() -> int:
+    raw = os.environ.get("SELECTION_LEAD_DAYS", "").strip()
+    if not raw:
+        return SELECTION_LEAD_DAYS
+    try:
+        days = int(raw)
+    except ValueError as e:
+        raise ValueError(f"invalid SELECTION_LEAD_DAYS: {raw!r}") from e
+    if days < 0:
+        raise ValueError(f"invalid SELECTION_LEAD_DAYS: {raw!r}（不可為負）")
+    return days
+
+
+def _term_sort_key(term: str):
+    year, sem = term.split("-")
+    return int(year), int(sem)
+
+
+def upcoming_window_terms(canonical_dir: Path, now: dt.datetime,
+                          lead_days: int = SELECTION_LEAD_DAYS) -> List[str]:
+    """有「即將開始或進行中」選課窗口的學期：某個窗口 start ≤ now+lead_days 且 end ≥ now。
+
+    窗口來源目前是 canonical `{term}/calendar.json` 的 `enrollment_windows`（行事曆解析只有一份，
+    D18）。窗口歸屬＝被選的學期（115-2 網路選課 → 115-2），所以 115-1 期末時回傳的是 115-2。
+    日後窗口若另有來源（例如 season 排程），在這裡併入即可，呼叫端不變。
+    讀不到或壞掉的 calendar.json 跳過並 warning——這只是「多爬哪些學期」的提示，不該讓 daily 失敗。
+    """
+    from models import TermCalendarFile
+
+    if not canonical_dir.is_dir():
+        return []
+    now = now.astimezone(TAIPEI)
+    horizon = now + dt.timedelta(days=lead_days)
+    out = set()
+    for path in sorted(canonical_dir.glob("*/calendar.json")):
+        term = path.parent.name
+        if not TERM_KEY_RE.match(term):
+            continue
+        try:
+            cal = TermCalendarFile.model_validate_json(path.read_text(encoding="utf-8"))
+        except Exception as e:  # noqa: BLE001
+            logger.warning("upcoming_window_terms: %s 讀取失敗，跳過：%s", path, e)
+            continue
+        entry = cal.terms.get(term)
+        for w in entry.enrollment_windows if entry else []:
+            start = dt.datetime.fromisoformat(w.start)
+            end = dt.datetime.fromisoformat(w.end)
+            if start <= horizon and end >= now:
+                out.add(term)
+                break
+    return sorted(out, key=_term_sort_key)
+
+
 def resolve_terms(rule: TermRule, explicit: Sequence[str],
                   current: Callable[[], str],
-                  active_env: Optional[str] = None) -> List[Optional[str]]:
+                  active_env: Optional[str] = None,
+                  upcoming: Optional[Callable[[], Sequence[str]]] = None) -> List[Optional[str]]:
     """學期規則集中實作（取代 6 份 workflow 內的 shell）。
 
     - 有學期維度（active／current）且明確指定 `explicit` → 一律用指定的。
-    - `active`  = repo var `ACTIVE_TERMS`（經 env 注入，可用範圍語法），未設則同 `current`。
+    - `active`  = repo var `ACTIVE_TERMS`（經 env 注入，可用範圍語法）有設 → **明確覆寫**，照它跑；
+      未設 → `current` ∪ `upcoming()`（有即將開始或進行中選課窗口的學期，見
+      `upcoming_window_terms`，D19）。選課季不必再手動設 `ACTIVE_TERMS`。
     - `current` = `current-term` 偵測結果（QueryCurrPage 預設學期；12 月 115-2 選課期間
       它可能仍是 115-1——所以 season 的 terms 必填，由 pipeline 把關）。
     - `calendar`／`none` → `[None]`：跑一次、fetch-state 用 `_global` 鍵；行事曆的學期由 fetcher 自決。
@@ -322,6 +389,10 @@ def resolve_terms(rule: TermRule, explicit: Sequence[str],
         raw = os.environ.get("ACTIVE_TERMS", "") if active_env is None else active_env
         if raw.strip():
             return list(expand_terms(raw.strip()))
+        terms = {current()}
+        if upcoming is not None:
+            terms.update(upcoming())
+        return sorted(terms, key=_term_sort_key)
     return [current()]
 
 

@@ -24,7 +24,7 @@ catalog 純結構（快取久、結構沒變零 diff）；人數走快照＋觀�
 
 ## 4. 資料集登錄表與學期規則
 跑哪些資料集、跑哪些學期，全由 `crawler/ntut_catalog/registry.py` 決定；workflow 只傳 cadence（與選填的 `datasets`／`terms`）。
-學期規則：明確給 `--terms` 優先；否則 `active` 讀 repo var `ACTIVE_TERMS`（未設＝`current-term`）、`current` 用 `current-term`、`calendar`／`none` 跑一次。每個 (資料集, 學期) 獨立 try，失敗不中斷其他。
+學期規則：明確給 `--terms` 優先；否則 `active`＝`current-term` ∪ 30 天內有選課窗口的學期（D19；repo var `ACTIVE_TERMS` 有設則為明確覆寫）、`current` 用 `current-term`、`calendar`／`none` 跑一次。每個 (資料集, 學期) 獨立 try，失敗不中斷其他。
 
 ![登錄表與學期規則](diagrams/04-crawl-logic.png)
 
@@ -78,6 +78,6 @@ Token value 給 Cloudflare 自家 API（wrangler），Access Key ID + Secret 給
 - **運算 GitHub Actions、出口 Cloudflare R2**：R2 只能被 push（無「CF 拉 git」）；Worker 跑不動爬蟲（D6）。CF git 整合留給 P1 web 部署。
 - **canonical 完整可重建 v1**：每次發佈前 derive 全部學期（確定性）→ manifest 永遠涵蓋全學期；publish 全量比對 R2、只傳差異。
 - **catalog 純結構 + enrollment 分離**：避免每日 3MB 無意義 diff；git 歷史＝乾淨的 enrollment 時序（比 gnehs inline-people 更省）。
-- **自動偵測當前學期**：學校學期末才上架下學期、開學後凍結 → 平常只爬偵測到的學期；選課季要同時追兩學期時設 `ACTIVE_TERMS`。
+- **自動偵測當前學期**：學校學期末才上架下學期、開學後凍結 → 平常只爬偵測到的學期；選課窗口 30 天前自動把被選的學期一起納入（D19），不必手動設 `ACTIVE_TERMS`。
 - **守門**：紅線掃描擋個資/機密進公開 repo；merge 擋殘缺上游（節點失敗、課數驟降）覆寫 canonical；quality gate 擋殘缺資料發佈；原子發佈（manifest 最後推）；過期刪除有 10% 保險；失敗與資料過期自動開 issue。
-- **未做**：season 的自動觸發（Cloudflare Cron＋選課窗口從行事曆解析），目前只能手動 dispatch。
+- **season 自動觸發**：Cloudflare Worker `ntutbox-season-scheduler` 每小時讀 `course/ops/season-schedule.json` 觸發 season（D18），每週一並 enable daily／weekly 防 60 天自動停用（D19）。

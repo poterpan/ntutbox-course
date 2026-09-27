@@ -97,4 +97,12 @@ merge（鎖內、對最新 HEAD）的規則：
 - **行事曆只有一個 parser**：選課窗口（網路選課／新生網路預選／加選及無紀錄退選／期中撤選）由 `term_calendar.py` 推導、寫進週次表 `{term}/calendar.json` 的 `enrollment_windows`（新增欄位，D15 不升 `CALENDAR_SCHEMA_VERSION`），`season_schedule.py` 只展開、不再解析事件——App 與排程看到的是同一份窗口。網路選課歸**被選的學期**（「115學年度第2學期網路選課」在 12 月、落在 115-1 日期內，但屬 115-2）；其餘歸發生的學期。推不出來的窗口丟棄＋warning，不讓週次表失敗。
 - **頻率**（常數在 `season_schedule.py`）：窗口開啟後 24 小時每小時、截止前 24 小時每小時、截止時刻（日間部 17:00、進修部 21:00，取窗口實際截止）補一次、其餘每 3 小時（台北 00／03／06…對齊）；不做深夜暫停。同一整點跨窗口／學期合併成一格。115-1 期中撤選（10/05→11/20、11/21）431 格、115-2 網路選課（12/07→12/18、12/19）153 格。
 - **人數改全校一次查**：`QueryCourse(matric=全校13碼, unit=＊)` 一個請求取代逐系所約 62 個（2026-09-27 實測 115-1：2,778 課、1.86 MB、84.6 秒，課號集合與人／撤數 0 差異；「全校＋所有系所會被擋」早在 2026-06-13 就證實只是前端 JS）。獨立 timeout 180 秒（預設 60 秒會在首個 byte 前逾時）、最多 2 次；失敗（含無表頭、0 課）退回逐系所，來源記進 pipeline-result 的 `enrollment_source`。merge 的人數品質閘門不變。catalog 仍逐系所（要 unit 歸屬）。
-- **告警**（daily 檢查）：`[pipeline] season 窗口學期缺 catalog：<term>`（14 天內有觸發格但該學期沒有 catalog → 提示設 `ACTIVE_TERMS`）；`[pipeline] season 未依排程執行`（12 小時內、已過 1 小時寬限的觸發格在 [at, at+1h) 沒有觀測紀錄）。
+- **告警**（daily 檢查）：`[pipeline] season 窗口學期缺 catalog：<term>`（14 天內有觸發格但該學期沒有 catalog；D19 之後正常不會出現）；`[pipeline] season 未依排程執行`（12 小時內、已過 1 小時寬限的觸發格在 [at, at+1h) 沒有觀測紀錄）。
+
+## D19 — 學期滾動自動化：`active` 納入即將選課的學期；Worker 每週保活 daily／weekly（issue #111）
+- **問題**：下學期的網路選課（115-2 在 12/07）在上學期期末舉行，學校 `current-term` 還沒翻；`active` 原本＝`ACTIVE_TERMS` 或 current-term，下學期沒有 catalog → season 必失敗，每學期都得有人記得設 `ACTIVE_TERMS`。
+- **`active` 規則改為** current-term ∪ `upcoming_window_terms()`：canonical `{term}/calendar.json` 的 `enrollment_windows` 中，有窗口 `start ≤ now + SELECTION_LEAD_DAYS` 且 `end ≥ now` 的學期（`SELECTION_LEAD_DAYS = 30`，env 可覆寫）。窗口歸屬沿用 D18（網路選課歸被選的學期），所以 115-1 期末時 daily 會同時爬 115-1、115-2，season 監看 115-2。daily 的 calendar 資料集排在 catalog 前，讀到的是當輪剛更新的週次表。窗口來源集中在這一個函式，日後要併入其他來源只改它。
+- **`ACTIVE_TERMS` 保留為明確覆寫**：有設就完全照它（不再併 current-term 與窗口），平常留空。
+- **影響範圍**：所有 `active` 學期規則的資料集（目前 catalog、mprograms）。2026-09-27 實測：學校對尚未開學的 115-2 已能查到課（全校一次查 4,447 課）、微學程清單 49 個且有開課列，所以提前一個月爬是有資料的；若上游尚未公布，catalog 0 課由 merge 丟棄＋告警（D16 既有行為），不覆寫 canonical。
+- **安全網不變**：`[pipeline] season 窗口學期缺 catalog` 仍在 14 天前檢查；正常情況 30 天前就已建出，這個告警出現代表自動納入沒生效（daily 沒跑、行事曆沒窗口、上游 0 課）。
+- **保活**：公開 repo 的排程 workflow 在 60 天沒有 repo 活動後會被 GitHub 自動停用（data branch 的 bot commit 是否算活動沒有文件保證）。season Worker 每週一次（台北週一 00:00＝UTC 週日 16:00 的整點）`PUT /repos/poterpan/ntutbox-course/actions/workflows/{daily.yml,weekly.yml}/enable`，期待 204（已啟用時也是 204，冪等）。與 season slot 無關，失敗讓該次 cron 標失敗。用同一把 fine-grained PAT：GitHub 文件「Permissions required for fine-grained personal access tokens」列 enable 端點需要 **Actions: write**，與 dispatch 相同，不必加權限。效果是「被停用最多一週就自動恢復」，不保證重置 GitHub 的 60 天計時。

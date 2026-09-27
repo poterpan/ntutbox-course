@@ -1,6 +1,16 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import worker from "../src/index";
-import { DISPATCH_URL, SCHEDULE_URL, findSlots, run, truncateToHour, validateSchedule } from "../src/scheduler";
+import {
+  DISPATCH_URL,
+  SCHEDULE_URL,
+  enableUrl,
+  findSlots,
+  isKeepaliveHour,
+  keepalive,
+  run,
+  truncateToHour,
+  validateSchedule,
+} from "../src/scheduler";
 
 const TOKEN = "test-token";
 const env = { GITHUB_TOKEN: TOKEN };
@@ -190,5 +200,111 @@ describe("scheduled handler", () => {
     await expect(
       worker.scheduled({ scheduledTime: Date.parse("2026-10-05T01:00:00Z"), cron: "0 * * * *" } as ScheduledController, env),
     ).rejects.toThrow("dispatch-failed");
+  });
+});
+
+describe("每週保活 daily／weekly", () => {
+  const MONDAY_TPE = Date.parse("2026-10-04T16:03:00Z"); // 台北 2026-10-05（週一）00:03
+  const ENABLE_URLS = [enableUrl("daily.yml"), enableUrl("weekly.yml")];
+
+  /** schedule 固定空；enable 依 URL 各給回應序列。 */
+  function mockAll(enable: Record<string, Array<() => Response | Promise<Response>>> = {}, slots: unknown[] = []) {
+    const fn = vi.fn(async (input: RequestInfo | URL, _init?: RequestInit) => {
+      const url = String(input);
+      if (url === SCHEDULE_URL) return json(schedule(slots));
+      if (url === DISPATCH_URL) return new Response(null, { status: 204 });
+      if (ENABLE_URLS.includes(url)) {
+        const next = enable[url]?.shift();
+        return next ? next() : new Response(null, { status: 204 });
+      }
+      throw new Error(`unexpected url ${url}`);
+    });
+    vi.stubGlobal("fetch", fn);
+    return fn;
+  }
+  const enableCalls = (fn: ReturnType<typeof mockAll>) => fn.mock.calls.filter(([u]) => ENABLE_URLS.includes(String(u)));
+
+  it("只有台北週一 00 點（UTC 週日 16 點）是保活整點", () => {
+    expect(isKeepaliveHour(truncateToHour(MONDAY_TPE))).toBe(true);
+    expect(isKeepaliveHour(Date.parse("2026-10-04T17:00:00Z"))).toBe(false); // 週一 01:00
+    expect(isKeepaliveHour(Date.parse("2026-10-05T16:00:00Z"))).toBe(false); // 週二 00:00
+    expect(isKeepaliveHour(Date.parse("2026-10-04T00:00:00Z"))).toBe(false); // UTC 週日 00:00＝台北週日 08:00
+  });
+
+  it("保活整點 → PUT daily.yml 與 weekly.yml 的 enable，headers 同 dispatch", async () => {
+    const fn = mockAll();
+    const result = await keepalive(MONDAY_TPE, env, opts);
+    expect(result).toEqual({ status: "enabled", workflows: ["daily.yml", "weekly.yml"] });
+    const calls = enableCalls(fn);
+    expect(calls.map(([u]) => String(u))).toEqual([
+      "https://api.github.com/repos/poterpan/ntutbox-course/actions/workflows/daily.yml/enable",
+      "https://api.github.com/repos/poterpan/ntutbox-course/actions/workflows/weekly.yml/enable",
+    ]);
+    for (const [, init] of calls) {
+      expect(init!.method).toBe("PUT");
+      const headers = new Headers(init!.headers);
+      expect(headers.get("Authorization")).toBe(`Bearer ${TOKEN}`);
+      expect(headers.get("Accept")).toBe("application/vnd.github+json");
+      expect(headers.get("X-GitHub-Api-Version")).toBe("2022-11-28");
+      expect(headers.get("User-Agent")).toBe("ntutbox-season-scheduler");
+    }
+  });
+
+  it("其他整點不呼叫 enable", async () => {
+    const fn = mockAll();
+    expect(await keepalive(Date.parse("2026-10-05T01:00:00Z"), env, opts)).toEqual({ status: "skipped" });
+    expect(fn).not.toHaveBeenCalled();
+  });
+
+  it("與 season slot 無關：保活整點沒有 slot 也保活、有 slot 則 dispatch 與保活都做", async () => {
+    let fn = mockAll();
+    await worker.scheduled({ scheduledTime: MONDAY_TPE, cron: "0 * * * *" } as ScheduledController, env);
+    expect(enableCalls(fn)).toHaveLength(2);
+    expect(dispatchCalls(fn as never)).toHaveLength(0);
+
+    vi.unstubAllGlobals();
+    fn = mockAll({}, [{ at: "2026-10-05T00:00:00+08:00", terms: "115-1" }]);
+    await worker.scheduled({ scheduledTime: MONDAY_TPE, cron: "0 * * * *" } as ScheduledController, env);
+    expect(enableCalls(fn)).toHaveLength(2);
+    expect(dispatchCalls(fn as never)).toHaveLength(1);
+  });
+
+  it("非保活整點的 slot 只 dispatch、不 enable", async () => {
+    const fn = mockAll({}, [{ at: "2026-10-05T09:00:00+08:00", terms: "115-1" }]);
+    await worker.scheduled({ scheduledTime: Date.parse("2026-10-05T01:00:00Z"), cron: "0 * * * *" } as ScheduledController, env);
+    expect(enableCalls(fn)).toHaveLength(0);
+    expect(dispatchCalls(fn as never)).toHaveLength(1);
+  });
+
+  it("一個失敗（4xx）另一個照做；cron 丟例外並點名失敗的 workflow", async () => {
+    const fn = mockAll({ [enableUrl("daily.yml")]: [() => new Response('{"message":"Resource not accessible"}', { status: 403 })] });
+    const result = await keepalive(MONDAY_TPE, env, opts);
+    expect(result).toEqual({ status: "failed", failed: ["daily.yml"] });
+    expect(enableCalls(fn)).toHaveLength(2);
+    expect(String(vi.mocked(console.error).mock.calls[0][0])).toContain("403");
+
+    vi.unstubAllGlobals();
+    mockAll({ [enableUrl("weekly.yml")]: [() => new Response("x", { status: 404 })] });
+    await expect(
+      worker.scheduled({ scheduledTime: MONDAY_TPE, cron: "0 * * * *" } as ScheduledController, env),
+    ).rejects.toThrow("keepalive-failed（weekly.yml）");
+  });
+
+  it("5xx 重試一次後成功；網路錯誤兩次 → failed", async () => {
+    let fn = mockAll({ [enableUrl("daily.yml")]: [() => new Response("boom", { status: 502 }), () => new Response(null, { status: 204 })] });
+    expect((await keepalive(MONDAY_TPE, env, opts)).status).toBe("enabled");
+    expect(enableCalls(fn)).toHaveLength(3);
+
+    vi.unstubAllGlobals();
+    fn = mockAll({
+      [enableUrl("weekly.yml")]: [() => Promise.reject(new TypeError("network")), () => Promise.reject(new TypeError("network"))],
+    });
+    expect(await keepalive(MONDAY_TPE, env, opts)).toEqual({ status: "failed", failed: ["weekly.yml"] });
+  });
+
+  it("缺 GITHUB_TOKEN → 不發請求、回 no-token", async () => {
+    const fn = mockAll();
+    expect(await keepalive(MONDAY_TPE, {}, opts)).toEqual({ status: "no-token" });
+    expect(fn).not.toHaveBeenCalled();
   });
 });

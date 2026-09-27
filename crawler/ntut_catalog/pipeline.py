@@ -89,10 +89,18 @@ def run(cadence: str, datasets: Optional[Sequence[str]], terms: Sequence[str], o
             logger.info("current term: %s", detected["v"])
         return detected["v"]
 
+    def _upcoming() -> List[str]:
+        # 行事曆在同一個 daily 裡先跑（登錄表順序），這裡讀到的是剛更新的週次表。
+        found = registry.upcoming_window_terms(ctx.canonical, ctx.now(),
+                                               registry.selection_lead_days())
+        logger.info("upcoming selection-window terms: %s", found or "none")
+        return found
+
     try:
         for ds in selected:
             try:
-                term_list = registry.resolve_terms(ds.terms, terms, _current)
+                term_list = registry.resolve_terms(ds.terms, terms, _current,
+                                                   upcoming=_upcoming)
             except Exception as e:  # noqa: BLE001 — 學校不通時 current-term 會失敗；其他資料集照跑
                 logger.exception("[%s] resolve terms failed", ds.name)
                 result.datasets.append(_entry(ds.name, None, ok=False, error=_summary(e)))

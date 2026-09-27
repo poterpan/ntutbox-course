@@ -54,10 +54,16 @@ Actions → **maintenance** → Run workflow：
 - **人數來源**：先 `QueryCourse(matric=全校13碼, unit=＊)` 一次查（timeout 180 秒、最多 2 次），失敗退回逐系所；
   用了哪條記在 `pipeline-result.json` 該筆的 `enrollment_source`（`school`／`per-dept`）。連續出現 `per-dept`
   代表全校查詢變慢或被擋，人數仍正確、只是請求數回到約 60 個。
-- **新學期的前置條件**：season 只刷人數，需要該學期的 canonical catalog 已存在（否則該資料集失敗：`no canonical catalog — 先跑 catalog 再刷人數`）。所以第一次 dispatch season 之前，擇一：
-  - 把 repo var `ACTIVE_TERMS` 設成包含新學期，例如 `gh variable set ACTIVE_TERMS --body 115-1,115-2`，讓 daily 的 catalog／mprograms 一起爬新學期，等一次 daily 跑完；
-  - 或手動 dispatch **daily** 並帶 `terms`（例如 `115-2`；可加 `datasets=catalog`），先把該學期 catalog 建出來。
-- 選課季結束後把 `ACTIVE_TERMS` 改回只剩要持續追蹤的學期（留空＝自動跟 `current-term`）。
+- **新學期的前置條件（自動，D19）**：season 只刷人數，需要該學期的 canonical catalog 已存在（否則該資料集失敗：`no canonical catalog — 先跑 catalog 再刷人數`）。
+  daily 的 `active` 規則＝`current-term` ∪ **有選課窗口 `start ≤ 現在+30 天` 且 `end ≥ 現在` 的學期**（窗口讀 `{term}/calendar.json` 的
+  `enrollment_windows`，歸屬被選的學期）。例：115-2 網路選課 12/07 開始 → 11/07 起 daily 的 catalog／mprograms 自動多爬 115-2；
+  115-1 期末 season 監看 115-2；網路選課結束、學校 current-term 翻成 115-2 後只剩 115-2。**不必再手動設 `ACTIVE_TERMS`**。
+  提前天數常數 `SELECTION_LEAD_DAYS = 30`（`crawler/ntut_catalog/registry.py`），可用 repo var `SELECTION_LEAD_DAYS` 覆寫。
+  看 daily 這輪納入哪些學期：fetch job log 的 `upcoming selection-window terms: …`。
+- **要立刻補、或自動沒生效時**（例如收到下面的「缺 catalog」告警），擇一：
+  - 手動 dispatch **daily** 並帶 `terms`（例如 `115-2`；可加 `datasets=catalog`），先把該學期 catalog 建出來；
+  - 或把 repo var `ACTIVE_TERMS` 設成明確清單，例如 `gh variable set ACTIVE_TERMS --body 115-1,115-2`。
+    **`ACTIVE_TERMS` 有值＝明確覆寫**：完全照它、不再併 current-term 與窗口學期——事後記得清空（`gh variable set ACTIVE_TERMS --body ""`）。
 - weekly 的 details 走 `current-term`；學期交界時學校預設學期何時切換要人工確認，需要時 dispatch weekly 帶 `terms`。
 
 ### 告警與 exit code
@@ -68,7 +74,11 @@ Actions → **maintenance** → Run workflow：
   - `[pipeline] 資料過期：<dataset>`：`_meta/fetch-state.json` 中 daily 資料集 `checked_at` 超過 2 天、weekly 超過 9 天（由 daily 的 commit-publish 檢查）。
     資料恢復確認後自動關閉；daily 本身沒跑時這個檢查也不會跑（已知限制）。
   - `[pipeline] season 窗口學期缺 catalog：<term>`：season 排程在 14 天內要刷某學期、但 data branch 沒有該學期的 `catalog.ndjson`
-    （season 必失敗）→ 把學期加進 `ACTIVE_TERMS`（見上）。補上或窗口過了自動關閉（daily 檢查）。
+    （season 必失敗）。正常情況 daily 30 天前就已自動納入，這是安全網：查 daily 該學期 catalog 有沒有跑、是否 0 課被 merge 丟棄，
+    需要時照上面「要立刻補」處理。補上或窗口過了自動關閉（daily 檢查）。
+  - daily／weekly **被 GitHub 自動停用**（公開 repo 60 天沒有 repo 活動）：season Worker 每週一台北 00:00 呼叫 enable API 保活（D19），
+    最多停一週就會自動恢復。Worker log 搜 `[keepalive]`；enable 非 204 時該次 cron 標失敗（`keepalive-failed（…）`）。
+    手動恢復：`gh workflow enable daily.yml && gh workflow enable weekly.yml`。
   - `[pipeline] season 未依排程執行`：12 小時內、已過 1 小時寬限的觸發格，有學期在 [at, at+1h) 沒有觀測紀錄
     （`{term}/enrollment/observations.ndjson`）。排查：`npx wrangler tail ntutbox-season-scheduler`（Worker 有沒有觸發、GitHub API 回什麼）、
     Worker 的 GitHub token 是否過期、`season` 最近的 run。最近的觸發格全部對上時自動關閉（daily 檢查）。
@@ -81,7 +91,8 @@ Actions → **maintenance** → Run workflow：
 ### repo variables（門檻）
 | 變數 | 預設 | 誰讀 | 意思 |
 |---|---|---|---|
-| `ACTIVE_TERMS` | 空＝`current-term` | pipeline（`active` 學期規則） | `active` 規則的資料集（目前是 daily 的 catalog、mprograms）跑哪些學期；可用 `a:b` 範圍與逗號 |
+| `ACTIVE_TERMS` | 空＝`current-term` ∪ 即將選課的學期 | pipeline（`active` 學期規則） | **選填的明確覆寫**：有值時 `active` 規則的資料集（目前是 daily 的 catalog、mprograms）完全照它跑；可用 `a:b` 範圍與逗號。平常留空（D19） |
+| `SELECTION_LEAD_DAYS` | `30` | pipeline（`active` 學期規則） | 選課窗口開始前幾天起把被選的學期納入 `active` |
 | `QUALITY_MIN_RATIO` | `0.95` | `publish.py` 品質閘門 | 本地課數 < 線上 manifest `count` × 此值 → 不發佈（exit 1） |
 | `PARTIAL_FAILURE_MAX_RATIO` | `0.05` | `ntut_catalog merge` | 失敗節點 > `node_total` × 此值 → 整筆 (資料集, 學期) 丟棄、保留 HEAD、告警 |
 | `R2_BUCKET` | — | workflow → `publish.py --bucket` | 目前 `ntutbox-cdn` |

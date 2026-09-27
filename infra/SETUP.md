@@ -50,7 +50,7 @@ gh secret set CLOUDFLARE_ACCOUNT_ID         # 貼上 account id
 gh secret set R2_S3_ACCESS_KEY_ID           # 同一組 R2 API Token 的 Access Key ID（對照表 docs/ARCHITECTURE.md §6）
 gh secret set R2_S3_SECRET_ACCESS_KEY       # 同一組 token 的 Secret Access Key（只顯示一次）
 gh variable set R2_BUCKET --body ntutbox-cdn
-gh variable set ACTIVE_TERMS --body ""      # 留空＝daily 自動偵測當前學期；新學期選課前要設成含新學期，見 infra/README.md runbook
+gh variable set ACTIVE_TERMS --body ""      # 留空＝current-term ∪ 30 天內有選課窗口的學期（D19）；有值＝明確覆寫
 gh variable set QUALITY_MIN_RATIO --body 0.95
 # 選填：單筆資料集節點失敗占比上限（merge；未設＝0.05，見 spec §3「節點失敗的處理」）
 # gh variable set PARTIAL_FAILURE_MAX_RATIO --body 0.05
@@ -95,6 +95,6 @@ Workers（`ntutbox-course-web`）→ Settings → **Build** → Build variables�
 
 ## 維運備忘
 日常操作（補爬、重新發佈、選課季、告警處理、門檻變數）見 `infra/README.md`「維運 runbook」。
-- **學期滾動**：`ACTIVE_TERMS` 留空即自動跟進 `current-term`（學校上架新學期下拉會翻）；要同時追多個學期（如選課季）才設值。
+- **學期滾動**：`ACTIVE_TERMS` 留空即自動跟進 `current-term`，並在選課窗口 30 天前自動納入被選的學期（D19）；只有要強制指定學期時才設值（設了就完全照它）。
 - **歷史重爬**：Actions → maintenance → `task=backfill`、`dataset`＋`terms`（如 `110-1:115-1`）。
 - **quality gate**：課數較線上 manifest 掉 >5%（`QUALITY_MIN_RATIO`）或 0 課 → 不發佈 R2（防殘缺資料發佈）。

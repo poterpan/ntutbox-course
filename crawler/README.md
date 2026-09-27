@@ -41,7 +41,7 @@ workflow 依 cadence 跑、merge 依 `writes` 決定哪些檔可進 data branch�
 | `standards` | weekly | none | `standards/*.json`（入學年＝當前學年與前 5 學年） |
 | `enrollment` | season | current（season 一律要明確給 terms） | `{term}/enrollment/*.ndjson`（append_only 同上） |
 
-學期規則：`active` = repo var `ACTIVE_TERMS`（可用範圍語法），未設則同 `current`；`current` = `current-term` 偵測（QueryCurrPage 預設學期，選課季可能仍是上一學期）；`calendar`／`none` 跑一次、fetch-state 用 `_global` 鍵。明確給 `--terms` 一律優先。
+學期規則：`active` = current-term ∪ 有選課窗口 `start ≤ now+30 天`、`end ≥ now` 的學期（`registry.upcoming_window_terms`，窗口讀 canonical `{term}/calendar.json`；天數 env `SELECTION_LEAD_DAYS`，D19）；repo var `ACTIVE_TERMS`（可用範圍語法）有設則為明確覆寫、完全照它；`current` = `current-term` 偵測（QueryCurrPage 預設學期，選課季可能仍是上一學期）；`calendar`／`none` 跑一次、fetch-state 用 `_global` 鍵。明確給 `--terms` 一律優先。
 
 **新增一個資料集**（不新增 workflow 檔、不新增子命令）：
 1. **fetcher**：在 `registry.py` 寫 `fetch_xxx(ctx: FetchContext, term) -> FetchOutput`，包既有爬取程式、只寫 canonical；`FetchOutput.files` 回報實際寫出的檔（必須落在 `writes` 內，否則 pipeline 直接判失敗）。逐節點爬的要回報 `failed_nodes`／`node_total`（D16）。
