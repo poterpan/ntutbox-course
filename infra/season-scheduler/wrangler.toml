@@ -1,0 +1,18 @@
+# season 選課季排程觸發器（issue #111）。
+# 純 cron worker：刻意不宣告任何 route／Custom Domain，也關掉 workers.dev 與 preview URL，
+# 所以部署完全不碰 ntutbox.com zone 的路由（見 ntutbox-edge/docs/zone-topology.md）。
+name = "ntutbox-season-scheduler"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+workers_dev = false
+preview_urls = false
+
+# 每小時整點（UTC）。台北是 UTC+8、整數小時偏移，所以 UTC 整點＝台北整點。
+[triggers]
+crons = ["0 * * * *"]
+
+[observability]
+enabled = true
+
+# 機密：GITHUB_TOKEN（fine-grained PAT，僅 poterpan/ntutbox-course、Actions: read & write）
+# 用 `npx wrangler secret put GITHUB_TOKEN` 設定，不寫進這裡。

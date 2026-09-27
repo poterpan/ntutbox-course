@@ -78,3 +78,8 @@ Actions → **maintenance** → Run workflow：
 - App 端省頻寬：按學期切檔、gzip/br、ETag 條件式請求、裝置快取。
 
 > 不要把 `.env`、R2 金鑰、任何個資進 repo（公開）。憑證走 GitHub Secrets / Cloudflare 環境變數。
+
+## season 自動觸發（Cloudflare Cron）
+`infra/season-scheduler/`：cron-only Worker `ntutbox-season-scheduler`，每小時讀 CDN 的
+`course/ops/season-schedule.json`，命中該整點的 slot 就 dispatch `season.yml`。無 route／Custom Domain。
+部署、secret、測試與 log 見該資料夾 README（issue #111）。
