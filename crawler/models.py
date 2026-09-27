@@ -571,7 +571,7 @@ class GisSnapshotInfo(BaseModel):
 
 
 class TermRooms(BaseModel):
-    """v1 `terms/{t}/rooms.json`（空教室查找，poterpan/NTUTBox#239）。
+    """v1 `terms/{t}/rooms.json`（北科盒子 App 的空教室查找）。
 
     語意：slot＝「有排課」，不是「被占用」；沒有 slot 的時段不保證空著。
     """

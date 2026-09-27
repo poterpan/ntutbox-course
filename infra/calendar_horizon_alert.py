@@ -1,6 +1,6 @@
 """行事曆 horizon 告警：涵蓋範圍不足下一學年度 → 開 issue；補上了 → 自動關。
 
-**告警不阻斷發布**——feed 沒有新學年不代表現有資料壞了（poterpan/NTUTBox#181）。
+**告警不阻斷發布**——feed 沒有新學年不代表現有資料壞了（App 端 2026-09 回報）。
 判準與窗口邏輯在 crawler/ntut_catalog/calendar_events.horizon_required_through，
 這支只讀 canonical/calendar/meta.json 的結果、不重算，避免兩處邏輯漂移。
 
@@ -27,7 +27,7 @@ BODY = """\
 **這不阻斷發布**，現有資料沒有壞。要做的事是等教務處把新學年度匯進那本日曆；
 歷史上匯入時間落在 3 月到 8 月之間，最糟會拖到開學當月。資料一進來，這個 issue 會自動關閉。
 
-背景：poterpan/NTUTBox#181。判準實作在 `crawler/ntut_catalog/calendar_events.py`
+背景：App 端 2026-09 的回報。判準實作在 `crawler/ntut_catalog/calendar_events.py`
 的 `horizon_required_through`。
 """
 

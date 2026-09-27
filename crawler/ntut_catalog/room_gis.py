@@ -2,7 +2,7 @@
 
 **房間宇宙是課程系統的教室清單**（Croom -2），不是 GIS——GIS 連辦公室、實驗室、廁所都有。
 這裡只負責「課程系統這間教室在 GIS 的哪裡」，對不到就老實標 `none`，原始簡稱 `raw` 永遠保留
-（poterpan/NTUTBox#242「join key 是最大風險」）。
+（App 校園地圖規劃指出：教室字串與 GIS 房號之間的 join key 是最大風險）。
 
 GIS 端用 repo 內的精簡快照 `reference/gis-rooms.json`（`infra/gis/build_snapshot.py` 從本機
 ntut-campus-map 產生），房間鍵＝(building_id, class_number)——class_number 只在同一棟內唯一；

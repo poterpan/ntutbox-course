@@ -3,7 +3,7 @@
 契約四，見 docs/research/2026-09-06-course-content-and-weekly-progress-handoff.md §5。
 換源理由：學校 calModeApp.do 的資料慣例會無預警改變（2026 年起單日全天事件從
 end-exclusive 變成 calStart == calEnd），造成過 58 筆事件整批從 App 靜默消失
-（poterpan/NTUTBox#180）。
+（北科盒子 App 端的回報）。
 """
 from __future__ import annotations
 

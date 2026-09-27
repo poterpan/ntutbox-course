@@ -180,7 +180,7 @@ def test_build_v1_noops_without_canonical(tmp_path):
 
 def test_real_snapshot_shape_matches_investigation():
     """對 2026-09-14 快照：661 筆、全天 538／有時刻 123、最遠 2027-07-03。
-    數字出自 poterpan/NTUTBox#181 的實測，任一項變動代表來源或 parser 行為改了。"""
+    數字出自 App 端的實測，任一項變動代表來源或 parser 行為改了。"""
     feed = parse_calendar_events(SNAPSHOT.read_text(encoding="utf-8"), today=dt.date(2026, 9, 16))
     assert len(feed.events) == 661
     assert sum(e.all_day for e in feed.events) == 538

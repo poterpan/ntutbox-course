@@ -27,7 +27,7 @@
 - **P0：資料 + 爬蟲 PoC**（穩定產出 catalog JSON）（完成）
 - P1：Web 排課器（搜尋/週課表/衝堂/學分/階段分類/草稿/匯出），不登入、不代送 ← **現在**
 - P2：匯出 plan payload → App 匯入確認頁（Universal Link / URL Scheme）
-- P3：App 半自動送件（依 cunum 分組批次）+ 結果回寫 + 錯誤翻譯（reuse NTUT_Tools 的 cwish/oads）
+- P3：App 半自動送件（依 cunum 分組批次）+ 結果回寫；學校回應原文呈現、不翻譯（reuse NTUT_Tools 的 cwish/oads）
 - P4：進階（替代課 / 畢業學分 / 評價 / 行事曆）
 
 ## 鎖定的決策（理由見 `docs/DECISIONS.md`）

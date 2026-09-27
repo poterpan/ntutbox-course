@@ -1,4 +1,4 @@
-"""教室課表（空教室查找的資料源，D23；poterpan/NTUTBox#239）。
+"""教室課表（空教室查找的資料源，D23；北科盒子 App 的空教室查找）。
 
   fetch：Croom -2 清單（1 請求，失敗＝整個資料集失敗）→ 每間教室 Croom -3 週課表（一間＝一個節點，
          失敗記 `{"room": code}`、跳過續跑，由 merge 從 HEAD 沿用該間）→ canonical `{term}/rooms.json`
