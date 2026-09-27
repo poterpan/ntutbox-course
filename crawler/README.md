@@ -33,7 +33,7 @@
 - **fetch**：`Croom.jsp?format=-2`（清單，失敗＝資料集失敗、0 間 → raise）→ 每間 `format=-3&code=`（週課表，一間＝一個節點 `{"room": code}`）。115-1：231 間、約 232 請求、3 分鐘。
 - **canonical `{term}/rooms.json`**：只記學校給的——`code`（Croom 教室碼，跨學期穩定）、`raw`（簡稱原文，如「六教526(e)」）、`full_name`、`capacity`（空白 → null）、`slots: [{day 0..6（0=日）, period, offering_ids（排序）}]`。依 code 排序、不帶時間、一列一間。同一格可有多門課（合開）。
 - **節點失敗**：失敗的那一間由 merge 從 HEAD 沿用（逐位元組相同）；HEAD 也沒有就**不寫**（空課表會被當成整週沒課）；> 5% 整筆丟棄。
-- **v1 `terms/{term}/rooms.json`（derive）**：每間加 `gis: [{building_id, floor_id, class_number}]` 與 `gis_match`（`rule`／`override`／`building_only`／`floor_only`／`none`），頂層 `gis_snapshot`（GIS 快照的 updateSequence）。規則在 `ntut_catalog/room_gis.py`；GIS 快照 `reference/gis-rooms.json`（由 `../infra/gis/build_snapshot.py` 從本機 ntut-campus-map 產，勿手改）；人工對應 `reference/gis-room-overrides.json`（只收 GIS 名稱可驗證者）。`raw` 永遠保留。
+- **v1 `terms/{term}/rooms.json`（derive）**：每間加 `gis: [{building_id, floor_id, class_number}]` 與 `gis_match`（`rule`／`override`／`building_only`／`floor_only`／`none`），頂層 `gis_snapshot`（GIS 快照的 updateSequence）。規則在 `ntut_catalog/room_gis.py`；GIS 快照 `reference/gis-rooms.json`（由 `../infra/gis/build_snapshot.py` 從本機 ntut-campus-map 產，勿手改）；人工對應 `reference/gis-room-overrides.json`（只收 GIS 查得到者，`gis_name` 為 GIS 上的名稱、derive 會驗）。`raw` 永遠保留。
 - **語意**：slot＝「**有排課**」，不是「被占用」。沒有 slot ≠ 保證空著——社團借用、補課、會議都不在課表裡；App 文案不可講死。房間只有課程系統的教室（不是 GIS 全部空間）。
 
 ### 資料集登錄表（`ntut_catalog/registry.py`）
@@ -104,7 +104,7 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 每支都是「fetch job（不上鎖）→ commit-publish job（`data-pipeline` 鎖）→ alert job」，共用 `../.github/actions/{setup,commit-publish,alert}`。
 跑哪些資料集由 `ntut_catalog/registry.py` 的 cadence 決定，新增資料集不改 workflow。
 - `../.github/workflows/daily.yml` — 每日 cron 04:00：calendar、catalog＋人數、mprograms；另跑行事曆 horizon／coverage 與資料過期檢查。
-- `../.github/workflows/weekly.yml` — 每週一 05:30：details（課綱）、standards、rooms（教室課表）；alert job 另跑 GIS 快照漂移檢查（D23）。
+- `../.github/workflows/weekly.yml` — 每週一 05:30：details（課綱）、standards、rooms（教室課表）；alert job 另把 GIS updateSequence 記進 run summary（只記錄、不開 issue，D23／#120）。
 - `../.github/workflows/season.yml` — 僅 dispatch（Cloudflare Worker 依 `course/ops/season-schedule.json` 觸發）：選課季人數刷新（`terms` 必填）。
 - `../.github/workflows/maintenance.yml` — 僅 dispatch：`backfill`（任何資料集＋學期，details 走 matrix）／`republish`（derive＋publish，含 dry-run、`allow_mass_delete`）。操作手冊見 `../infra/README.md`「維運 runbook」。
 - `../.github/workflows/test.yml` — push/PR 跑 pytest + 檢查 `packages/schema` 產物與 `models.py` 同步。**在此之前 repo 沒有任何跑測試的 CI。**

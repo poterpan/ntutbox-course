@@ -9,8 +9,9 @@ ntut-campus-map 產生），房間鍵＝(building_id, class_number)——class_n
 **不用** sourceFeatureId（gid 重新匯入就會變）。對應放在 derive：快照更新後下一次 derive 自動重算。
 
 規則（依序）：
-  1. override：`reference/gis-room-overrides.json` 以簡稱原文為鍵，**只收 GIS 名稱可驗證的**
-     （該 (building_id, class_number) 的 GIS 名稱含 `gis_name`）；驗證不過 → 忽略並 warning、走規則。
+  1. override：`reference/gis-room-overrides.json` 以簡稱原文為鍵，**只收 GIS 查得到的**
+     （該 (building_id, class_number) 的 GIS 名稱含 `gis_name`——GIS 上的名稱，不必與課程系統同名，
+     例：共同演講廳 → GB B07「視聽教室(255人)」）；驗證不過 → 忽略並 warning、走規則。
   2. 棟別前綴表（最長前綴優先）：一教→A1T … 科研大樓／科研→HR。對不到前綴（如「紡織」，GIS 沒有這棟）→ none。
   3. 前綴後的部分先去掉空白、`(e)`、數字後的 `e`：
      - 樓層式（`1F`、`1F_1`、`B1F`）→ floor_only（該樓層存在於 GIS 才算，否則 building_only）

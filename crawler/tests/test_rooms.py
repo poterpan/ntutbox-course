@@ -326,12 +326,16 @@ def test_vendored_snapshot_maps_real_115_1_list():
     gis, overrides = load_gis_index(), load_overrides()
     assert gis.source.update_sequence == 1044
     got = {r.raw: map_room(r.raw, gis, overrides)[0] for r in rows}
-    assert Counter(got.values()) == {"rule": 216, "override": 3, "floor_only": 7,
-                                     "building_only": 3, "none": 2}
-    assert got["思源講堂"] == got["綜二演講廳"] == got["綜三演講廳"] == "override"
+    assert Counter(got.values()) == {"rule": 216, "override": 5, "floor_only": 7,
+                                     "building_only": 1, "none": 2}
+    assert {k for k, v in got.items() if v == "override"} == {
+        "思源講堂", "綜二演講廳", "綜三演講廳", "科研哈佛講堂", "共同演講廳"}
     assert got["紡織501A"] == got["紡織503"] == "none"
-    assert {k for k, v in got.items() if v == "building_only"} == {
-        "共同演講廳", "科研哈佛講堂", "科研大樓243e"}
+    assert got["一教1F(e)"] == "floor_only"                     # 使用者確認維持 floor_only
+    assert {k for k, v in got.items() if v == "building_only"} == {"科研大樓243e"}
+    # override 的 GIS 名稱不必與課程系統同名（共同演講廳 → GIS「視聽教室(255人)」）
+    assert map_room("共同演講廳", gis, overrides)[1][0].class_number == "B07"
+    assert map_room("科研哈佛講堂", gis, overrides)[1][0].building_id == "A6T"
 
 
 # ============================================================ derive／manifest

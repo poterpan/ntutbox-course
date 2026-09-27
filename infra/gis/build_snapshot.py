@@ -7,7 +7,7 @@ CI 拿不到，所以把對應需要的欄位**vendored 進本 repo**：
   - buildings：building_id、name、aliases、floor_ids
   - rooms：只收 classNumber 非空者的 building_id、floor_id、class_number、name、use（**不含幾何**）
   - source：GeoServer `updateSequence`（取自 source-metadata.json `wfs.updateSequence`）＋
-    campus-map `v1/manifest.json` 的 sha256——weekly 的漂移檢查拿 updateSequence 跟線上比。
+    campus-map `v1/manifest.json` 的 sha256——weekly 把它與線上值記進 run summary（只記錄，見 #120）。
 房間鍵＝(building_id, class_number)；**不帶 sourceFeatureId**（gid 重新匯入就會變，不能當鍵）。
 
 輸出確定性（排序、去重、不含本次執行時間），一列一筆，git diff 看得出哪些房間變了。

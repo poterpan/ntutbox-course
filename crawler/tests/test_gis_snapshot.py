@@ -1,4 +1,6 @@
-"""GIS 快照（infra/gis/build_snapshot.py）與 weekly 的漂移檢查（pipeline_alert gis-drift，D23）。"""
+"""GIS 快照（infra/gis/build_snapshot.py）與 weekly 的 updateSequence 記錄（pipeline_alert gis-drift，D23）。
+
+gis-drift 只記錄、不開 issue：updateSequence 會因與教室無關的變動前進（issue #120）。"""
 import hashlib
 import json
 import ssl
@@ -8,8 +10,7 @@ from argparse import Namespace
 import pytest
 
 from infra.gis.build_snapshot import RESOURCES, build_snapshot, dump_snapshot, main
-from infra.pipeline_alert import (GIS_DRIFT_PREFIX, cmd_gis_drift, fetch_update_sequence,
-                                  gis_drift_title)
+from infra.pipeline_alert import cmd_gis_drift, fetch_update_sequence, main as alert_main
 from ntut_catalog.room_gis import GisIndex
 from tests.test_pipeline_alert import FakeGh
 
@@ -128,44 +129,46 @@ def _snapshot(tmp_path, seq=1044):
     return Namespace(snapshot=p)
 
 
-def test_drift_opens_issue(tmp_path):
+@pytest.fixture
+def summary(tmp_path, monkeypatch):
+    p = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(p))
+    return p
+
+
+def test_drift_mismatch_is_logged_not_an_issue(tmp_path, summary, capsys):
     gh = FakeGh()
     assert cmd_gis_drift(_snapshot(tmp_path), gh, fetch=lambda: (1146, None)) == 0
-    title = gis_drift_title(1044, 1146)
-    assert title == "[pipeline] GIS 快照過期（updateSequence 1044→1146）"
-    create = next(a for a in gh.calls if a[:2] == ["issue", "create"])
-    assert create[create.index("--title") + 1] == title
-    assert "build_snapshot.py" in create[create.index("--body") + 1]
+    assert gh.calls == []                                     # 不碰 issue
+    out = capsys.readouterr().out
+    assert "::notice" in out and "1044" in out and "1146" in out and "#120" in out
+    text = summary.read_text(encoding="utf-8")
+    assert "| 1044 | 1146 | 不同" in text and "#120" in text
 
 
-def test_drift_updates_existing_issue_and_retitles_when_live_moves_again(tmp_path):
-    gh = FakeGh({gis_drift_title(1044, 1146): 7})
-    cmd_gis_drift(_snapshot(tmp_path), gh, fetch=lambda: (1200, None))
-    assert ["issue", "edit", "7", "--title", gis_drift_title(1044, 1200)] in gh.calls
-    assert "create" not in gh.verbs()
+def test_drift_equal_is_logged(tmp_path, summary):
+    assert cmd_gis_drift(_snapshot(tmp_path, seq=1146), None, fetch=lambda: (1146, None)) == 0
+    assert "| 1146 | 1146 | 一致 |" in summary.read_text(encoding="utf-8")
 
 
-def test_drift_same_title_only_comments(tmp_path):
-    gh = FakeGh({gis_drift_title(1044, 1146): 7})
-    cmd_gis_drift(_snapshot(tmp_path), gh, fetch=lambda: (1146, None))
-    assert gh.verbs() == ["comment"]
+def test_drift_tls_note_goes_to_log_and_summary(tmp_path, summary, capsys):
+    cmd_gis_drift(_snapshot(tmp_path), None, fetch=lambda: (1044, "TLS 驗證失敗，不驗證重試一次"))
+    assert "不驗證重試一次" in capsys.readouterr().out
+    assert "不驗證重試一次" in summary.read_text(encoding="utf-8")
 
 
-def test_drift_resolved_closes_issue(tmp_path):
-    gh = FakeGh({gis_drift_title(1044, 1146): 7})
-    cmd_gis_drift(_snapshot(tmp_path, seq=1146), gh, fetch=lambda: (1146, None))
-    assert gh.verbs() == ["comment", "close"] and not gh.open
-
-
-def test_drift_fetch_failure_is_warning_not_issue(tmp_path, capsys):
-    gh = FakeGh()
-
+def test_drift_fetch_failure_is_warning(tmp_path, summary, capsys):
     def boom():
         raise TimeoutError("timed out")
 
-    assert cmd_gis_drift(_snapshot(tmp_path), gh, fetch=boom) == 0
-    assert gh.verbs() == [] and "::warning" in capsys.readouterr().out
+    assert cmd_gis_drift(_snapshot(tmp_path), None, fetch=boom) == 0
+    assert "::warning" in capsys.readouterr().out and not summary.exists()
 
 
-def test_drift_prefix_matches_title():
-    assert gis_drift_title(1, 2).startswith(GIS_DRIFT_PREFIX)
+def test_cli_gis_drift_never_calls_gh(tmp_path, monkeypatch):
+    import infra.pipeline_alert as pa
+    monkeypatch.setattr(pa, "fetch_update_sequence", lambda: (1146, None))
+    monkeypatch.delenv("GITHUB_STEP_SUMMARY", raising=False)
+    gh = FakeGh()
+    assert alert_main(["gis-drift", "--snapshot", str(_snapshot(tmp_path).snapshot)], gh=gh) == 0
+    assert gh.calls == []
