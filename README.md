@@ -16,6 +16,7 @@
 ## 狀態
 
 公開**初步驗證**中。資料涵蓋 110-1 起 **11 個學期、約 3.2 萬筆開課**，由 GitHub Actions 定期更新。
+另有逐學期的**教室課表**（`terms/{t}/rooms.json`，含校園地圖 GIS 對應），給空教室查找用。
 
 | | 範圍 |
 |---|---|
@@ -32,17 +33,20 @@
 - **課程詳情**：含教學大綱（課程大綱 / 進度 / 評量 / 教材…）
 - **草稿**：localStorage 自動保存，逐學期獨立
 - **無固定時段托盤**：沒有上課節次的課（如實務專題）獨立列出
+- **逐時段教室**：多教室課的每個時段各列上課教室（由教室課表反查）
 - **PWA**：Service Worker 快取、Apple / Liquid-Glass 風格、支援深色與減動偏好
 
 > 節次採北科實際制：`1,2,3,4,N(中午),5,6,7,8,9,A,B,C,D(晚上)`；衝堂僅以「星期 × 節次」交集判定。
 
 ## 架構
 
-<p align="center"><img src="docs/diagrams/01-architecture.png" alt="系統架構" width="460"></p>
+<p align="center"><a href="docs/diagrams/01-architecture.png"><img src="docs/diagrams/01-architecture.png" alt="系統架構" width="820"></a></p>
+
+> 點圖開啟原尺寸。
 
 ```
 GitHub Actions（Python 爬蟲, cron）
-  └─ aps.ntut.edu.tw/course/tw/（公開課程查詢）
+  └─ aps.ntut.edu.tw/course/tw/（公開課程查詢 · Croom 教室課表）
      → canonical NDJSON（git 版控；commit 歷史＝免費的選課人數時序）
      → v1 JSON artifacts → Cloudflare R2（cdn.ntutbox.com/course/v1/）
 Web（Next.js PWA · 靜態匯出 + 前端搜尋 + Service Worker）
