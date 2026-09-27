@@ -1,31 +1,36 @@
-flowchart TB
-    worker["Cloudflare Worker ntutbox-season-scheduler<br/>cron 每小時整點<br/>讀 course/ops/season-schedule.json"]
+---
+config:
+  flowchart:
+    useMaxWidth: false
+    wrappingWidth: 300
+    nodeSpacing: 24
+    rankSpacing: 50
+---
+flowchart LR
+    worker["Cloudflare Worker<br/>ntutbox-season-scheduler<br/>cron 每小時整點<br/>讀 ops/season-schedule.json<br/>命中觸發格 → dispatch season<br/>週一 00:00 保活 daily / weekly"]
 
     subgraph DAILY["daily.yml · 每日 04:00"]
-        d1["calendar · catalog + 人數 · mprograms<br/>(active = 本學期 ∪ 30 天內有選課窗口的學期)"]
+        d1["calendar · catalog + 人數 · mprograms<br/>(active = 本學期<br/>∪ 30 天內有選課窗口的學期)"]
     end
     subgraph WEEKLY["weekly.yml · 每週一 05:30"]
-        w1["details · standards"]
+        w1["details · standards · <b>rooms</b><br/>(rooms：Croom 教室課表 · active)<br/>+ GIS updateSequence 記錄<br/>(只寫 log，不開 issue)"]
     end
     subgraph SEASON["season.yml · Worker 依排程觸發"]
-        s1["enrollment: 只讀人/撤<br/>全校一次查 · 快照 + 觀測紀錄<br/>(亦可手動 dispatch，terms 必填)"]
+        s1["enrollment：只讀人/撤<br/>全校一次查 · 快照 + 觀測紀錄<br/>(亦可手動 dispatch，terms 必填)"]
     end
     subgraph MAINT["maintenance.yml · 僅 dispatch"]
-        m1["backfill: 任何資料集 + 學期<br/>republish: derive + publish"]
+        m1["backfill：任何資料集 + 學期<br/>republish：derive + publish"]
     end
 
-    worker -->|"命中觸發格 → workflow_dispatch (terms)"| s1
-    worker -.->|"每週一 00:00 保活<br/>enable daily / weekly"| d1
+    worker -->|dispatch| s1
+    worker -.->|保活| d1
     worker -.->|保活| w1
 
-    d1 --> L["commit-publish<br/>(concurrency: data-pipeline)<br/>merge → derive → commit → publish"]
+    d1 --> L["commit-publish<br/>(concurrency: data-pipeline)<br/>merge → derive → commit → publish<br/>→ R2 / cdn.ntutbox.com → Web / App<br/>→ alert：pipeline-alert issue"]
     w1 --> L
     s1 --> L
     m1 --> L
-    L --> R2["R2 / cdn.ntutbox.com"]
-    L --> AL["alert: pipeline-alert issue"]
-    R2 --> web["Web / App"]
-    R2 -.->|"season-schedule.json (derive 產出)"| worker
+    L -.->|"season-schedule.json<br/>(derive 產出)"| worker
 
     classDef daily fill:#bfdbfe,stroke:#1e40af,color:#000
     classDef fast fill:#fde68a,stroke:#b45309,color:#000
@@ -33,5 +38,5 @@ flowchart TB
     classDef trig fill:#e9d5ff,stroke:#7e22ce,color:#000
     class d1,w1 daily
     class s1,m1 fast
-    class R2,web out
+    class L out
     class worker trig

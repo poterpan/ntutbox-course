@@ -17,6 +17,8 @@
   資料集唯一宣告處 `crawler/ntut_catalog/registry.py`；canonical 不記爬取時間，時間在 `_meta/fetch-state.json` 與 manifest `checked_at`／`changed_at`。
   決策 `docs/DECISIONS.md` D11–D19、操作 `infra/README.md`「維運 runbook」、設計 `docs/superpowers/specs/2026-09-26-data-pipeline-refactor-design.md`、切換紀錄 `docs/research/2026-09-26-pipeline-v2-migration-report.md`。
   **學期滾動免手動（D19）**：daily 的 `active` 規則＝current-term ∪ 30 天內有選課窗口的被選學期（窗口放在發生的學期、帶 `target_term`；115-2 預選 12/07 在 115-1 的週次表 → 11/07 起 daily 自動爬 115-2 catalog）；`ACTIVE_TERMS` 只剩明確覆寫用。season 由 Cloudflare Worker `ntutbox-season-scheduler` 準時觸發（D18），它每週一也順手 enable daily／weekly，防公開 repo 排程 60 天自動停用。
+- **空教室／逐時段教室（D23–D24）**：weekly `rooms` 資料集（Croom 教室課表）→ canonical `{term}/rooms.json`；derive 加 GIS 對應（vendored 快照 `crawler/ntut_catalog/reference/gis-rooms.json`）出 v1 `terms/{t}/rooms.json`，
+  並反查填 v1 catalog `meetings[].classroom_codes`（canonical catalog 不動）＋報告 `reports/{t}/meeting-rooms.json`。圖與說明見 `docs/ARCHITECTURE.md` 第 7 節。
 - **進行中**：P1 Web 排課器（`apps/web/`）已上線並持續擴充。
 - 課程描述/課綱詳情（details.ndjson）、微學程（mprograms.json v2：開課+分類課程+規則原文）、
   課程標準（standards/<entry_year>.json）皆已爬並入排程（details／standards 週更）。
@@ -25,7 +27,7 @@
 - **P0：資料 + 爬蟲 PoC**（穩定產出 catalog JSON）（完成）
 - P1：Web 排課器（搜尋/週課表/衝堂/學分/階段分類/草稿/匯出），不登入、不代送 ← **現在**
 - P2：匯出 plan payload → App 匯入確認頁（Universal Link / URL Scheme）
-- P3：App 半自動送件（依 cunum 分組批次）+ 結果回寫 + 錯誤翻譯（reuse NTUT_Tools 的 cwish/oads）
+- P3：App 半自動送件（依 cunum 分組批次）+ 結果回寫；學校回應原文呈現、不翻譯（reuse NTUT_Tools 的 cwish/oads）
 - P4：進階（替代課 / 畢業學分 / 評價 / 行事曆）
 
 ## 鎖定的決策（理由見 `docs/DECISIONS.md`）

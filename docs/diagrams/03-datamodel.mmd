@@ -1,3 +1,10 @@
+---
+config:
+  flowchart:
+    useMaxWidth: false
+    nodeSpacing: 22
+    rankSpacing: 60
+---
 flowchart LR
     subgraph C["canonical (git data branch · 真相 · 內容不帶時間)"]
         cat["catalog.ndjson<br/>純結構"]
@@ -5,32 +12,43 @@ flowchart LR
         snap["enrollment/YYYY-MM-DDTHHMM.ndjson<br/>人數快照 (有變才寫)"]
         obs["enrollment/observations.ndjson<br/>每次觀測一行"]
         det["details.ndjson<br/>課綱原文"]
+        rooms["rooms.json · 教室課表<br/>教室 × 星期 × 節次 → 課號 (只記學校給的)"]
         fs["_meta/fetch-state.json<br/>checked_at / changed_at / sha"]
     end
 
+    gis["GIS 快照 (vendored)<br/>gis-rooms.json + overrides"]
+
     subgraph V["v1 (R2 · derive 重建)"]
-        vcat["catalog.json"]
+        vcat["catalog.json<br/>+ meetings[].classroom_codes (由 rooms 反查)"]
         vcls["classes.json"]
         vper["periods.json"]
         venr["enrollment.json<br/>最新 overlay"]
         vcourse["course/{id}.json<br/>+ 逐週進度 (即時算)"]
+        vrooms["rooms.json<br/>+ gis / gis_match / gis_snapshot"]
         man["manifest.json<br/>checked_at / changed_at / count"]
     end
 
-    web["Web / App:<br/>結構 catalog (快取久)<br/>+ 人數 overlay (快取短)"]
+    rep["reports/{term}/meeting-rooms.json<br/>逐時段教室一致性報告<br/>(derive 產 · 進 data branch · 內容變才重寫)"]
+
+    web["Web / App:<br/>結構 catalog (快取久)<br/>+ 人數 overlay (快取短)<br/>+ 教室課表 (空教室)"]
 
     cat --> vcat
+    rooms -->|反查| vcat
     cls --> vcls
     snap -->|latest| venr
     obs -->|observed_at| venr
     det --> vcourse
+    rooms --> vrooms
+    gis --> vrooms
     fs --> man
-    vcat --> man
-    venr --> man
+    vcat -.->|對照課程層級教室| rep
     vcat -.-> web
     venr -.-> web
+    vrooms -.-> web
 
     classDef canon fill:#fde68a,stroke:#b45309,color:#000
     classDef v1c fill:#bfdbfe,stroke:#1e40af,color:#000
-    class cat,cls,snap,obs,det,fs canon
-    class vcat,vcls,vper,venr,vcourse,man v1c
+    classDef muted fill:#f3f4f6,stroke:#4b5563,color:#000
+    class cat,cls,snap,obs,det,fs,rooms,rep canon
+    class vcat,vcls,vper,venr,vcourse,man,vrooms v1c
+    class gis muted

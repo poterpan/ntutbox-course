@@ -1,53 +1,49 @@
 ---
 config:
   flowchart:
-    wrappingWidth: 300
+    useMaxWidth: false
+    wrappingWidth: 340
+    nodeSpacing: 24
+    rankSpacing: 44
 ---
 flowchart TB
-    ics["校網行事曆 ics<br/>(公開免登入)"]
-    cal["daily · calendar 資料集<br/>term_calendar 解析"]
-    cj["{term}/calendar.json<br/>週次 + enrollment_windows<br/>窗口放在「開始日所在學期」(host) 的檔<br/>target_term = 被選的學期<br/>kind：預選 · 新生預選 · 開學後加退選 · 期中撤選"]
-
-    ics --> cal --> cj
-
-    subgraph ACTIVE["daily 跑哪些學期 (active)"]
-        act["active = 本學期 ∪ 有窗口<br/>start ≤ now+30 天 且 end ≥ now 的 target_term<br/>(ACTIVE_TERMS 有值 = 明確覆寫)"]
-        dly["daily：這些學期的 catalog / mprograms"]
-        act --> dly
+    subgraph R1["① 行事曆：一切從這裡出發"]
+        direction LR
+        ics["校網行事曆 ics<br/>(公開免登入)"] --> cal["daily · calendar 資料集<br/>term_calendar 解析"] --> cj["{term}/calendar.json<br/>週次 + enrollment_windows<br/>窗口放在「開始日所在學期」(host) 的檔 · target_term = 被選的學期<br/>kind：預選 · 新生預選 · 開學後加退選<br/>· 期中撤選"]
     end
 
-    subgraph SEASONSIDE["選課季人數：依窗口自動觸發"]
-        ss["derive · season_schedule<br/>→ ops/season-schedule.json (整點觸發格)<br/>開啟後 24h 每小時 · 截止前 24h 每小時<br/>截止時刻補一次 · 其餘每 3 小時 (台北 00/03/06…)"]
-        pub["publish → course/ops/season-schedule.json<br/>(max-age 300)"]
-        wk["Worker ntutbox-season-scheduler<br/>cron 每小時整點：這個整點在 slots 裡？"]
-        sy["season.yml (terms = slot.terms)<br/>人數：全校一次 QueryCourse<br/>失敗 → 退回逐系所"]
-        obs["人數快照 + 觀測紀錄"]
-        ss --> pub --> wk
-        wk -->|"命中 → workflow_dispatch"| sy --> obs
+    subgraph R2["② daily / weekly 跑哪些學期 (active)"]
+        direction LR
+        act["active = 本學期 ∪ 有窗口<br/>start ≤ now+30 天 且 end ≥ now 的 target_term<br/>(ACTIVE_TERMS 有值 = 明確覆寫)"] --> dly["用 active 的資料集<br/>daily：catalog / mprograms<br/>weekly：rooms"]
     end
 
-    subgraph TERMSIDE["本學期 / 預設學期：manifest term_schedule"]
-        ts["derive · term_schedule → manifest<br/>current：行事曆「第N學期開始」起<br/>(無行事曆 → 8/1 = Y-1、2/1 = Y-2)<br/>default：本學期期中撤選截止 (日/夜取晚者) 起切到下學期<br/>(無撤選窗口 → 下學期預選開始 −14 天)<br/>例：115-2 自 2026-11-21 17:00 起為預設"]
+    subgraph R3["③ 選課季人數：依窗口自動觸發"]
+        direction LR
+        ss["derive · season_schedule<br/>→ ops/season-schedule.json (max-age 300)<br/>開啟後 24h、截止前 24h 每小時<br/>截止時刻補一次 · 其餘每 3 小時"] --> wk["Worker ntutbox-season-scheduler<br/>cron 每小時整點<br/>這個整點在 slots 裡？"] -->|"命中 → dispatch"| sy["season.yml (terms = slot.terms)<br/>全校一次 QueryCourse<br/>失敗 → 逐系所<br/>→ 人數快照 + 觀測紀錄"]
+    end
+
+    subgraph R4["④ daily 的 season 檢查 (pipeline-alert)"]
+        direction LR
+        c1["season 窗口學期缺 catalog<br/>14 天內有觸發格、該學期沒有 catalog"]
+        c2["season 未依排程執行<br/>[now−12h, now−1h] 的觸發格<br/>在 [at, at+1h) 沒有觀測紀錄"]
+        c1 ~~~ c2
+    end
+
+    subgraph R5["⑤ 本學期 / 預設學期：manifest term_schedule"]
+        direction LR
+        ts["derive · term_schedule → manifest<br/>current：行事曆「第N學期開始」起<br/>(無行事曆 → 8/1 = Y-1、2/1 = Y-2)<br/>default：本學期期中撤選截止 (日/夜取晚者)<br/>起切到下學期<br/>(無撤選窗口 → 下學期預選開始 −14 天)<br/>例：115-2 自 2026-11-21 17:00 起為預設"]
         rt["Web resolveTerms(manifest, now)<br/>預設學期無 catalog → 本學期 → 最新學期<br/>檢視 ≠ 本學期 → 顯示「回到本學期」"]
         hub["/browse hub (build 期產，hub-term.json)<br/>sitemap-courses (請求當下的預設學期)"]
-        dh["Deploy Hook auto-rebuild-hub<br/>→ Workers Builds 重建 ntutbox-course-web"]
+        dh["Deploy Hook auto-rebuild-hub<br/>Worker 在 default[].from 整點觸發<br/>→ Workers Builds 重建 web"]
         ts --> rt
         ts --> hub
         dh --> hub
     end
 
-    subgraph CHECKS["daily 的 season 檢查 (pipeline-alert)"]
-        c1["season 窗口學期缺 catalog<br/>14 天內有觸發格、該學期沒有 catalog"]
-        c2["season 未依排程執行<br/>[now−12h, now−1h] 的觸發格<br/>在 [at, at+1h) 沒有觀測紀錄"]
-    end
-
-    cj --> ss
-    cj --> act
-    cj --> ts
-    wk -.->|"預設學期切換整點 (default[].from)"| dh
-    ss -.-> c1
-    dly -.-> c1
-    obs -.-> c2
+    R1 -->|calendar.json| R2
+    R2 ~~~ R3
+    R3 -.->|"檢查排程與觀測紀錄"| R4
+    R4 ~~~ R5
 
     classDef src fill:#fde68a,stroke:#b45309,color:#000
     classDef store fill:#bfdbfe,stroke:#1e40af,color:#000
@@ -56,6 +52,6 @@ flowchart TB
     classDef bad fill:#fecaca,stroke:#b91c1c,color:#000
     class ics src
     class cj,ss,ts store
-    class obs,rt,hub out
+    class sy,rt,hub out
     class wk,dh trig
     class c1,c2 bad

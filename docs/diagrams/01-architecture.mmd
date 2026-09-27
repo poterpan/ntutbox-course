@@ -1,21 +1,31 @@
+---
+config:
+  layout: elk
+  flowchart:
+    useMaxWidth: false
+---
 flowchart TB
-    ntut["NTUT 課程查詢系統 / 校網行事曆<br/>(公開免登入)"]
+    subgraph SRC["來源 (公開免登入)"]
+        ntut["NTUT 課程查詢系統<br/>課程 · 課綱 · 微學程 · 標準"]
+        croom["Croom.jsp 教室課表<br/>(rooms 資料集 · weekly)"]
+        ics["校網行事曆 ics"]
+    end
+    gis["GIS 快照 (vendored)<br/>reference/gis-rooms.json<br/>+ gis-room-overrides.json"]
+    sched["Cloudflare Worker<br/>ntutbox-season-scheduler<br/>cron 每小時整點"]
 
     subgraph GHA["GitHub Actions · daily / weekly / season / maintenance"]
         fetch["fetch<br/>pipeline --cadence X"]
-        derive["derive<br/>canonical → v1 + ops 排程"]
+        derive["derive<br/>canonical → v1 + ops 排程<br/>教室 GIS 對應 · 逐時段教室"]
         publish["publish<br/>infra/publish.py"]
     end
 
     subgraph GIT["git (單一 repo)"]
+        data["data branch<br/>canonical + fetch-state"]
         main["main branch<br/>code only"]
-        data["data branch<br/>canonical + _meta/fetch-state.json"]
     end
 
     subgraph CF["Cloudflare"]
-        r2["R2: ntutbox-cdn"]
-        cdn["cdn.ntutbox.com<br/>course/v1/ · course/ops/season-schedule.json"]
-        sched["Worker ntutbox-season-scheduler<br/>cron 每小時整點"]
+        r2["R2: ntutbox-cdn<br/>cdn.ntutbox.com/course/"]
         hook["Deploy Hook<br/>auto-rebuild-hub"]
         build["Workers Builds<br/>ntutbox-course-web"]
     end
@@ -24,27 +34,29 @@ flowchart TB
     ios["北科盒子 App"]
 
     ntut -->|爬取| fetch
+    croom -->|爬取| fetch
+    ics -->|爬取| fetch
     fetch -->|"merge + commit (上鎖)"| data
     data --> derive
+    gis -.->|教室位置| derive
     derive --> publish
-    publish -->|"S3 API · 只傳差異 · manifest 最後"| r2
-    r2 --> cdn
-    cdn -->|fetch JSON| web
-    cdn -->|fetch JSON| ios
+    publish -->|"只傳差異 · manifest 最後"| r2
+    r2 --> web
+    r2 --> ios
 
-    cdn -.->|"讀 season-schedule.json + manifest"| sched
-    sched -.->|"命中觸發格 → workflow_dispatch season.yml<br/>週一 00:00 保活 enable daily / weekly"| GHA
-    sched -.->|"預設學期切換整點"| hook
-    publish -.->|"預設學期 catalog 有變"| hook
+    sched -.->|"dispatch season · 週一保活"| fetch
+    sched -.->|讀排程 + manifest| r2
+    sched -.->|預設學期切換整點| hook
+    publish -.->|預設學期 catalog 有變| hook
     hook --> build
-    main -.->|push main 自動部署| build
+    main -.->|push main| build
     build --> web
 
     classDef src fill:#fde68a,stroke:#b45309,color:#000
     classDef store fill:#bfdbfe,stroke:#1e40af,color:#000
     classDef out fill:#bbf7d0,stroke:#15803d,color:#000
     classDef trig fill:#e9d5ff,stroke:#7e22ce,color:#000
-    class ntut src
+    class ntut,croom,ics,gis src
     class main,data store
-    class r2,cdn,build out
+    class r2,build out
     class sched,hook trig

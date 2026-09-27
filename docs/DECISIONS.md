@@ -137,7 +137,7 @@ merge（鎖內、對最新 HEAD）的規則：
 - **失敗不擋資料**：管線端非 2xx（curl 對 5xx／逾時重試一次）→ `::warning` ＋ commit-publish 輸出 `web-redeploy=failed（HTTP …）` → alert job 列進 `[pipeline] <workflow> 失敗` issue；資料 job 不紅燈。Worker 端 manifest 讀取失敗或 hook 失敗 → 該次 cron 標失敗（dashboard 看得到）。URL 本身是憑證，兩邊的 log 都不印。
 - **不做**：不改由 worker 動態產 hub（要多一套 runtime 路由與快取，換來的只是省掉幾分鐘 build 延遲）；不在 republish 觸發（沒有 merge 報告，需要時手動 POST 或在 dashboard 重跑）。
 
-## D23 — 空教室：`rooms` 資料集（Croom.jsp 教室課表）＋ derive 層的 GIS 對應（poterpan/NTUTBox#239）
+## D23 — 空教室：`rooms` 資料集（Croom.jsp 教室課表）＋ derive 層的 GIS 對應（北科盒子 App 的空教室查找）
 - **契約是「每間教室的課表」**，不是「現在哪些教室空著」：可離線、可查未來時段、沿用 CDN＋ETag，伺服器零即時運算（App 端 #239 的要求）。
 - **房間宇宙＝課程系統的教室清單**（Croom -2，115-1 共 231 間），**不是 GIS**——GIS 包含辦公室、實驗室、廁所，拿它當宇宙會列出一堆不能待的空間。GIS 只負責「這間在哪」。
 - **登錄表一筆**：`rooms`、cadence **weekly**（教室課表一學期內幾乎不動；約 232 請求、3 分鐘，節流沿用 client 預設）、學期規則 `active`（同 catalog，含即將選課的學期）。節點＝一間教室的 -3 頁；清單頁失敗＝整個資料集失敗；清單 0 間 → raise、不覆寫。套 D16：單間失敗 → merge 從 HEAD 沿用那一間（逐位元組相同），HEAD 也沒有 → **不寫那一間**（寫空課表等於謊稱整週沒排課）；失敗 > 5% → 整筆丟棄。
