@@ -277,7 +277,12 @@ def _next_term(term_key: str) -> str:
 
 
 def _containing_term(d: dt.date) -> str:
-    """日期所在的學期（term_window：Y-08~(Y+1)-01 為上學期、02~07 為下學期）。"""
+    """日期所在的學期（term_window：Y-08~(Y+1)-01 為上學期、02~07 為下學期）。
+
+    刻意用固定規則、不讀 `administrative_start`：這裡是在**產生** calendar.json 的途中替窗口
+    歸屬學期（初選沒寫學期時推 target_term），當下還沒有（或正在產生）該學期的 calendar.json。
+    manifest 的「本學期」另由 term_schedule.term_start 依行事曆決定（D21）。
+    """
     if d.month >= 8:
         return f"{d.year - 1911}-1"
     if d.month == 1:

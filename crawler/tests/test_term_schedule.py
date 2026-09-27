@@ -78,6 +78,30 @@ def test_fallback_to_preselection_minus_lead_days(calendars):
     assert switch_at("115-2", cals.values()) == T("2027-05-10T00:00:00+08:00")   # 05/24 − 14d
 
 
+def test_term_start_follows_calendar_administrative_start(calendars):
+    """行事曆有「學年度第N學期開始」→ 本學期從那天起；真實 115 資料就是 8/1、2/1。"""
+    assert calendars["115-1"].terms["115-1"].administrative_start == "2026-08-01"
+    assert calendars["115-2"].terms["115-2"].administrative_start == "2027-02-01"
+    assert term_start("115-1", calendars.values()) == term_start("115-1")
+    assert term_start("115-2", calendars.values()) == term_start("115-2")
+    assert term_start("116-1", calendars.values()) == T("2027-08-01T00:00:00+08:00")  # 無檔 → 固定規則
+
+
+def test_nonstandard_calendar_start_moves_current(calendars):
+    """學校改日期（假設 115-2 自 2027-01-25 開始）→ current 那筆跟著移；沒填 → 固定規則。"""
+    cals = {k: v.model_copy(deep=True) for k, v in calendars.items()}
+    cals["115-2"].terms["115-2"].administrative_start = "2027-01-25"
+    cals["115-1"].terms["115-1"].administrative_start = None
+    sched = build_term_schedule(list(cals), cals.values())
+    assert _pairs(sched.current) == [
+        ("115-1", "2026-08-01T00:00:00+08:00"),   # 欄位為空 → 8/1
+        ("115-2", "2027-01-25T00:00:00+08:00"),
+        ("116-1", "2027-08-01T00:00:00+08:00"),   # 沒有 calendar.json → 8/1
+    ]
+    # default 的「提前切換」不受影響（115-2 早在撤選截止就已是預設）
+    assert ("115-2", "2026-11-21T17:00:00+08:00") in _pairs(sched.default)
+
+
 def test_no_calendars_means_no_early_switch():
     sched = build_term_schedule(["115-1", "114-2", "bogus"], [])
     assert _pairs(sched.default) == _pairs(sched.current) == [

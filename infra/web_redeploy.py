@@ -65,7 +65,11 @@ def _effective(entries, now: dt.datetime) -> Optional[str]:
 
 
 def _containing_term(now: dt.datetime) -> str:
-    """台北日期所在學期（與 term_calendar._containing_term、web containingTerm 同規則）。"""
+    """台北日期所在學期（固定 8/1、2/1 規則，與 term_calendar._containing_term、web containingTerm 同）。
+
+    只在 manifest 的 `term_schedule.current` 沒有已生效項目時才用；有的話以它為準
+    （它的開始日已依行事曆 `administrative_start`，D21）。
+    """
     d = now.astimezone(TAIPEI).date()
     if d.month >= 8:
         return f"{d.year - 1911}-1"

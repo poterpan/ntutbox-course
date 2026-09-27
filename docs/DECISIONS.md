@@ -117,7 +117,8 @@ merge（鎖內、對最新 HEAD）的規則：
 ## D21 — 本學期 vs 預設學期：期中撤選截止起預設顯示下學期；「回到本學期」按鈕
 - **問題**：排課站的預設學期寫死 `115-1`（ui-store、use-term-bootstrap、TermSwitcher 三處），sitemap-courses／hub 跟「manifest 最新學期」。D19 起下學期約在預選 30 天前就進 manifest（草案課表），「最新學期」會在學生還在修本學期、撤選都還沒截止時就把整站推到下學期；寫死的值則每學期要改程式。
 - **兩個概念**：
-  - **本學期（current）**：台北日期所在的學期——8/1～隔年 1/31 上學期、2/1～7/31 下學期（與 `term_calendar._containing_term` 同一條規則）。
+  - **本學期（current）**：各學期自其開始日（台北 00:00）起為本學期。開始日＝該學期 calendar.json 的 `administrative_start`（行事曆事件「學年度第N學期開始」；115-1＝2026-08-01、115-2＝2027-02-01）；沒有該學期的 calendar.json 或欄位為空 → 固定 8/1（上學期）／2/1（下學期）。實務上兩者相同，以行事曆為準是讓學校改日期時跟著官方走。
+    - 固定規則仍留在三處，都是「行事曆還不存在」或「manifest 沒給」時的退路：`term_calendar._containing_term`（產 calendar.json 途中替窗口推 target_term，不能反過來依賴 calendar.json）；web `containingTerm` 與 `infra/web_redeploy.py` 的 `_containing_term`（只在 manifest 沒有 `term_schedule.current` 已生效項目時用）。web 不自己推開始日。
   - **預設學期（default）**：網站預設顯示的學期＝本學期；從本學期的**期中撤選截止**（本學期 calendar.json 中 `midterm_withdrawal` 日／夜間部 `end` 取晚者；115-1＝2026-11-21 17:00、115-2＝2027-05-08 17:00）起改為下學期——那之後本學期已沒有能改的選課動作，學生接著要排下學期（115-2 預選 12/07）。推不出撤選窗口 → 退用下學期預選開始 − 14 天；兩者皆無 → 不提前切換。不看下學期 catalog 是不是草案。
 - **資料**：derive 寫 manifest 新增欄位 `term_schedule`（`current`／`default` 兩條 `{term, from}` 時間軸），由 calendar.json 確定性產生、不讀系統時間（D11）；純新增、不升 `SCHEMA_VERSION`（D15）。規則放 Python 是為了跟 season 排程共用同一份窗口、能在 pytest 驗，client 只做「取 `from ≤ now` 的最後一筆」。
 - **client 退路**（`apps/web/src/lib/terms/term-schedule.ts` 的 `resolveTerms`，planner／hub build／worker 共用）：預設學期不在 `manifest.terms`（還沒有 catalog）→ 本學期；本學期也不在 → `terms` 最新者。舊 manifest 沒有 `term_schedule` → 預設＝`terms` 最新者（等同 D21 之前）。

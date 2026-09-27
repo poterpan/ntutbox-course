@@ -1,7 +1,11 @@
 """manifest `term_schedule`：「本學期」與「網站預設學期」的切換時刻表（D21）。
 
-- **current（本學期）**：日期所在的學期，與 `term_calendar._containing_term` 同一條規則——
-  8/1～隔年 1/31 為上學期、2/1～7/31 為下學期（台北時間 00:00 切換）。
+- **current（本學期）**：各學期自其**開始日**（台北時間 00:00）起為本學期。開始日＝該學期
+  calendar.json 的 `administrative_start`（行事曆事件「學年度第N學期開始」）；沒有 calendar.json
+  或該欄位為空 → 固定規則 8/1（上學期）／2/1（下學期）。實務上行事曆就是 8/1、2/1，兩者一致；
+  以行事曆為準是為了學校哪天改日期時本學期跟著官方走。
+  （`term_calendar._containing_term` 的窗口歸屬學期維持固定規則：那是在「還沒有／正在產生」
+  calendar.json 時就要用的，不能反過來依賴它。）
 - **default（網站預設顯示的學期）**：本學期；但從本學期的**期中撤選截止**起改為下學期
   （本學期已沒有能改的選課動作，學生接著要排的是下學期）。截止＝本學期 calendar.json 中
   `midterm_withdrawal`（target_term＝本學期）各部別 `end` 取最晚者。推不出撤選窗口 →
@@ -39,8 +43,17 @@ def next_term(term: str) -> str:
     return f"{year}-2" if sem == 1 else f"{year + 1}-1"
 
 
-def term_start(term: str) -> dt.datetime:
-    """學期（行政上）開始的時刻：Y-1 → 西元 Y+1911 年 8/1；Y-2 → Y+1912 年 2/1（台北 00:00）。"""
+def term_start(term: str, calendars: Iterable[TermCalendarFile] = ()) -> dt.datetime:
+    """學期（行政上）開始的時刻（台北 00:00）。
+
+    calendars 裡有該學期的 `administrative_start` → 用它；否則固定規則：
+    Y-1 → 西元 Y+1911 年 8/1；Y-2 → Y+1912 年 2/1。
+    """
+    for cal in calendars:
+        academic = cal.terms.get(term)
+        if academic is not None and academic.administrative_start:
+            d = dt.date.fromisoformat(academic.administrative_start)
+            return dt.datetime(d.year, d.month, d.day, tzinfo=TAIPEI)
     year, sem = _key(term)
     if sem == 1:
         return dt.datetime(year + 1911, 8, 1, tzinfo=TAIPEI)
@@ -93,7 +106,7 @@ def build_term_schedule(terms: Iterable[str],
             universe.update(w.target_term for w in academic.enrollment_windows
                             if _TERM_RE.match(w.target_term))
     ordered = sorted(universe, key=_key)
-    current = [(term_start(t), t) for t in ordered]
+    current = [(term_start(t, calendars), t) for t in ordered]
     default = list(current)
     for t in ordered:
         at = switch_at(t, calendars)
