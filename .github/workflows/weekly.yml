@@ -14,7 +14,7 @@ on:
         required: false
         default: ""
       terms:
-        description: "學期（如 115-1 或 114-2:115-1）；留空＝登錄表規則（ACTIVE_TERMS 或 current-term）"
+        description: "學期（如 115-1 或 114-2:115-1）；留空＝登錄表規則（current-term ∪ 即將選課的學期；ACTIVE_TERMS 可覆寫）"
         required: false
         default: ""
       data_ref:
@@ -56,6 +56,7 @@ jobs:
           INPUT_DATASETS: ${{ inputs.datasets }}
           INPUT_TERMS: ${{ inputs.terms }}
           ACTIVE_TERMS: ${{ vars.ACTIVE_TERMS }}
+          SELECTION_LEAD_DAYS: ${{ vars.SELECTION_LEAD_DAYS }}
         run: |
           set +e -uo pipefail   # 要自己拿結束碼：預設 shell 帶 -e
           ARGS=(--cadence weekly --out data --stage "$RUNNER_TEMP/stage")

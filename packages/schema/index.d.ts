@@ -262,7 +262,8 @@ export type Start1 = string;
 export type End1 = string;
 export type Weeks1 = TermWeek[];
 export type BreakStart = string;
-export type Kind = "online_selection" | "freshman_preselection" | "add_drop" | "midterm_withdrawal";
+export type Kind = "preselection" | "freshman_preselection" | "post_start_add_drop" | "midterm_withdrawal";
+export type TargetTerm = string;
 export type Division1 = "day" | "evening" | "all";
 export type Start2 = string;
 export type End2 = string;
@@ -824,15 +825,21 @@ export interface TermWeek {
 /**
  * 選課相關窗口（issue #111）：由 ics 具名事件推導，season 排程（ops/season-schedule.json）的來源。
  *
- * - `online_selection`（網路選課／初選）歸屬**被選的學期**：「115學年度第2學期網路選課」在
- *   12 月舉行、落在 115-1 的日期範圍內，但它屬於 115-2 的 calendar.json。
- * - `freshman_preselection`／`add_drop`／`midterm_withdrawal` 歸屬它發生的學期。
+ * - **歸屬＝發生的學期（host term）**：窗口開始日所在的學期（8～1 月＝上學期、2～7 月＝下學期），
+ *   寫進該學期的 calendar.json。
+ * - `target_term`：**被選課的學期**。`preselection`（預選，校方行事曆稱「網路選課」）在前一學期
+ *   期末舉行、選的是下學期的課：「115學年度第2學期網路選課」12/07 → 放在 115-1 的檔、
+ *   `target_term` 115-2。其餘（`freshman_preselection` 新生預選、`post_start_add_drop` 開學後加退選、
+ *   `midterm_withdrawal` 期中撤選）`target_term` 就是所在學期。season 排程與 daily 的 `active`
+ *   學期規則都看 `target_term`。
+ * - kind 不用裸 `add_drop`：那是選課階段分類裡 oads 系統的名字（CLAUDE.md），兩者不同。
  * - `division`：日間部 `day`、進修部 `evening`、標題未分部別 `all`。
  * - `start`／`end`：ISO-8601 +08:00 的**時刻**（不是日期）。事件沒寫時刻時，截止日間部
  *   17:00、進修部 21:00（標題「(17:00 截止)」這類註記優先）。
  */
 export interface EnrollmentWindow {
   kind: Kind;
+  target_term: TargetTerm;
   division: Division1;
   start: Start2;
   end: End2;

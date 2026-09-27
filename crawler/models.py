@@ -22,7 +22,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SCHEMA_VERSION = 3
 
@@ -580,21 +580,30 @@ class TermWeek(BaseModel):
     end: str                                     # 週六，inclusive
 
 
-EnrollmentWindowKind = Literal["online_selection", "freshman_preselection", "add_drop",
+EnrollmentWindowKind = Literal["preselection", "freshman_preselection", "post_start_add_drop",
                                "midterm_withdrawal"]
+
+# 2026-09-27 首版的 kind 名稱（當天即改名，尚無外部使用者）；只供讀舊 canonical 檔時升級用。
+LEGACY_WINDOW_KINDS = {"online_selection": "preselection", "add_drop": "post_start_add_drop"}
 
 
 class EnrollmentWindow(BaseModel):
     """選課相關窗口（issue #111）：由 ics 具名事件推導，season 排程（ops/season-schedule.json）的來源。
 
-    - `online_selection`（網路選課／初選）歸屬**被選的學期**：「115學年度第2學期網路選課」在
-      12 月舉行、落在 115-1 的日期範圍內，但它屬於 115-2 的 calendar.json。
-    - `freshman_preselection`／`add_drop`／`midterm_withdrawal` 歸屬它發生的學期。
+    - **歸屬＝發生的學期（host term）**：窗口開始日所在的學期（8～1 月＝上學期、2～7 月＝下學期），
+      寫進該學期的 calendar.json。
+    - `target_term`：**被選課的學期**。`preselection`（預選，校方行事曆稱「網路選課」）在前一學期
+      期末舉行、選的是下學期的課：「115學年度第2學期網路選課」12/07 → 放在 115-1 的檔、
+      `target_term` 115-2。其餘（`freshman_preselection` 新生預選、`post_start_add_drop` 開學後加退選、
+      `midterm_withdrawal` 期中撤選）`target_term` 就是所在學期。season 排程與 daily 的 `active`
+      學期規則都看 `target_term`。
+    - kind 不用裸 `add_drop`：那是選課階段分類裡 oads 系統的名字（CLAUDE.md），兩者不同。
     - `division`：日間部 `day`、進修部 `evening`、標題未分部別 `all`。
     - `start`／`end`：ISO-8601 +08:00 的**時刻**（不是日期）。事件沒寫時刻時，截止日間部
       17:00、進修部 21:00（標題「(17:00 截止)」這類註記優先）。
     """
     kind: EnrollmentWindowKind
+    target_term: str
     division: Literal["day", "evening", "all"]
     start: str
     end: str
@@ -644,6 +653,25 @@ class TermCalendarFile(BaseModel):
     generated_at: Optional[str] = None
     source: TermCalendarSource
     terms: Dict[str, AcademicTerm] = Field(default_factory=dict)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _upgrade_legacy_windows(cls, data):
+        """讀 2026-09-27 首版格式的舊檔：kind 改名、補 `target_term`＝所在檔的學期。
+
+        舊版把預選放在被選學期的檔，所以補上的 target_term 正確；host 的歸屬要等下一次 daily
+        重新推導、改寫檔案（內容變了一定會重寫）才會對。只為了過渡期間 derive 不因舊檔失敗。
+        """
+        if not isinstance(data, dict) or not isinstance(data.get("terms"), dict):
+            return data
+        for key, term in data["terms"].items():
+            if not isinstance(term, dict):
+                continue
+            for w in term.get("enrollment_windows") or []:
+                if isinstance(w, dict) and "target_term" not in w:
+                    w["kind"] = LEGACY_WINDOW_KINDS.get(w.get("kind"), w.get("kind"))
+                    w["target_term"] = key
+        return data
 
 
 class ManifestEntry(BaseModel):

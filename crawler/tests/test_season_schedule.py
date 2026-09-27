@@ -65,22 +65,37 @@ def test_window_slots_unaligned_start_and_end():
     assert slots[-1] == (T("2022-01-06T21:00:00+08:00"), "close")
 
 
-def test_115_withdrawal_and_online_selection_counts(terms):
+def test_115_withdrawal_and_preselection_counts(terms):
     s = summarize(terms)
     w = s[("115-1", "期中撤選")]
     assert (w["first"], w["last"]) == ("2026-10-05T00:00:00+08:00", "2026-11-21T17:00:00+08:00")
     # 約 7 週：3 小時一格 ≈ 376，加上開頭／兩個截止前 24h 的每小時 → 400 出頭（issue 估約 400）
     assert 400 <= w["count"] <= 450
-    o = s[("115-2", "網路選課")]
+    # 115-2 預選在 115-1 的檔裡，但 key 是被選學期 115-2
+    o = s[("115-2", "預選")]
     assert (o["first"], o["last"]) == ("2026-12-07T00:00:00+08:00", "2026-12-19T21:00:00+08:00")
     assert 130 <= o["count"] <= 170                                   # 選課週 2 週約 150 次
-    assert ("115-1", "網路選課") in s and ("115-2", "新生網路預選") not in s
+    # 115-1 自己的預選（2026-06，發生在 114-2）不在 115 學年度的兩個檔裡
+    assert ("115-1", "預選") not in s and ("115-2", "新生預選") not in s
+    # 116-1 預選（2027-05-24）在 115-2 的檔裡；116-1 沒有自己的週次表也照排
+    p = s[("116-1", "預選")]
+    assert (p["first"], p["last"]) == ("2027-05-24T00:00:00+08:00", "2027-06-05T21:00:00+08:00")
+
+
+def test_preselection_slots_monitor_target_term(terms):
+    by_at = {x["at"]: x for x in build_schedule(terms, None)["slots"]}
+    assert by_at["2026-12-07T00:00:00+08:00"] == {
+        "at": "2026-12-07T00:00:00+08:00", "terms": "115-2", "windows": ["預選"],
+        "reason": "open-burst"}
+    assert by_at["2027-05-24T00:00:00+08:00"]["terms"] == "116-1"
+    assert by_at["2027-03-22T00:00:00+08:00"]["windows"] == ["期中撤選"]
+    assert by_at["2027-02-22T00:00:00+08:00"]["windows"] == ["開學後加退選"]
 
 
 def test_close_slots_for_day_and_evening(terms):
     sched = build_schedule(terms, "sha")
     by_at = {x["at"]: x for x in sched["slots"]}
-    # 115-2 網路選課：日間部 12/18 17:00、進修部 12/19 21:00 各補一格
+    # 115-2 預選：日間部 12/18 17:00、進修部 12/19 21:00 各補一格
     assert by_at["2026-12-18T17:00:00+08:00"]["reason"] == "close"
     assert by_at["2026-12-19T21:00:00+08:00"]["reason"] == "close"
     # 日間部截止之後、進修部截止前 24h 內 → 仍每小時
@@ -99,16 +114,17 @@ def test_merge_same_hour_across_terms_and_windows():
         return AcademicTerm(instruction_start="2026-09-07", midterm={"start": "x", "end": "x"},
                             final_exam={"start": "x", "end": "x"}, break_start="2027-01-11",
                             enrollment_windows=windows)
-    a = EnrollmentWindow(kind="midterm_withdrawal", division="day",
+    a = EnrollmentWindow(kind="midterm_withdrawal", target_term="115-1", division="day",
                          start="2026-10-05T00:00:00+08:00", end="2026-11-20T17:00:00+08:00")
-    b = EnrollmentWindow(kind="online_selection", division="day",
+    b = EnrollmentWindow(kind="preselection", target_term="115-2", division="day",
                          start="2026-11-20T00:00:00+08:00", end="2026-11-27T17:00:00+08:00")
-    sched = build_schedule({"115-2": term([b]), "115-1": term([a])}, None)
+    # 兩個窗口都在 115-1 的檔裡（所在學期），terms 取各自的 target_term
+    sched = build_schedule({"115-1": term([b, a])}, None)
     by_at = {x["at"]: x for x in sched["slots"]}
     x = by_at["2026-11-20T17:00:00+08:00"]
     assert x == {"at": "2026-11-20T17:00:00+08:00", "terms": "115-1,115-2",
-                 "windows": ["網路選課", "期中撤選"], "reason": "close"}
-    assert by_at["2026-11-20T05:00:00+08:00"]["reason"] == "close-burst"   # 撤選截止前 > 網路選課開啟
+                 "windows": ["預選", "期中撤選"], "reason": "close"}
+    assert by_at["2026-11-20T05:00:00+08:00"]["reason"] == "close-burst"   # 撤選截止前 > 預選開啟
     ats = [x["at"] for x in sched["slots"]]
     assert ats == sorted(ats) and len(ats) == len(set(ats))
 
@@ -144,17 +160,20 @@ def test_derive_writes_schedule_outside_v1_deterministically(tmp_path):
     assert not (tmp_path / "v1" / "ops").exists()
     sched = json.loads(first)
     assert sched["calendar_sha256"] and sched["slots"]
-    assert {t for x in sched["slots"] for t in x["terms"].split(",")} == {"115-1", "115-2"}
+    assert {t for x in sched["slots"] for t in x["terms"].split(",")} == {"115-1", "115-2", "116-1"}
     derive(tmp_path)
     assert path.read_bytes() == first                   # 同一份 canonical → 逐位元組相同
     assert load_schedule(tmp_path) == sched
 
 
-def test_schedule_scope_is_given_terms_only(tmp_path):
+def test_schedule_scope_is_given_host_terms_only(tmp_path):
+    """範圍＝給定的**所在學期**的檔；slot terms 是被選學期（115-1 的檔含 115-2 預選）。"""
     _write_calendars(tmp_path)
     write_season_schedule(tmp_path, ["115-1"])
     sched = load_schedule(tmp_path)
-    assert {x["terms"] for x in sched["slots"]} == {"115-1"}
+    assert {x["terms"] for x in sched["slots"]} == {"115-1", "115-2"}
+    write_season_schedule(tmp_path, ["115-2"])
+    assert {x["terms"] for x in load_schedule(tmp_path)["slots"]} == {"115-2", "116-1"}
     write_season_schedule(tmp_path, [])
     assert load_schedule(tmp_path)["slots"] == []
 

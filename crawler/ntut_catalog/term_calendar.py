@@ -20,7 +20,7 @@ import json
 import logging
 import re
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from models import (
     AcademicTerm,
@@ -37,7 +37,8 @@ from ntut_catalog.ics import TAIPEI
 logger = logging.getLogger(__name__)
 
 # 1.1.0：新增 enrollment_windows（選課相關窗口，issue #111）；週次表規則不變。
-PARSER_VERSION = "calendar/1.1.0"
+# 1.2.0：窗口改歸發生的學期＋`target_term`、kind 改名（preselection／post_start_add_drop）。
+PARSER_VERSION = "calendar/1.2.0"
 DERIVED_FIELDS = ["weeks", "preparation", "enrollment_windows"]
 WEEK_TABLE_REFERENCE = Path(__file__).parent / "reference" / "pdf-week-tables-111-115.json"
 
@@ -189,7 +190,7 @@ def derive_term(events: Sequence[CalendarEvent], term_key: str) -> AcademicTerm:
 # 所以一律關鍵字＋容錯比對。**推導不出來不讓週次表失敗**——窗口只給 season 排程用，
 # 空 list＋warning 就好；週次表錯了 App 整學期都是錯的，這兩者的風險不對等。
 
-_ONLINE_SELECTION = r"網路選課"            # 「新生網路預選」不含「網路選課」，不會誤中
+_PRESELECTION = r"網路選課"                # 校方稱「網路選課」＝預選；「新生網路預選」不含此字，不會誤中
 _FRESHMAN = r"新生網路預選"
 _ADD_DROP = r"加選及無紀錄退選"
 _WITHDRAW_OPEN = r"期中撤選開始"
@@ -203,7 +204,7 @@ _DEFAULT_CLOSE = {"day": DAY_CLOSE, "evening": EVENING_CLOSE, "all": DAY_CLOSE}
 # 一律 17:00（標題註記或事件時刻），只有沒寫的幾年（111-1、112-1…）才會落到預設，照實證用 17:00。
 _KIND_DEFAULT_CLOSE = {"midterm_withdrawal": {"evening": DAY_CLOSE}}
 
-_KIND_ORDER = ("online_selection", "freshman_preselection", "add_drop", "midterm_withdrawal")
+_KIND_ORDER = ("preselection", "freshman_preselection", "post_start_add_drop", "midterm_withdrawal")
 _DIVISION_ORDER = ("all", "day", "evening")
 _DIVISION_WORD = {"day": "日間部", "evening": "進修部"}
 _CN_SEM = {"1": 1, "2": 2, "一": 1, "二": 2}
@@ -338,17 +339,20 @@ def _assign_divisions(term_key: str, kind: str, events: Sequence[CalendarEvent],
     return out
 
 
-def _window(kind: str, division: str, start: dt.datetime, end: dt.datetime,
+def _window(kind: str, target: str, division: str, start: dt.datetime, end: dt.datetime,
             uids: Sequence[str]) -> EnrollmentWindow:
-    return EnrollmentWindow(kind=kind, division=division,
+    return EnrollmentWindow(kind=kind, target_term=target, division=division,
                             start=start.isoformat(timespec="seconds"),
                             end=end.isoformat(timespec="seconds"),
                             source_uids=list(dict.fromkeys(uids)))
 
 
 def _simple_windows(term_key: str, kind: str, events: Sequence[CalendarEvent],
-                    warnings: List[str]) -> List[EnrollmentWindow]:
-    return [_window(kind, d, _start_at(ev), _close_at(ev, d, split, kind), [ev.uid])
+                    warnings: List[str],
+                    target: Optional[Callable[[CalendarEvent], str]] = None) -> List[EnrollmentWindow]:
+    """`target`：事件 → 被選的學期；未給＝所在學期（term_key）。"""
+    return [_window(kind, target(ev) if target else term_key, d, _start_at(ev),
+                    _close_at(ev, d, split, kind), [ev.uid])
             for ev, d, split in _assign_divisions(term_key, kind, events, warnings)]
 
 
@@ -364,7 +368,7 @@ def _withdrawal_windows(term_key: str, window: Sequence[CalendarEvent],
                         "無法配對")
         return []
     (op,) = opens
-    return [_window("midterm_withdrawal", d, _start_at(op),
+    return [_window("midterm_withdrawal", term_key, d, _start_at(op),
                     _close_at(ev, d, split, "midterm_withdrawal"),
                     [op.uid, ev.uid])
             for ev, d, split in _assign_divisions(term_key, "midterm_withdrawal", closes, warnings)]
@@ -380,11 +384,20 @@ def window_violations(term_key: str, term: AcademicTerm, w: EnrollmentWindow) ->
             + dt.timedelta(days=1)) if term.weeks else None
     if end <= start:
         bad.append(f"{label}: 截止 {w.end} 不晚於開始 {w.start}")
-    if w.kind in ("online_selection", "freshman_preselection") and end > instr:
+    if w.kind == "preselection":
+        # 預選在所在學期舉行、選下學期的課：target 必為下學期，且在所在學期的課程結束後
+        # （或期末前後）才開始——不早於開學日。
+        if w.target_term != _next_term(term_key):
+            bad.append(f"{label}: 被選學期 {w.target_term} 不是 {term_key} 的下一學期")
+        if start < instr:
+            bad.append(f"{label}: 開始 {w.start} 早於所在學期開學日 {term.instruction_start}")
+    elif w.target_term != term_key:
+        bad.append(f"{label}: target_term {w.target_term} 應等於所在學期")
+    if w.kind == "freshman_preselection" and end > instr:
         bad.append(f"{label}: 截止 {w.end} 晚於開學日 {term.instruction_start}")
     if w.kind == "freshman_preselection" and not term_key.endswith("-1"):
         bad.append(f"{label}: 新生預選只在上學期")
-    if w.kind == "add_drop":
+    if w.kind == "post_start_add_drop":
         if abs(start - instr) > ADD_DROP_START_SLACK:
             bad.append(f"{label}: 開始 {w.start} 距開學日 {term.instruction_start} 超過 "
                        f"{ADD_DROP_START_SLACK.days} 天")
@@ -404,15 +417,15 @@ def derive_enrollment_windows(events: Sequence[CalendarEvent], window: Sequence[
                               term_key: str, term: AcademicTerm) -> List[EnrollmentWindow]:
     """推導學期的選課相關窗口；推導不出來或違反不變量的窗口丟棄並 warning，不拋錯。
 
-    `events` 是整份 feed（網路選課在前一學期舉行、要跨窗口找），`window` 是本學期窗口內的事件。
+    窗口一律歸**發生的學期**（`window`＝本學期窗口內的事件）；預選的 `target_term` 另由標題推出
+    （下學期），其餘＝本學期。`events`（整份 feed）目前不用，保留參數以免改呼叫端。
     """
     warnings: List[str] = []
-    online = [e for e in events if re.search(_ONLINE_SELECTION, e.summary)
-              and selection_target_term(e) == term_key]
-    found = _simple_windows(term_key, "online_selection", online, warnings)
+    pre = [e for e in window if re.search(_PRESELECTION, e.summary)]
+    found = _simple_windows(term_key, "preselection", pre, warnings, target=selection_target_term)
     found += _simple_windows(term_key, "freshman_preselection",
                              [e for e in window if re.search(_FRESHMAN, e.summary)], warnings)
-    found += _simple_windows(term_key, "add_drop",
+    found += _simple_windows(term_key, "post_start_add_drop",
                              [e for e in window if re.search(_ADD_DROP, e.summary)], warnings)
     found += _withdrawal_windows(term_key, window, warnings)
     keep: List[EnrollmentWindow] = []

@@ -17,6 +17,15 @@ export const SCHEDULE_URL = "https://cdn.ntutbox.com/course/ops/season-schedule.
 export const DISPATCH_URL =
   "https://api.github.com/repos/poterpan/ntutbox-course/actions/workflows/season.yml/dispatches";
 const USER_AGENT = "ntutbox-season-scheduler";
+
+// 保活（D19）：公開 repo 的排程 workflow 在 60 天沒有 repo 活動後會被 GitHub 自動停用。
+// 每週一次呼叫 enable API（已啟用時也回 204、冪等），被停用最多一週就會自動恢復。
+export const KEEPALIVE_WORKFLOWS = ["daily.yml", "weekly.yml"] as const;
+export const enableUrl = (workflow: string) =>
+  `https://api.github.com/repos/poterpan/ntutbox-course/actions/workflows/${workflow}/enable`;
+/** 每週的保活整點：台北週一 00:00 ＝ UTC 週日 16:00。 */
+export const KEEPALIVE_UTC_DAY = 0;
+export const KEEPALIVE_UTC_HOUR = 16;
 const HOUR_MS = 60 * 60 * 1000;
 
 export interface Slot {
@@ -140,16 +149,19 @@ async function safeText(res: Response): Promise<string> {
   }
 }
 
+function githubHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+    "User-Agent": USER_AGENT,
+  };
+}
+
 async function dispatch(terms: string, token: string, retryDelayMs: number): Promise<boolean> {
   const init: RequestInit = {
     method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "X-GitHub-Api-Version": "2022-11-28",
-      "User-Agent": USER_AGENT,
-      "Content-Type": "application/json",
-    },
+    headers: { ...githubHeaders(token), "Content-Type": "application/json" },
     body: JSON.stringify({ ref: "main", inputs: { terms } }),
   };
   let res: Response;
@@ -200,4 +212,48 @@ export async function run(scheduledTime: number, env: Env, opts: RunOptions = {}
     if (!(await dispatch(t, token, retryDelayMs))) ok = false;
   }
   return ok ? { status: "dispatched", hour, terms } : { status: "dispatch-failed", hour, terms };
+}
+
+export type KeepaliveResult =
+  | { status: "skipped" }
+  | { status: "no-token" }
+  | { status: "enabled"; workflows: string[] }
+  | { status: "failed"; failed: string[] };
+
+/** 截整點後是否為每週保活的整點（台北週一 00:00）。 */
+export function isKeepaliveHour(hourMs: number): boolean {
+  const d = new Date(hourMs);
+  return d.getUTCDay() === KEEPALIVE_UTC_DAY && d.getUTCHours() === KEEPALIVE_UTC_HOUR;
+}
+
+async function enableWorkflow(workflow: string, token: string, retryDelayMs: number): Promise<boolean> {
+  let res: Response;
+  try {
+    res = await fetchWithRetry(enableUrl(workflow), { method: "PUT", headers: githubHeaders(token) }, "keepalive", retryDelayMs);
+  } catch (err) {
+    console.error(`[keepalive] ${workflow} 網路錯誤（已重試）：${String(err)}`);
+    return false;
+  }
+  if (res.status !== 204) {
+    console.error(`[keepalive] ${workflow} enable 失敗：HTTP ${res.status} ${await safeText(res)}`);
+    return false;
+  }
+  console.log(`[keepalive] ${workflow} enable → 204`);
+  return true;
+}
+
+/** 每週保活：與 season slot 無關，只看整點。其他整點直接略過、不發請求。 */
+export async function keepalive(scheduledTime: number, env: Env, opts: RunOptions = {}): Promise<KeepaliveResult> {
+  if (!isKeepaliveHour(truncateToHour(scheduledTime))) return { status: "skipped" };
+  const retryDelayMs = opts.retryDelayMs ?? 2000;
+  const token = env.GITHUB_TOKEN;
+  if (!token) {
+    console.error("[keepalive] 缺少 GITHUB_TOKEN secret，本週無法保活 daily／weekly");
+    return { status: "no-token" };
+  }
+  const failed: string[] = [];
+  for (const wf of KEEPALIVE_WORKFLOWS) {
+    if (!(await enableWorkflow(wf, token, retryDelayMs))) failed.push(wf);
+  }
+  return failed.length ? { status: "failed", failed } : { status: "enabled", workflows: [...KEEPALIVE_WORKFLOWS] };
 }

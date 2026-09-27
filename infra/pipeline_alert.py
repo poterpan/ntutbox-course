@@ -14,8 +14,8 @@ season 排程（`data/ops/season-schedule.json`，derive 產；issue #111）另�
 
   season-catalog    `[pipeline] season 窗口學期缺 catalog：<term>`：排程裡的學期在未來
                     SEASON_CATALOG_LEAD_DAYS 天內有觸發格、但 canonical 沒有 `{term}/catalog.ndjson`
-                    → season 一定會失敗（fetch_enrollment 要先有 catalog）。提示把學期加進
-                    `ACTIVE_TERMS`。補上（或窗口過了）→ 關閉。
+                    → season 一定會失敗（fetch_enrollment 要先有 catalog）。正常情況 daily 在窗口
+                    30 天前就自動納入該學期（D19），這是安全網。補上（或窗口過了）→ 關閉。
   season-freshness  `[pipeline] season 未依排程執行`：`at` 落在 [now−12h, now−1h] 的觸發格，
                     每個學期都要有 `observed_at` 在 [at, at+1h) 的觀測紀錄；缺任何一格 → 開／更新，
                     全部對上（或窗口內沒有觸發格）→ 關閉。now 用 daily 自己的時間（GitHub cron
@@ -257,9 +257,11 @@ def cmd_season_catalog(args, gh: Gh, now: Optional[dt.datetime] = None) -> int:
         raise_issue(gh, season_catalog_title(term), (
             f"season 排程在 `{first}` 要刷新 `{term}` 的人數，但 data branch 沒有 "
             f"`{term}/catalog.ndjson`——season 的 enrollment 會直接失敗（要先有 catalog）。\n\n"
-            f"把 `{term}` 加進 repo var `ACTIVE_TERMS`（例如 `115-1,{term}`），讓 daily 先建出該學期 "
-            "catalog（步驟見 infra/README.md runbook「新學期」）。學校尚未公布課程時 catalog 會是 0 課、"
-            "被 merge 丟棄，屆時再等一兩天。補上（或窗口過了）自動關閉。"))
+            f"daily 應在窗口 30 天前自動把 `{term}` 納入 catalog（D19）——這個告警代表沒生效："
+            f"查最近的 daily run（該學期的 catalog 有沒有跑、是不是 0 課被 merge 丟棄）、`{term}/calendar.json` "
+            f"有沒有窗口。要立即補：手動 dispatch daily 帶 `terms={term}`，或暫時把 repo var `ACTIVE_TERMS` "
+            f"設成 `115-1,{term}` 這類清單（明確覆寫，事後記得清空）。步驟見 infra/README.md runbook「新學期」。"
+            "學校尚未公布課程時 catalog 會是 0 課、被 merge 丟棄，屆時再等一兩天。補上（或窗口過了）自動關閉。"))
     for title in open_titles_with_prefix(gh, SEASON_CATALOG_PREFIX):
         if title[len(SEASON_CATALOG_PREFIX):] not in missing:
             resolve_issue(gh, title, "該學期已有 catalog（或窗口已過），自動關閉。")

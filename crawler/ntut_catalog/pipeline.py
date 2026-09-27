@@ -64,7 +64,7 @@ def run(cadence: str, datasets: Optional[Sequence[str]], terms: Sequence[str], o
         current_term: Optional[Callable[[], str]] = None) -> PipelineResult:
     """跑一輪 fetch，寫 `{stage}/pipeline-result.json` 並回傳結果。"""
     if cadence == "season" and not terms:
-        # 12 月 115-2 網路選課時 current-term 可能仍是 115-1——默默用它會刷錯學期（Review Focus 5）。
+        # 12 月 115-2 預選時 current-term 可能仍是 115-1——默默用它會刷錯學期（Review Focus 5）。
         raise UsageError("cadence=season 必須明確指定 --terms（current-term 在選課季可能是錯的學期）")
     selected = select_datasets(cadence, datasets)
     ctx = ctx or FetchContext(out)
@@ -89,10 +89,18 @@ def run(cadence: str, datasets: Optional[Sequence[str]], terms: Sequence[str], o
             logger.info("current term: %s", detected["v"])
         return detected["v"]
 
+    def _upcoming() -> List[str]:
+        # 行事曆在同一個 daily 裡先跑（登錄表順序），這裡讀到的是剛更新的週次表。
+        found = registry.upcoming_window_terms(ctx.canonical, ctx.now(),
+                                               registry.selection_lead_days())
+        logger.info("upcoming selection-window terms: %s", found or "none")
+        return found
+
     try:
         for ds in selected:
             try:
-                term_list = registry.resolve_terms(ds.terms, terms, _current)
+                term_list = registry.resolve_terms(ds.terms, terms, _current,
+                                                   upcoming=_upcoming)
             except Exception as e:  # noqa: BLE001 — 學校不通時 current-term 會失敗；其他資料集照跑
                 logger.exception("[%s] resolve terms failed", ds.name)
                 result.datasets.append(_entry(ds.name, None, ok=False, error=_summary(e)))

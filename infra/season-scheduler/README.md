@@ -13,6 +13,10 @@ GitHub Actions 的 cron 不可靠（實測每小時排程約 74% 被吞、每日
 3. 命中 → `POST /repos/poterpan/ntutbox-course/actions/workflows/season.yml/dispatches`，
    body `{"ref":"main","inputs":{"terms": slot.terms}}`（逗號分隔的 terms 原樣傳）。期待 204。
 
+4. **每週保活**（D19）：截整點後是台北週一 00:00（UTC 週日 16:00）時，另外
+   `PUT /repos/poterpan/ntutbox-course/actions/workflows/{daily.yml,weekly.yml}/enable`（期待 204；已啟用也是 204、冪等），
+   防公開 repo 的排程 workflow 在 60 天無活動後被 GitHub 自動停用。與 season slot 無關、season 失敗也照做。
+
 窗口與頻率全部由排程表決定，worker 不懂行事曆。排程表格式：
 
 ```json
@@ -29,6 +33,7 @@ GitHub Actions 的 cron 不可靠（實測每小時排程約 74% 被吞、每日
 | GitHub 5xx 或網路錯誤 | 重試一次 |
 | GitHub 非 204 | log status＋body、該次 cron 標失敗 |
 | 缺 `GITHUB_TOKEN` | log error、不發任何請求、該次 cron 標失敗 |
+| 保活 enable 非 204（5xx／網路錯誤先重試一次） | log `[keepalive]` status＋body、另一支照做、該次 cron 標失敗 |
 
 ## 與 zone 的關係
 
@@ -54,7 +59,8 @@ npx wrangler secret put GITHUB_TOKEN
 ```
 
 token 用 **fine-grained PAT**：Repository access 只選 `poterpan/ntutbox-course`，
-Permissions → Repository → **Actions: Read and write**（其餘不給）。注意 PAT 有到期日，到期前要換。
+Permissions → Repository → **Actions: Read and write**（其餘不給）。dispatch 與保活的 enable 端點都只需要這一項
+（GitHub 文件「Permissions required for fine-grained personal access tokens」：兩者皆 Actions write）。注意 PAT 有到期日，到期前要換。
 
 ## 手動測試
 
