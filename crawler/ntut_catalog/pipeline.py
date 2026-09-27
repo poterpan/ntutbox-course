@@ -39,6 +39,9 @@ class UsageError(ValueError):
 class PipelineResult:
     cadence: str
     datasets: List[Dict[str, object]] = field(default_factory=list)
+    # 本次 run 偵測到的學校當前學期（D20）：merge／publish 的「課數驟減」檢查只對它嚴格。
+    # None＝沒偵測到（學校不通等）→ 下游一律當嚴格處理（保守）。
+    current_term: Optional[str] = None
 
     @property
     def ok(self) -> bool:
@@ -46,7 +49,7 @@ class PipelineResult:
 
     def to_json(self) -> dict:
         return {"schema_version": RESULT_SCHEMA_VERSION, "cadence": self.cadence,
-                "datasets": self.datasets}
+                "current_term": self.current_term, "datasets": self.datasets}
 
 
 def select_datasets(cadence: str, names: Optional[Sequence[str]]) -> List[registry.Dataset]:
@@ -123,11 +126,29 @@ def run(cadence: str, datasets: Optional[Sequence[str]], terms: Sequence[str], o
                                    ds.name, term or "_global", len(output.failed_nodes),
                                    output.node_total, output.failed_nodes)
                 result.datasets.append(entry)
+        result.current_term = _record_current(detected, result, _current)
     finally:
         ctx.close()
 
     _write_stage(out / "canonical", stage, result)
     return result
+
+
+def _record_current(detected: Dict[str, str], result: PipelineResult,
+                    current: Callable[[], str]) -> Optional[str]:
+    """把 current-term 記進 pipeline-result（D20），讓上鎖的 merge／publish 不必再打學校。
+
+    學期規則已偵測過 → 直接用；明確指定 --terms／ACTIVE_TERMS 而沒偵測過 → 補偵測一次
+    （只在有資料集成功、學校看來通的時候；失敗就留 None，下游當嚴格處理）。"""
+    if "v" in detected:
+        return detected["v"]
+    if "error" in detected or not any(e["ok"] for e in result.datasets):
+        return None
+    try:
+        return current()
+    except Exception as e:  # noqa: BLE001 — 只是輔助資訊，不讓整輪失敗
+        logger.warning("current-term 補偵測失敗（下游一律嚴格檢查）：%s", _summary(e))
+        return None
 
 
 def _entry(name: str, term: Optional[str], ok: bool, checked_at: Optional[str] = None,

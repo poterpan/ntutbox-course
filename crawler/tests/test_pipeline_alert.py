@@ -188,7 +188,7 @@ def test_partial_node_failure_warning_is_listed_in_issue(tmp_path):
          "message": "details 115-1: 2/2727 個節點失敗，已從 HEAD 沿用 1 個：offering_id=360748；"
                     "HEAD 也沒有、本次缺漏 1 個：offering_id=360749"}])))
     body = next(a for a in gh.calls if a[:2] == ["issue", "create"])[-1]
-    assert "merge 警告（部分節點失敗） `details` 115-1" in body
+    assert "merge 警告 `details` 115-1" in body
     assert "offering_id=360748" in body and "offering_id=360749" in body
 
 

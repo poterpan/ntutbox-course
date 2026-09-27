@@ -11,9 +11,11 @@
      （env `PARTIAL_FAILURE_MAX_RATIO` 可覆寫）→ 丟棄整筆；catalog 有任何失敗節點 → 丟棄該學期
      （含人數快照）；standards／mprograms／details → 失敗節點逐一從 HEAD 沿用前一版，HEAD 也
      沒有的列為缺漏，發 warning 告警。
-  3. catalog 品質檢查：課數 < HEAD 課數 × 0.95（env `QUALITY_MIN_RATIO` 可覆寫）或 0 課 →
-     丟棄該學期這一筆（含同次爬取的人數快照）並告警，其他照常（Review Focus 1）。
-     上游殘缺不可覆寫 canonical——否則隔天的比較基準也跟著壞。
+  3. catalog 品質檢查：0 課 → 丟棄該學期這一筆（含同次爬取的人數快照）並告警，其他照常
+     （Review Focus 1）。上游殘缺不可覆寫 canonical——否則隔天的比較基準也跟著壞。
+     課數 < HEAD 課數 × 0.95（env `QUALITY_MIN_RATIO` 可覆寫）**只對當前學期**
+     （`pipeline-result.json` 的 `current_term`；沒有＝全部當當前）丟棄；其他學期（即將選課的
+     草案課表會縮到正式版、過去學期）照樣採用、發 warning（D20）。人數快照同一套規則。
   4. 覆寫 `writes` 檔；人數候選快照對 HEAD 去重（`enrollment_store.write_snapshot`），
      追加觀測紀錄（append_only）。
   5. 對合併後的 HEAD 計算 content_sha256，依 (資料集, 學期) 更新 `_meta/fetch-state.json`
@@ -68,6 +70,7 @@ def partial_max_ratio_from_env() -> float:
 @dataclass
 class MergeReport:
     cadence: Optional[str] = None
+    current_term: Optional[str] = None   # 取自 pipeline-result；publish 閘門也用它（D20）
     # {name, term, changed}；部分節點失敗、從 HEAD 沿用者另加 partial=True、failed_nodes=<數量>
     applied: List[Dict[str, object]] = field(default_factory=list)
     dropped: List[Dict[str, object]] = field(default_factory=list)   # {name, term, reason}
@@ -115,16 +118,31 @@ def _is_snapshot(rel: str) -> bool:
             and parts[2].endswith(".ndjson") and parts[2] != enrollment_store.OBSERVATIONS)
 
 
+# 品質檢查結果：(是否拒收, 訊息)；None＝通過且無話可說。
+Verdict = Optional[Tuple[bool, str]]
+
+
+def is_strict_term(term: Optional[str], current_term: Optional[str]) -> bool:
+    """驟減比例檢查是否對這個學期嚴格（D20）：只有當前學期是。
+
+    current_term 未知（舊 stage、偵測失敗）→ 一律嚴格，維持原本的保守行為。即將選課的學期
+    學校先放草案課表（115-2 曾 4,447 列、無教師）再縮成正式版（~2.8k），嚴格比例會把它卡在草案。"""
+    return current_term is None or term == current_term
+
+
 def _catalog_quality(stage_canon: Path, canonical: Path, term: str,
-                     min_ratio: float) -> Optional[str]:
-    """catalog 課數檢查；不通過回傳原因。"""
+                     min_ratio: float, strict: bool = True) -> Verdict:
+    """catalog 課數檢查。0 課一律拒收；驟減在 strict 時拒收，否則照收但回傳警告。"""
     new = _count_lines(stage_canon / term / "catalog.ndjson")
     head = _count_lines(canonical / term / "catalog.ndjson")
     if new == 0:
-        return f"catalog {term}: 0 課（上游未公布或解析失敗），不覆寫 canonical（HEAD {head} 課）"
+        return True, f"catalog {term}: 0 課（上游未公布或解析失敗），不覆寫 canonical（HEAD {head} 課）"
     if head > 0 and new < head * min_ratio:
-        return (f"catalog {term}: 課數 {new} < HEAD {head} × {min_ratio:.2f}，"
-                f"疑似上游殘缺，不覆寫 canonical")
+        if strict:
+            return True, (f"catalog {term}: 課數 {new} < HEAD {head} × {min_ratio:.2f}，"
+                          f"疑似上游殘缺，不覆寫 canonical")
+        return False, (f"catalog {term}: 課數 {new} < HEAD {head} × {min_ratio:.2f}，"
+                       f"非當前學期（草案→正式版或舊學期調整）→ 照樣採用，請人工確認")
     return None
 
 
@@ -137,7 +155,8 @@ def merge_fetch_output(stage: Path, data_dir: Path,
     canonical = data_dir / "canonical"
     min_ratio = min_ratio_from_env()
     max_ratio = partial_max_ratio_from_env()
-    report = MergeReport(cadence=result.get("cadence"))
+    current_term = result.get("current_term")
+    report = MergeReport(cadence=result.get("cadence"), current_term=current_term)
     state_path = fetch_state.path_for(canonical)
     state = fetch_state.load(state_path)
 
@@ -175,13 +194,17 @@ def merge_fetch_output(stage: Path, data_dir: Path,
                                    carried, missing)
             logger.warning("[merge] %s", msg)
             _alert(report, name, term, msg, level="warning")
+        strict = is_strict_term(term, current_term)
         if name == "catalog" and term:
-            why = _catalog_quality(stage_canon, canonical, term, min_ratio)
-            if why:
+            verdict = _catalog_quality(stage_canon, canonical, term, min_ratio, strict)
+            if verdict:
+                reject, why = verdict
                 logger.warning("[merge] %s", why)
-                report.dropped.append({"name": name, "term": term, "reason": why})
-                _alert(report, name, term, why)
-                continue
+                if reject:
+                    report.dropped.append({"name": name, "term": term, "reason": why})
+                    _alert(report, name, term, why)
+                    continue
+                _alert(report, name, term, why, level="warning")
         snapshot_files = [f for f in files if _is_snapshot(f)]
         for rel in files:
             if rel in snapshot_files:
@@ -200,14 +223,19 @@ def merge_fetch_output(stage: Path, data_dir: Path,
             changed = fetch_state.update(state, name, term, digest, checked_at)
         enr = entry.get("enrollment")
         if enr and term:
-            why = _enrollment_reject_reason(stage_canon, canonical, term, enr, min_ratio)
-            if why:
-                # 人數表空的或驟減（學校回殘缺頁）：不寫快照、不記觀測，HEAD 的人數保留
+            verdict = _enrollment_quality(stage_canon, canonical, term, enr, min_ratio, strict)
+            reject = False
+            if verdict:
+                reject, why = verdict
                 logger.warning("[merge] %s", why)
-                report.dropped.append({"name": registry.ENROLLMENT_STATE_KEY, "term": term,
-                                       "reason": why})
-                _alert(report, registry.ENROLLMENT_STATE_KEY, term, why)
-            else:
+                if reject:
+                    # 人數表空的或（當前學期）驟減（學校回殘缺頁）：不寫快照、不記觀測，HEAD 的人數保留
+                    report.dropped.append({"name": registry.ENROLLMENT_STATE_KEY, "term": term,
+                                           "reason": why})
+                    _alert(report, registry.ENROLLMENT_STATE_KEY, term, why)
+                else:
+                    _alert(report, registry.ENROLLMENT_STATE_KEY, term, why, level="warning")
+            if not reject:
                 created = _merge_enrollment(stage_canon, canonical, term, enr, snapshot_files)
                 if created:
                     report.snapshots_created.append(created)
@@ -235,19 +263,23 @@ def _accepted_files(ds: registry.Dataset, term: Optional[str], files: List[str],
     return ok, bad
 
 
-def _enrollment_reject_reason(stage_canon: Path, canonical: Path, term: str, enr: dict,
-                              min_ratio: float) -> Optional[str]:
-    """候選人數快照的品質檢查（比照 catalog）：0 列，或少於 HEAD 最新快照列數 × min_ratio → 拒收。"""
+def _enrollment_quality(stage_canon: Path, canonical: Path, term: str, enr: dict,
+                        min_ratio: float, strict: bool = True) -> Verdict:
+    """候選人數快照的品質檢查（比照 catalog）：0 列一律拒收；少於 HEAD 最新快照列數 × min_ratio
+    → strict 拒收，否則照收但回傳警告。"""
     rel = f"{term}/enrollment/{enr['snapshot']}.ndjson"
     path = stage_canon / rel
     rows = ([line for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
             if path.is_file() else [])
     head_rows, _ = enrollment_store.latest(canonical / term)
     if not rows:
-        return f"{term} 人數快照 0 列（HEAD {len(head_rows)} 列），不採用"
+        return True, f"{term} 人數快照 0 列（HEAD {len(head_rows)} 列），不採用"
     if head_rows and len(rows) < len(head_rows) * min_ratio:
-        return (f"{term} 人數快照 {len(rows)} 列 < HEAD {len(head_rows)} 列 × {min_ratio:g}"
-                f"（門檻 {int(len(head_rows) * min_ratio)}），不採用")
+        base = (f"{term} 人數快照 {len(rows)} 列 < HEAD {len(head_rows)} 列 × {min_ratio:g}"
+                f"（門檻 {int(len(head_rows) * min_ratio)}）")
+        if strict:
+            return True, base + "，不採用"
+        return False, base + "，非當前學期 → 照樣採用，請人工確認"
     return None
 
 

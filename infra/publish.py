@@ -7,6 +7,8 @@ publish 層只做「v1 → R2」（spec §1）：**不重建 v1**。輸入是 `p
   1. 品質閘門：本地 manifest 各學期 catalog `count` 對**線上** manifest 的 `count`
      （S3 GetObject 直讀 bucket，不走 CDN 的 max-age=300 快取）。低於 基準 × 門檻 或為 0 → 不發佈、exit 1。
      門檻預設 0.95，環境變數 `QUALITY_MIN_RATIO` 可覆寫；線上無此學期或尚無 `count` → 只檢查「不為 0」。
+     驟減比例**只擋當前學期**（`--current-term`，由 merge 報告帶來；未給＝全部當當前）；其他學期
+     （即將選課的草案課表會縮成正式版）只檢查不為 0，驟減印 `::warning` 照樣發佈（D20）。
   2. 全量比對：分頁列出 `course/v1/` 全部物件（約 3.3 萬、33 頁），與本地 `v1/` 逐檔 MD5 比對，
      只傳不同者（multipart ETag `<md5>-<n>` 一律視為不同）。`--no-skip-unchanged` 全部重傳。
   3. manifest 上傳前寫入 `published_at` = `generated_at` = 現在（+08:00），永遠最後推（原子性）。
@@ -135,21 +137,33 @@ def _catalog_count(manifest: Optional[dict], term: str) -> Optional[int]:
     return count if isinstance(count, int) else None
 
 
-def check_gate(local: dict, live: Optional[dict], terms: List[str],
-               min_ratio: float) -> List[Tuple[str, str]]:
-    """對每個學期跑閘門，回傳失敗清單 [(term, 原因)]。
+def gate_check(local: dict, live: Optional[dict], terms: List[str], min_ratio: float,
+               current_term: Optional[str] = None
+               ) -> Tuple[List[Tuple[str, str]], List[Tuple[str, str]]]:
+    """對每個學期跑閘門，回傳 (失敗清單, 警告清單)，各為 [(term, 原因)]。
 
     本次課數取本地 manifest 的 `count`（derive 產出；學期不在本地 → 0 → 擋）。
     基準取線上 manifest 的 `count`；線上沒有 → 0（只檢查不為 0）。
+    `current_term` 有給時，驟減只擋該學期；其他學期驟減 → 警告、照樣通過（D20）。0 課一律擋。
     """
-    failures = []
+    failures, warnings = [], []
     for t in terms:
         current = _catalog_count(local, t) or 0
         previous = _catalog_count(live, t) or 0
         ok, why = quality_gate(current, previous, min_ratio)
-        if not ok:
+        if ok:
+            continue
+        if current > 0 and current_term is not None and t != current_term:
+            warnings.append((t, why + "（非當前學期，照樣發佈）"))
+        else:
             failures.append((t, why))
-    return failures
+    return failures, warnings
+
+
+def check_gate(local: dict, live: Optional[dict], terms: List[str], min_ratio: float,
+               current_term: Optional[str] = None) -> List[Tuple[str, str]]:
+    """`gate_check` 只取失敗清單。"""
+    return gate_check(local, live, terms, min_ratio, current_term)[0]
 
 
 # ── 本地 v1 ─────────────────────────────────────────────────────────────
@@ -539,6 +553,9 @@ def main(argv: Optional[List[str]] = None) -> int:
     ap.add_argument("--bucket", required=True)
     ap.add_argument("--out", default="data", help="資料根目錄（含 derive 產出的 v1/）")
     ap.add_argument("--terms", help="品質閘門只檢查這些學期（預設＝本地 manifest 全部學期）；支援 a:b 範圍")
+    ap.add_argument("--current-term", default=None,
+                    help="學校當前學期（取自 merge 報告）：驟減比例只擋它，其他學期只檢查不為 0（D20）；"
+                         "未給＝全部學期都嚴格")
     ap.add_argument("--dry-run", action="store_true", help="只印上傳／刪除清單，不動 R2")
     ap.add_argument("--no-skip-unchanged", action="store_true",
                     help="不做 MD5 差異比對，全部重傳（改 Cache-Control 等 metadata 變更時用）")
@@ -575,7 +592,10 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         print("⚠️  無 S3 憑證 → 讀不到線上 manifest，閘門只檢查課數不為 0", file=sys.stderr)
     terms = gate_terms if gate_terms is not None else sorted(local_manifest.get("terms", {}))
-    failures = check_gate(local_manifest, live, terms, min_ratio)
+    current_term = (args.current_term or "").strip() or None
+    failures, warnings = gate_check(local_manifest, live, terms, min_ratio, current_term)
+    for t, why in warnings:
+        print(f"::warning title=品質閘門（非當前學期）::{t}: {why}")
     if failures:
         for t, why in failures:
             print(f"❌ quality gate FAILED for {t}: {why} — 不發佈", file=sys.stderr)

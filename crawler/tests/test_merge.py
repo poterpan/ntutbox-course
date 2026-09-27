@@ -19,15 +19,17 @@ def _rows_text(rows):
     return "".join(json.dumps(r) + "\n" for r in rows)
 
 
-def _stage(tmp_path, name, entries, files, cadence="daily"):
-    """entries: pipeline-result 的 datasets；files: {canonical 相對路徑: 內容}。"""
+def _stage(tmp_path, name, entries, files, cadence="daily", current_term=None):
+    """entries: pipeline-result 的 datasets；files: {canonical 相對路徑: 內容}。
+    current_term=None＝pipeline-result 沒記當前學期（下游全部嚴格）。"""
     stage = tmp_path / name
     for rel, text in files.items():
         p = stage / "canonical" / rel
         p.parent.mkdir(parents=True, exist_ok=True)
         p.write_text(text, encoding="utf-8")
     (stage / "pipeline-result.json").write_text(
-        json.dumps({"schema_version": 1, "cadence": cadence, "datasets": entries}), encoding="utf-8")
+        json.dumps({"schema_version": 1, "cadence": cadence, "current_term": current_term,
+                    "datasets": entries}), encoding="utf-8")
     return stage
 
 
@@ -38,13 +40,14 @@ def _entry(name, term, checked_at="2026-09-26T06:30:00+08:00", ok=True, files=()
     return e
 
 
-def _catalog_stage(tmp_path, name, term, n, observed_at, rows, cadence="daily", tag="x"):
+def _catalog_stage(tmp_path, name, term, n, observed_at, rows, cadence="daily", tag="x",
+                   current_term=None):
     snap = es.stamp_of(observed_at)
     files = {f"{term}/catalog.ndjson": _catalog_lines(n, tag), f"{term}/classes.json": "{}",
              f"{term}/enrollment/{snap}.ndjson": _rows_text(rows)}
     return _stage(tmp_path, name, [_entry(
         "catalog", term, checked_at=observed_at, files=files,
-        enrollment={"observed_at": observed_at, "snapshot": snap})], files, cadence)
+        enrollment={"observed_at": observed_at, "snapshot": snap})], files, cadence, current_term)
 
 
 def _enrollment_stage(tmp_path, name, term, observed_at, rows):
@@ -211,7 +214,7 @@ def test_report_shape(tmp_path, data):
     report = merge_fetch_output(
         _catalog_stage(tmp_path, "s", "115-1", 100, "2026-09-26T06:30:00+08:00", A), data)
     j = report.to_json()
-    assert set(j) == {"cadence", "applied", "dropped", "alerts", "snapshots_created",
+    assert set(j) == {"cadence", "current_term", "applied", "dropped", "alerts", "snapshots_created",
                       "partial", "changed", "datasets", "terms"}
     assert j["cadence"] == "daily" and j["datasets"] == ["catalog"] and j["terms"] == ["115-1"]
     json.dumps(j)
@@ -226,13 +229,13 @@ def test_cli_merge_writes_report(tmp_path, data, capsys):
     assert on_disk["datasets"] == ["catalog"]
 
 
-def _season_stage(tmp_path, name, rows, stamp):
+def _season_stage(tmp_path, name, rows, stamp, current_term=None):
     rel = f"115-1/enrollment/{stamp}.ndjson"
     obs = f"{stamp[:10]}T{stamp[11:13]}:{stamp[13:]}:00+08:00"
     return _stage(tmp_path, name, [
         _entry("enrollment", "115-1", checked_at=obs, files=[rel],
                enrollment={"observed_at": obs, "snapshot": stamp}),
-    ], {rel: _rows_text(rows)}, cadence="season")
+    ], {rel: _rows_text(rows)}, cadence="season", current_term=current_term)
 
 
 def test_empty_enrollment_snapshot_is_dropped(tmp_path, data, monkeypatch):
@@ -259,3 +262,84 @@ def test_enrollment_snapshot_below_ratio_is_dropped(tmp_path, data, monkeypatch)
     low = merge_fetch_output(_season_stage(tmp_path, "s3", many[:80], "2026-12-07T1200"), data)
     assert [(d["name"], d["term"]) for d in low.dropped] == [("enrollment", "115-1")]
     assert "80" in low.alerts[0]["message"] and "95" in low.alerts[0]["message"]
+
+
+# ------------------------------------------------ D20：驟減比例只對當前學期嚴格
+
+def _head_catalog(data, term, n):
+    t = data / "canonical" / term
+    t.mkdir(parents=True, exist_ok=True)
+    (t / "catalog.ndjson").write_text(_catalog_lines(n, "draft"), encoding="utf-8")
+    (t / "classes.json").write_text("{}", encoding="utf-8")
+
+
+def test_current_term_shrink_is_still_dropped(tmp_path, data, monkeypatch):
+    monkeypatch.delenv("QUALITY_MIN_RATIO", raising=False)
+    report = merge_fetch_output(_catalog_stage(
+        tmp_path, "s", "115-1", 12, "2026-09-26T06:30:00+08:00", A, current_term="115-1"), data)
+    assert [(d["name"], d["term"]) for d in report.dropped] == [("catalog", "115-1")]
+    assert report.alerts[0]["level"] == "error"
+    assert report.current_term == "115-1" and report.to_json()["current_term"] == "115-1"
+    assert (data / "canonical/115-1/catalog.ndjson").read_text(encoding="utf-8").count("head") == 100
+
+
+def test_upcoming_term_draft_shrink_is_applied_with_warning(tmp_path, data, monkeypatch):
+    """115-2 草案 4,447 列 → 正式版 2,800 列：非當前學期 → 照樣採用＋warning 告警。"""
+    monkeypatch.delenv("QUALITY_MIN_RATIO", raising=False)
+    _head_catalog(data, "115-2", 4447)
+    report = merge_fetch_output(_catalog_stage(
+        tmp_path, "s", "115-2", 2800, "2026-11-20T06:30:00+08:00", A, current_term="115-1"), data)
+    assert not report.dropped
+    assert [a["level"] for a in report.alerts] == ["warning"]
+    assert "2800" in report.alerts[0]["message"] and "4447" in report.alerts[0]["message"]
+    assert [(a["name"], a["term"], a["changed"]) for a in report.applied] == [("catalog", "115-2", True)]
+    text = (data / "canonical/115-2/catalog.ndjson").read_text(encoding="utf-8")
+    assert len(text.splitlines()) == 2800
+    assert report.snapshots_created, "同次爬取的人數快照也照收"
+
+
+def test_upcoming_term_zero_courses_is_dropped(tmp_path, data, monkeypatch):
+    monkeypatch.delenv("QUALITY_MIN_RATIO", raising=False)
+    _head_catalog(data, "115-2", 4447)
+    report = merge_fetch_output(_catalog_stage(
+        tmp_path, "s", "115-2", 0, "2026-11-20T06:30:00+08:00", A, current_term="115-1"), data)
+    assert [(d["name"], d["term"]) for d in report.dropped] == [("catalog", "115-2")]
+    assert report.alerts[0]["level"] == "error"
+    assert len((data / "canonical/115-2/catalog.ndjson").read_text(encoding="utf-8").splitlines()) == 4447
+
+
+def test_unknown_current_term_keeps_every_term_strict(tmp_path, data, monkeypatch):
+    """舊 stage／偵測失敗（current_term 缺）→ 全部學期都嚴格，維持原本行為。"""
+    monkeypatch.delenv("QUALITY_MIN_RATIO", raising=False)
+    _head_catalog(data, "115-2", 4447)
+    report = merge_fetch_output(_catalog_stage(
+        tmp_path, "s", "115-2", 2800, "2026-11-20T06:30:00+08:00", A), data)
+    assert [(d["name"], d["term"]) for d in report.dropped] == [("catalog", "115-2")]
+
+
+def test_enrollment_shrink_non_current_term_is_applied_with_warning(tmp_path, data, monkeypatch):
+    monkeypatch.delenv("QUALITY_MIN_RATIO", raising=False)
+    many = [{"offering_id": f"31{i:04d}", "enrolled_count": i, "withdrawn_count": 0} for i in range(100)]
+    merge_fetch_output(_season_stage(tmp_path, "s1", many, "2026-12-07T1000", "115-2"), data)
+    low = merge_fetch_output(_season_stage(tmp_path, "s2", many[:60], "2026-12-07T1100", "115-2"), data)
+    assert not low.dropped
+    assert [(a["name"], a["level"]) for a in low.alerts] == [("enrollment", "warning")]
+    assert low.snapshots_created == ["115-1/enrollment/2026-12-07T1100.ndjson"]
+    assert es.latest(data / "canonical" / "115-1")[0] == many[:60]
+
+
+def test_enrollment_zero_rows_non_current_term_is_dropped(tmp_path, data, monkeypatch):
+    monkeypatch.delenv("QUALITY_MIN_RATIO", raising=False)
+    merge_fetch_output(_season_stage(tmp_path, "s1", A, "2026-12-07T1000", "115-2"), data)
+    report = merge_fetch_output(_season_stage(tmp_path, "s2", [], "2026-12-07T1100", "115-2"), data)
+    assert [(d["name"], d["term"]) for d in report.dropped] == [("enrollment", "115-1")]
+    assert report.alerts[0]["level"] == "error"
+    assert es.snapshots(data / "canonical" / "115-1") == ["2026-12-07T1000"]
+
+
+def test_enrollment_shrink_current_term_is_dropped(tmp_path, data, monkeypatch):
+    monkeypatch.delenv("QUALITY_MIN_RATIO", raising=False)
+    many = [{"offering_id": f"31{i:04d}", "enrolled_count": i, "withdrawn_count": 0} for i in range(100)]
+    merge_fetch_output(_season_stage(tmp_path, "s1", many, "2026-12-07T1000", "115-1"), data)
+    low = merge_fetch_output(_season_stage(tmp_path, "s2", many[:60], "2026-12-07T1100", "115-1"), data)
+    assert [(d["name"], d["term"]) for d in low.dropped] == [("enrollment", "115-1")]

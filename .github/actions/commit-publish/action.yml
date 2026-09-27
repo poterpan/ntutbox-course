@@ -142,6 +142,13 @@ runs:
         if [ "$DRY_RUN" = "true" ]; then ARGS+=(--dry-run); fi
         if [ "$NO_SKIP" = "true" ]; then ARGS+=(--no-skip-unchanged); fi
         if [ -n "$ALLOW" ]; then ARGS+=(--allow-mass-delete "$ALLOW"); fi
+        # 當前學期（D20）：fetch job 記進 pipeline-result、merge 報告轉帶；各報告一致才用，
+        # 否則（republish 沒有報告、偵測失敗、不一致）不給 → 閘門全部學期嚴格。鎖內不再打學校。
+        CURRENT="$(python -c 'import glob, json, os, sys
+        vals = {json.load(open(p, encoding="utf-8")).get("current_term")
+                for p in glob.glob(os.path.join(sys.argv[1], "*.json"))}
+        print(vals.pop() if len(vals) == 1 and None not in vals else "")' "$RUNNER_TEMP/merge-reports")"
+        if [ -n "$CURRENT" ]; then ARGS+=(--current-term "$CURRENT"); fi
         python infra/publish.py "${ARGS[@]}"
         code=$?
         echo "exit_code=$code" >> "$GITHUB_OUTPUT"

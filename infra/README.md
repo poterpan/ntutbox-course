@@ -83,7 +83,11 @@ Actions → **maintenance** → Run workflow：
   - `[pipeline] season 未依排程執行`：12 小時內、已過 1 小時寬限的觸發格，有學期在 [at, at+1h) 沒有觀測紀錄
     （`{term}/enrollment/observations.ndjson`）。排查：`npx wrangler tail ntutbox-season-scheduler`（Worker 有沒有觸發、GitHub API 回什麼）、
     Worker 的 GitHub token 是否過期、`season` 最近的 run。最近的觸發格全部對上時自動關閉（daily 檢查）。
-- **publish exit code**：`0` 成功；`1` 品質閘門擋下（某學期課數 < 線上 manifest `count` × 門檻，或為 0）→ 什麼都沒發，job 紅燈；
+- **課數／人數驟減只對當前學期嚴格**（D20）：merge 與 publish 的「< 基準 × `QUALITY_MIN_RATIO`」只擋**當前學期**（fetch job 記進
+  `pipeline-result.json` 的 `current_term`，merge 報告轉帶給 `publish.py --current-term`）；即將選課的學期（草案課表會縮成正式版，
+  115-2 草案 4,447 列→正式約 2.8k）與過去學期照樣採用／發佈，發 `merge 警告` 進 `[pipeline] <workflow> 失敗` issue——看到了確認是
+  草案→正式版就好，下一次全部成功自動關閉。0 課／0 列一律擋。沒記到當前學期（偵測失敗、republish）→ 全部學期都嚴格。
+- **publish exit code**：`0` 成功；`1` 品質閘門擋下（當前學期課數 < 線上 manifest `count` × 門檻，或任一學期為 0）→ 什麼都沒發，job 紅燈；
   `3` **刪除保險觸發**：某 prefix 待刪物件 > 該 prefix 遠端物件數 10% → 跳過該 prefix 的刪除、其餘（含 manifest）照常上線。
   commit-publish 不讓 3 紅燈、改由告警開 issue；**放行前每次 run 都會再觸發**。清除：maintenance `republish` 先 dry-run 看刪除清單，
   沒問題再以 `allow_mass_delete=<prefix>` 重跑；之後該 workflow 下一次全部成功時 issue 自動關閉。
@@ -94,7 +98,7 @@ Actions → **maintenance** → Run workflow：
 |---|---|---|---|
 | `ACTIVE_TERMS` | 空＝`current-term` ∪ 即將選課的學期 | pipeline（`active` 學期規則） | **選填的明確覆寫**：有值時 `active` 規則的資料集（目前是 daily 的 catalog、mprograms）完全照它跑；可用 `a:b` 範圍與逗號。平常留空（D19） |
 | `SELECTION_LEAD_DAYS` | `30` | pipeline（`active` 學期規則） | 選課窗口開始前幾天起把被選的學期納入 `active` |
-| `QUALITY_MIN_RATIO` | `0.95` | `publish.py` 品質閘門 | 本地課數 < 線上 manifest `count` × 此值 → 不發佈（exit 1） |
+| `QUALITY_MIN_RATIO` | `0.95` | `publish.py` 品質閘門、`ntut_catalog merge` | 當前學期課數 < 基準（publish：線上 manifest `count`；merge：HEAD）× 此值 → 不發佈（exit 1）／丟棄；其他學期只警告（D20） |
 | `PARTIAL_FAILURE_MAX_RATIO` | `0.05` | `ntut_catalog merge` | 失敗節點 > `node_total` × 此值 → 整筆 (資料集, 學期) 丟棄、保留 HEAD、告警 |
 | `R2_BUCKET` | — | workflow → `publish.py --bucket` | 目前 `ntutbox-cdn` |
 

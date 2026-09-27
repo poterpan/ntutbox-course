@@ -371,6 +371,19 @@ def test_gate_zero_courses_always_fails():
     assert publish.check_gate(_man(), None, ["t115-1"], 0.95), "本地沒有該學期 → 0 課 → 擋"
 
 
+def test_gate_ratio_only_strict_for_current_term():
+    """D20：當前學期驟減照擋；其他學期（草案→正式版）驟減只警告，0 課仍擋。"""
+    local = _man(t115_1=12, t115_2=2800)
+    live = _man(t115_1=2450, t115_2=4447)
+    fails, warns = publish.gate_check(local, live, ["t115-1", "t115-2"], 0.95, current_term="t115-1")
+    assert [t for t, _ in fails] == ["t115-1"]
+    assert [t for t, _ in warns] == ["t115-2"]
+    fails, warns = publish.gate_check(_man(t115_2=0), live, ["t115-2"], 0.95, current_term="t115-1")
+    assert [t for t, _ in fails] == ["t115-2"] and warns == []
+    # 未給當前學期 → 全部嚴格（原本行為）
+    assert [t for t, _ in publish.check_gate(local, live, ["t115-1", "t115-2"], 0.95)] == ["t115-1", "t115-2"]
+
+
 def test_min_ratio_env_override(monkeypatch):
     monkeypatch.delenv("QUALITY_MIN_RATIO", raising=False)
     assert publish.min_ratio_from_env() == 0.95
@@ -562,6 +575,19 @@ def test_main_gate_blocks_everything(monkeypatch, tmp_path):
     assert publish.main(["--bucket", "bkt", "--out", str(out)]) == 1
     assert fake.calls == []
     assert "品質閘門未通過" in fake.summary.read_text(encoding="utf-8")
+
+
+def test_main_gate_non_current_term_shrink_publishes(monkeypatch, tmp_path, capsys):
+    out, _ = _local_v1(tmp_path, count=2800)
+    fake = FakeAws(monkeypatch, tmp_path, {}, live={"terms": {"115-1": {"catalog": {"count": 4447}}}})
+    monkeypatch.delenv("QUALITY_MIN_RATIO", raising=False)
+    assert publish.main(["--bucket", "bkt", "--out", str(out), "--current-term", "114-2"]) == 0
+    assert fake.calls
+    assert "::warning title=品質閘門（非當前學期）::115-1" in capsys.readouterr().out
+    # 同樣的課數，當前學期就是它 → 擋
+    fake2 = FakeAws(monkeypatch, tmp_path, {}, live={"terms": {"115-1": {"catalog": {"count": 4447}}}})
+    assert publish.main(["--bucket", "bkt", "--out", str(out), "--current-term", "115-1"]) == 1
+    assert fake2.calls == []
 
 
 def test_main_gate_ratio_can_be_overridden_by_env(monkeypatch, tmp_path):

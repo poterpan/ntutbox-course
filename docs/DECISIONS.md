@@ -84,7 +84,7 @@ Web 排好 → Universal Link / URL Scheme 導入 App，App 確認後送件。pa
 catalog／standards／mprograms／details 都是逐「節點」打上游（一個請求＝一個節點）。單一節點在 client 重試後仍失敗 → fetcher 照舊跳過續跑（不讓一個節點拖垮整輪、請求量不變），但**必須在 `pipeline-result.json` 回報** `failed_nodes`／`node_total`——否則「一個系所 QueryCourse 失敗、該系課程整段消失（只占全校 2–5%，課數閘門抓不到）」會覆寫完整的 canonical 並發佈。
 merge（鎖內、對最新 HEAD）的規則：
 - 失敗節點 > `node_total` × 5%（repo var `PARTIAL_FAILURE_MAX_RATIO` 可覆寫）→ 整筆 (資料集, 學期) 丟棄、保留 HEAD、告警。
-- **catalog**：任何失敗節點 → 丟棄該學期 catalog 檔與同次人數快照（不做節點拼接）；課數 < HEAD × 0.95 也丟棄。
+- **catalog**：任何失敗節點 → 丟棄該學期 catalog 檔與同次人數快照（不做節點拼接）；課數 < HEAD × 0.95 也丟棄（D20 起只限當前學期，其他學期照收＋warning）。
 - **standards／mprograms／details**：失敗節點逐一從 HEAD 沿用前一版拼回（HEAD 也沒有的列為缺漏），發 warning 等級告警。
 - 丟棄與沿用都列進 `[pipeline] <workflow> 失敗` issue，下一次全部成功自動關閉。
 
@@ -96,7 +96,7 @@ merge（鎖內、對最新 HEAD）的規則：
 - **邏輯全在 Python，Worker 只比對與觸發**：derive 產 `data/ops/season-schedule.json`（明確列出每個整點觸發格＋`terms`／`windows`／`reason`），publish 傳到 `course/ops/season-schedule.json`；Worker 只看「現在這個整點在不在 `slots` 裡」。頻率規則、窗口解析、學期歸屬都能在 pytest 驗證，Worker 沒有要測的邏輯。排程檔在 v1 之外、不列進 manifest、不參與過期刪除；範圍＝manifest `calendars` 的學期，不讀系統時間（D11 的確定性）。
 - **行事曆只有一個 parser**：選課窗口（預選／新生預選／開學後加退選／期中撤選；歸屬與命名 D19 修訂）由 `term_calendar.py` 推導、寫進週次表 `{term}/calendar.json` 的 `enrollment_windows`（新增欄位，D15 不升 `CALENDAR_SCHEMA_VERSION`），`season_schedule.py` 只展開、不再解析事件——App 與排程看到的是同一份窗口。~~網路選課歸被選的學期~~（D19 改為一律歸發生的學期＋`target_term`）。推不出來的窗口丟棄＋warning，不讓週次表失敗。
 - **頻率**（常數在 `season_schedule.py`）：窗口開啟後 24 小時每小時、截止前 24 小時每小時、截止時刻（日間部 17:00、進修部 21:00，取窗口實際截止）補一次、其餘每 3 小時（台北 00／03／06…對齊）；不做深夜暫停。同一整點跨窗口／學期合併成一格。115-1 期中撤選（10/05→11/20、11/21）431 格、115-2 預選（12/07→12/18、12/19）153 格。
-- **人數改全校一次查**：`QueryCourse(matric=全校13碼, unit=＊)` 一個請求取代逐系所約 62 個（2026-09-27 實測 115-1：2,778 課、1.86 MB、84.6 秒，課號集合與人／撤數 0 差異；「全校＋所有系所會被擋」早在 2026-06-13 就證實只是前端 JS）。獨立 timeout 180 秒（預設 60 秒會在首個 byte 前逾時）、最多 2 次；失敗（含無表頭、0 課）退回逐系所，來源記進 pipeline-result 的 `enrollment_source`。merge 的人數品質閘門不變。catalog 仍逐系所（要 unit 歸屬）。
+- **人數改全校一次查**：`QueryCourse(matric=全校13碼, unit=＊)` 一個請求取代逐系所約 62 個（2026-09-27 實測 115-1：2,778 課、1.86 MB、84.6 秒，課號集合與人／撤數 0 差異；「全校＋所有系所會被擋」早在 2026-06-13 就證實只是前端 JS）。獨立 timeout 180 秒（預設 60 秒會在首個 byte 前逾時）、最多 2 次；失敗（含無表頭、0 課）退回逐系所，來源記進 pipeline-result 的 `enrollment_source`。merge 的人數品質閘門不變（D20 起驟減只對當前學期嚴格）。catalog 仍逐系所（要 unit 歸屬）。
 - **告警**（daily 檢查）：`[pipeline] season 窗口學期缺 catalog：<term>`（14 天內有觸發格但該學期沒有 catalog；D19 之後正常不會出現）；`[pipeline] season 未依排程執行`（12 小時內、已過 1 小時寬限的觸發格在 [at, at+1h) 沒有觀測紀錄）。
 
 ## D19 — 學期滾動自動化：`active` 納入即將選課的學期；Worker 每週保活 daily／weekly（issue #111）
@@ -108,3 +108,8 @@ merge（鎖內、對最新 HEAD）的規則：
 - **保活**：公開 repo 的排程 workflow 在 60 天沒有 repo 活動後會被 GitHub 自動停用（data branch 的 bot commit 是否算活動沒有文件保證）。season Worker 每週一次（台北週一 00:00＝UTC 週日 16:00 的整點）`PUT /repos/poterpan/ntutbox-course/actions/workflows/{daily.yml,weekly.yml}/enable`，期待 204（已啟用時也是 204，冪等）。與 season slot 無關，失敗讓該次 cron 標失敗。用同一把 fine-grained PAT：GitHub 文件「Permissions required for fine-grained personal access tokens」列 enable 端點需要 **Actions: write**，與 dispatch 相同，不必加權限。效果是「被停用最多一週就自動恢復」，不保證重置 GitHub 的 60 天計時。
 - **窗口改歸發生的學期＋`target_term`**（修訂 D18）：窗口一律寫進**開始日所在學期**（8～1 月上學期、2～7 月下學期）的 `{term}/calendar.json`，另帶 `target_term`＝被選的學期（預選＝標題的學年度學期，即下學期；其餘＝所在學期）。原因：原本預選歸被選的學期，但 116-1 預選（2027-05-24）要等 116 學年度行事曆（2027-08）才推得出 116-1 的週次表 → 整個窗口被默默丟掉；歸發生的學期後，115-2 的檔就帶著它。season 排程範圍＝所有已推導的檔（所在學期），slot `terms` 取 `target_term`，被選學期有沒有自己的週次表都不影響；`upcoming_window_terms` 也回傳 `target_term`。
 - **窗口 kind 改名**（校方「網路選課」其實是預選，易誤會）：`online_selection`→`preselection`（顯示「預選」）、`add_drop`→`post_start_add_drop`（「開學後加退選」；不用裸 `add_drop`——選課階段分類已用它指 oads 系統）、`freshman_preselection`（「新生預選」）、`midterm_withdrawal`（「期中撤選」）不變。season-schedule.json 的 `windows` 用顯示名。`enrollment_windows` 2026-09-27 才加、尚無外部使用者，形狀變更不升 `CALENDAR_SCHEMA_VERSION`（D15）；`TermCalendarFile` 讀舊檔時自動升級（kind 改名、`target_term` 補所在檔學期），下一次 daily 重新推導即改寫。parser_version `calendar/1.2.0`。
+
+## D20 — 課數／人數驟減檢查只對當前學期嚴格
+- **問題**：D19 讓 daily 在預選 30 天前（115-2 ≈ 2026-11-07）就爬下學期。學校此時放的是**草案課表**（115-2 實測 4,447 列、無教師、4,176 列沒有時段），正式版約 2.8k（約 −37%）。merge 的「課數 < HEAD × 0.95 → 丟棄」與 publish 閘門（基準＝線上 manifest `count`）會把之後每一次更新都擋掉，該學期永遠停在草案。
+- **規則**：驟減比例只對**當前學期**（學校 current-term 偵測結果）嚴格——丟棄／不發佈，行為不變。其他學期（即將選課、過去學期）：0 課／0 列仍丟棄＋告警；驟減 → **照樣採用**，發 warning 等級告警（進 `[pipeline] <workflow> 失敗` issue，人工確認）。人數快照同一套規則；publish 閘門同樣切分。
+- **當前學期在 run 內確定**：fetch job 把偵測結果記進 `pipeline-result.json` 的 `current_term`（學期規則沒用到時——明確 `--terms`／`ACTIVE_TERMS`——且有資料集成功，就跑完補偵測一次）；merge 讀它並寫進 merge 報告，commit-publish 從報告取值傳 `publish.py --current-term`。鎖內不再打學校。取不到（偵測失敗、舊 stage、republish、多份報告不一致）→ 全部學期都嚴格（保守，等同原行為）。
