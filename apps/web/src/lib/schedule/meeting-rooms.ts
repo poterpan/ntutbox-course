@@ -84,10 +84,13 @@ export function formatCourseRooms(c: RoomCourse): string {
   return v.rooms.join("、") || "—";
 }
 
-/** 課表格子（某星期某節）要顯示的教室：該節查得到 → 那間；否則課程層級第一間（與之前相同）。 */
+/** 課表格子（某星期某節）要顯示的教室：該節查得到 → 那間；否則課程層級全部教室（多教室不猜）。 */
 export function cellRoom(c: RoomCourse, day: number, period: string): string | undefined {
   const m = (c.meetings ?? []).find((x) => x.day === day && (x.periods as string[]).includes(period));
   const names = m ? meetingRoomNames(c, m.classroom_codes) : null;
   if (names) return names.join("、");
-  return c.classrooms?.[0]?.name || undefined;
+  // 查不到逐時段教室（例：沒有 rooms 資料的舊學期）：多教室課程不猜其中一間——
+  // 只顯示第一間會有一半機率指錯教室，改列出全部。
+  const all = (c.classrooms ?? []).map((r) => r.name).filter(Boolean);
+  return all.length ? all.join("、") : undefined;
 }

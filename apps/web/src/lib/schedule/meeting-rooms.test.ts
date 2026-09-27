@@ -80,9 +80,11 @@ describe("cellRoom", () => {
     expect(cellRoom(multi, 4, "6")).toBe("六教526(e)");
     expect(cellRoom(multi, 5, "7")).toBe("六教626(e)");
   });
-  it("查不到 → 課程層級第一間", () => {
+  it("查不到 → 列出課程層級全部教室（多教室不猜其中一間）", () => {
     const c = course([{ day: 4, periods: ["5"] }], [["438", "六教526(e)"], ["446", "六教626(e)"]]);
-    expect(cellRoom(c, 4, "5")).toBe("六教526(e)");
+    expect(cellRoom(c, 4, "5")).toBe("六教526(e)、六教626(e)");
+    const single = course([{ day: 4, periods: ["5"] }], [["438", "六教526(e)"]]);
+    expect(cellRoom(single, 4, "5")).toBe("六教526(e)");
     expect(cellRoom(course([{ day: 4, periods: ["5"] }], []), 4, "5")).toBeUndefined();
   });
 });

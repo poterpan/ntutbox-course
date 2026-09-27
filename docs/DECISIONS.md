@@ -153,5 +153,5 @@ merge（鎖內、對最新 HEAD）的規則：
 - **2026-09-28 驗證（115-1 實 derive）**：有時段 2,472 課——full 1,726（單教室 1,596＋多教室 130，每節都對得到）、partial 0、missing 746（不在任何教室課表上，多為無教室的課 → 留空）、split 12（同一時段各節不同教室，取聯集）、conflict 0（課程層級教室集合＝反查集合）。
 - **一致性報告** `canonical/reports/{term}/meeting-rooms.json`（隨 commit-publish 進 data branch，同 weekly-progress）：上述計數＋`partial_ids`／`conflict_ids`（上限 50）。不帶時間；**內容沒變就不重寫**。
 - **告警**：conflict > 0 **且報告內容這次有變** → warning（`derive --alerts` 寫 `derive-report.json` → artifact `derive-reports-*` → alert job 列進 `[pipeline] <workflow> 失敗` issue），不擋發佈。只在變動時告警，是因為 derive 每次 run 都跑（season 選課季每小時），持續存在的衝突若每次都告警，issue 會每小時被留言、也永遠關不掉；衝突清單本身留在 git 的報告裡。
-- **Web**：課程詳情「教室」逐時段列出（「週四 5–6　六教526 ／ 週五 7　六教626」，一個時段一行）；全部時段同一間 → 只列教室；某時段查不到 → 該時段退回課程層級清單；全都查不到 → 與之前相同。名稱取該課 `classrooms[].name`（code 對不到名稱視同查不到）。排課格子顯示「那一格」的教室（split 時段顯示聯集），查不到退回課程層級第一間。邏輯在 `apps/web/src/lib/schedule/meeting-rooms.ts`（vitest）。
+- **Web**：課程詳情「教室」逐時段列出（「週四 5–6　六教526 ／ 週五 7　六教626」，一個時段一行）；全部時段同一間 → 只列教室；某時段查不到 → 該時段退回課程層級清單；全都查不到 → 與之前相同。名稱取該課 `classrooms[].name`（code 對不到名稱視同查不到）。排課格子顯示「那一格」的教室（split 時段顯示聯集），查不到退回課程層級**全部**教室（多教室課不猜其中一間；沒有 rooms 的舊學期會走到這裡）。邏輯在 `apps/web/src/lib/schedule/meeting-rooms.ts`（vitest）。
 - **不做**：不改 App handoff payload 的 `l`（課程層級教室字串，App 端合約另議）；不在 canonical 存逐時段教室（兩份來源的 join 是衍生物）。

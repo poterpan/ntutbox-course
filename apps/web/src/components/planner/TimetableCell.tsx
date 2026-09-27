@@ -14,7 +14,7 @@ export function TimetableCell({ day, period }: { day: number; period: string }) 
   const ids = occupants(day, period);
   const conflicted = ids.length > 1;
   const first = ids[0] ? byId(ids[0]) : undefined;
-  // 這一格（星期×節次）的教室；逐時段查不到時退回課程層級第一間（D24）
+  // 這一格（星期×節次）的教室；逐時段查不到時退回課程層級全部教室（D24）
   const room = first ? cellRoom(first, day, period) : undefined;
 
   // Hover ghost (desktop): the course hovered in the library meets at this (day, period).
