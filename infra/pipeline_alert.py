@@ -3,8 +3,8 @@
 兩種告警，各自一個 issue、各自自動關閉：
 
   run    `[pipeline] <workflow> 失敗`：任一 job 失敗、`pipeline-result.json` 有失敗的資料集、
-         merge 報告有告警（例如 catalog 課數跌破門檻被丟棄；部分節點失敗、已從 HEAD 沿用者是
-         warning 等級，同樣列進 issue——沿用的舊資料要有人知道）、publish 刪除保險觸發（exit 3）。
+         merge 報告有告警（例如 catalog 課數跌破門檻被丟棄；部分節點失敗、已從 HEAD 沿用者，以及
+         非當前學期課數／人數驟減但照樣採用者（D20）是 warning 等級，同樣列進 issue——要有人知道）、publish 刪除保險觸發（exit 3）。
          下一次同 workflow 全部成功 → 留言並關閉。
   stale  `[pipeline] 資料過期：<dataset>`：`_meta/fetch-state.json` 中 cadence=daily 的資料集
          `checked_at` 超過 2 天、weekly 超過 9 天（取該資料集各學期中最新的一筆——只補爬過的
@@ -119,7 +119,7 @@ def collect_problems(needs: Dict[str, dict], stages: Optional[Path], merge_repor
                                 f"{e.get('error')}")
     for p in sorted(merge_reports.rglob("merge-report*.json")) if merge_reports and merge_reports.exists() else []:
         for a in json.loads(p.read_text(encoding="utf-8")).get("alerts", []):
-            kind = "merge 警告（部分節點失敗）" if a.get("level") == "warning" else "merge 告警"
+            kind = "merge 警告" if a.get("level") == "warning" else "merge 告警"
             problems.append(f"{kind} `{a.get('name')}` {a.get('term') or '_global'}："
                             f"{a.get('message')}")
     if publish_exit == 3:

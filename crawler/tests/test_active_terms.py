@@ -5,6 +5,7 @@
 """
 import dataclasses
 import datetime as dt
+import json
 
 import pytest
 
@@ -150,6 +151,10 @@ def test_pipeline_daily_fetches_upcoming_term(tmp_path, canonical, monkeypatch):
     assert result.ok
     assert fetched == [("catalog", "115-1"), ("catalog", "115-2"),
                        ("mprograms", "115-1"), ("mprograms", "115-2")]
+    # D20：當前學期記進 pipeline-result，merge／publish 據此只對它嚴格檢查驟減
+    assert result.current_term == "115-1"
+    written = json.loads((tmp_path / "stage" / "pipeline-result.json").read_text(encoding="utf-8"))
+    assert written["current_term"] == "115-1"
 
 
 def test_legacy_calendar_file_is_upgraded(tmp_path):

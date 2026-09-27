@@ -62,6 +62,7 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 .venv/bin/python -m ntut_catalog pipeline --cadence daily --out ../data --merge          # 本機一次做完 fetch＋merge
 # merge：stage → 最新 canonical（CI 的上鎖 job 跑這個；去重、fetch-state、節點失敗規則都在這裡）
 .venv/bin/python -m ntut_catalog merge --stage ../data/stage --out ../data
+# 課數／人數驟減（< HEAD × QUALITY_MIN_RATIO）只對 pipeline-result 的 current_term 丟棄；其他學期照收＋warning（D20）
 # derive：canonical → v1（全量、確定性；publish 前必跑）
 .venv/bin/python -m ntut_catalog derive --out ../data
 .venv/bin/python -m ntut_catalog pua-scan --terms 115-1 --out ../data  # 新造字碼位監測

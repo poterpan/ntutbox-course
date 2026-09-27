@@ -148,6 +148,23 @@ def test_current_term_failure_is_recorded_not_raised(tmp_path):
     # 失敗只偵測一次：mprograms 沿用同一個錯誤，不再各自重試（實測每次重試約 5 分鐘）
     assert not by_name["mprograms"]["ok"] and "unreachable" in by_name["mprograms"]["error"]
     assert len(calls) == 1
+    assert result.current_term is None                         # 偵測失敗 → 不補偵測、下游全部嚴格
+
+
+def test_explicit_terms_still_record_current_term(tmp_path):
+    """明確 --terms 不走學期規則 → 跑完補偵測一次，記進 pipeline-result（D20）。"""
+    calls = []
+
+    def detect():
+        calls.append(1)
+        return "115-1"
+
+    clock = Clock(dt.datetime(2026, 9, 26, 6, 0, tzinfo=TAIPEI))
+    result = pipeline.run("manual", ["catalog"], ["115-2"], tmp_path, tmp_path / "stage",
+                          ctx=_ctx(tmp_path, clock), current_term=detect)
+    assert result.current_term == "115-1" and len(calls) == 1
+    written = json.loads((tmp_path / "stage" / "pipeline-result.json").read_text(encoding="utf-8"))
+    assert written["current_term"] == "115-1"
 
 
 def test_result_entry_shape(tmp_path):
