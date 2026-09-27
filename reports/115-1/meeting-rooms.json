@@ -1,0 +1,12 @@
+{
+ "term": "115-1",
+ "courses_with_meetings": 2472,
+ "full": 1726,
+ "partial": 0,
+ "missing": 746,
+ "split": 12,
+ "conflict": 0,
+ "list_cap": 50,
+ "partial_ids": [],
+ "conflict_ids": []
+}
