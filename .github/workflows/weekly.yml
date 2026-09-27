@@ -1,8 +1,8 @@
 name: weekly
 
 # 每週一 05:30 Asia/Taipei（= 週日 21:30 UTC）：登錄表 cadence=weekly 的資料集（details 課綱、
-# standards 課程標準）。結構與 daily 相同（fetch 不上鎖＋commit-publish 上鎖），只差 cadence 與 timeout；
-# 行事曆與資料過期檢查只在 daily 跑。details 的學期規則是 current-term——學期交界時預設學期何時切換
+# standards 課程標準、rooms 教室課表）。結構與 daily 相同（fetch 不上鎖＋commit-publish 上鎖），只差 cadence 與 timeout；
+# 行事曆與資料過期檢查只在 daily 跑；GIS 快照 updateSequence 記錄只在這裡跑（alert job，不開 issue）。details 的學期規則是 current-term——學期交界時預設學期何時切換
 # 要人工確認（spec §2），需要時 dispatch 帶 terms。
 on:
   schedule:
@@ -140,3 +140,9 @@ jobs:
           deletions-skipped: ${{ needs.commit-publish.outputs.deletions-skipped }}
           web-redeploy: ${{ needs.commit-publish.outputs.web-redeploy }}
           dry-run: ${{ env.ALERT_DRY_RUN }}
+      # GIS 快照 updateSequence（D23）：線上 vs repo 快照寫進 run summary＋::notice，**只記錄、不開 issue**
+      # （updateSequence 會因與教室無關的變動前進；長期處理見 issue #120）。1 個請求、只用標準庫。
+      - name: GIS 快照 updateSequence 記錄
+        if: always()
+        continue-on-error: true
+        run: python3 infra/pipeline_alert.py gis-drift

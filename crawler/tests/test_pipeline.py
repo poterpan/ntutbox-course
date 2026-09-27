@@ -217,7 +217,7 @@ def test_season_enrollment_records_source_and_merges(tmp_path, school_fails, exp
 
 def test_registry_cadences():
     assert {d.name for d in registry.for_cadence("daily")} == {"calendar", "catalog", "mprograms"}
-    assert {d.name for d in registry.for_cadence("weekly")} == {"details", "standards"}
+    assert {d.name for d in registry.for_cadence("weekly")} == {"details", "standards", "rooms"}
     assert {d.name for d in registry.for_cadence("season")} == {"enrollment"}
 
 

@@ -273,6 +273,24 @@ export type Start2 = string;
 export type End2 = string;
 export type SourceUids = string[];
 export type EnrollmentWindows = EnrollmentWindow[];
+export type SchemaVersion12 = number;
+export type TermKey5 = string;
+export type UpdateSequence = number | null;
+export type CampusMapManifestSha256 = string | null;
+export type Code4 = string;
+export type Raw = string;
+export type FullName = string | null;
+export type Capacity1 = number | null;
+export type Day1 = 0 | 1 | 2 | 3 | 4 | 5 | 6;
+export type Period = "1" | "2" | "3" | "4" | "N" | "5" | "6" | "7" | "8" | "9" | "A" | "B" | "C" | "D";
+export type OfferingIds1 = string[];
+export type Slots = RoomSlot[];
+export type BuildingId = string;
+export type FloorId = string | null;
+export type ClassNumber = string | null;
+export type Gis = RoomGisRef[];
+export type GisMatch = "rule" | "override" | "building_only" | "floor_only" | "none";
+export type Rooms = TermRoom[];
 
 export interface NtutboxCourseV1 {
   TermCatalog?: TermCatalog;
@@ -285,6 +303,7 @@ export interface NtutboxCourseV1 {
   StandardDirectory?: StandardDirectory;
   CalendarEventsFeed?: CalendarEventsFeed;
   TermCalendarFile?: TermCalendarFile;
+  TermRooms?: TermRooms;
   [k: string]: unknown;
 }
 /**
@@ -498,6 +517,7 @@ export interface ManifestTerm {
   periods?: ManifestEntry | null;
   mprograms?: ManifestEntry | null;
   calendar?: ManifestEntry | null;
+  rooms?: ManifestEntry | null;
   details?: DetailsFreshness | null;
   dataset_version?: DatasetVersion;
   [k: string]: unknown;
@@ -871,5 +891,62 @@ export interface EnrollmentWindow {
   start: Start2;
   end: End2;
   source_uids?: SourceUids;
+  [k: string]: unknown;
+}
+/**
+ * v1 `terms/{t}/rooms.json`（空教室查找，poterpan/NTUTBox#239）。
+ *
+ * 語意：slot＝「有排課」，不是「被占用」；沒有 slot 的時段不保證空著。
+ */
+export interface TermRooms {
+  schema_version?: SchemaVersion12;
+  term_key: TermKey5;
+  gis_snapshot?: GisSnapshotInfo;
+  rooms?: Rooms;
+  [k: string]: unknown;
+}
+/**
+ * 對應所依據的 GIS 快照版本（`crawler/ntut_catalog/reference/gis-rooms.json`）。
+ */
+export interface GisSnapshotInfo {
+  update_sequence?: UpdateSequence;
+  campus_map_manifest_sha256?: CampusMapManifestSha256;
+  [k: string]: unknown;
+}
+/**
+ * v1 `terms/{t}/rooms.json` 的一間：canonical 的 Room ＋ derive 推的 GIS 對應。
+ *
+ * `gis` 是 list：一個 class_number 可能對到多個多邊形／樓層。`gis_match`：
+ *   rule（簡稱規則對到）／override（`reference/gis-room-overrides.json`，GIS 名稱可驗證）／
+ *   building_only（只知道哪棟）／floor_only（只知道哪棟哪層）／none（對不到，gis=[]）。
+ */
+export interface TermRoom {
+  code: Code4;
+  raw: Raw;
+  full_name?: FullName;
+  capacity?: Capacity1;
+  slots?: Slots;
+  gis?: Gis;
+  gis_match?: GisMatch;
+  [k: string]: unknown;
+}
+/**
+ * 教室某一格（星期×節次）**有排課**。反過來不成立：沒有 slot ≠ 保證空著
+ * （社團借用、補課、系上開會都不在課表裡）。同一格可有多門課（例：大學部／研究所合開）。
+ */
+export interface RoomSlot {
+  day: Day1;
+  period: Period;
+  offering_ids?: OfferingIds1;
+  [k: string]: unknown;
+}
+/**
+ * 對到的 GIS 位置。GIS 房間鍵是 (building_id, class_number)——class_number 只在同一棟內唯一；
+ * **不用** sourceFeatureId（gid 重新匯入就會變）。building_only／floor_only 時較細的欄位為 None。
+ */
+export interface RoomGisRef {
+  building_id: BuildingId;
+  floor_id?: FloorId;
+  class_number?: ClassNumber;
   [k: string]: unknown;
 }

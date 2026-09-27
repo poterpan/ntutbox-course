@@ -7,6 +7,7 @@
   data/v1/terms/{term}/periods.json         PeriodTable
   data/v1/terms/{term}/enrollment.json      EnrollmentLatest（volatile overlay）
   data/v1/terms/{term}/course/{id}.json     CourseDetail（逐週進度在 derive 即時計算）
+  data/v1/terms/{term}/rooms.json           TermRooms（教室課表＋GIS 對應，D23；對應在 derive 算）
   data/v1/manifest.json                     sha256/size/dataset_version＋來源新鮮度
   data/canonical/reports/{term}/weekly-progress.json   逐週進度精度報告（derive 產、commit 回 data branch）
   data/ops/season-schedule.json             season 觸發時刻表（derive 產、v1 之外 → R2 course/ops/）
@@ -118,6 +119,7 @@ def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
     """
     canonical = out_dir / "canonical"
     periods_json = build_period_table().model_dump_json()
+    room_mapping = None   # (GisIndex, overrides)：有 rooms.json 的學期才載入快照
     for term_dir in sorted(p for p in canonical.iterdir() if p.is_dir()) if canonical.exists() else []:
         term = term_dir.name
         cat_nd = term_dir / "catalog.ndjson"
@@ -162,6 +164,13 @@ def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
         mp = term_dir / "mprograms.json"
         if mp.exists():
             _write_v1_json(v1 / "mprograms.json", mp.read_text(encoding="utf-8"))
+        # 選用：教室課表（canonical/{term}/rooms.json 存在 → 加上 GIS 對應，D23）
+        rooms_src = term_dir / "rooms.json"
+        if rooms_src.exists():
+            if room_mapping is None:
+                from ntut_catalog.room_gis import load_gis_index, load_overrides
+                room_mapping = (load_gis_index(), load_overrides())
+            build_rooms_v1(rooms_src, v1 / "rooms.json", *room_mapping)
         # 選用：詳情（canonical/{term}/details.ndjson 存在 → 炸成 course/{id}.json）
         det = term_dir / "details.ndjson"
         if det.exists():
@@ -180,6 +189,14 @@ def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
     # 綁在一起會讓「還沒開放查詢的下學期」拿不到週次表（#168 要的正是提前拿到）。
     build_term_calendars_v1(out_dir, generated_at)
     return write_manifest(out_dir, generated_at)
+
+
+def build_rooms_v1(src: Path, dst: Path, gis, overrides):
+    """canonical rooms.json → v1 rooms.json（加 GIS 對應；GIS 快照更新後下一次 derive 自動重算）。"""
+    from ntut_catalog.rooms import build_term_rooms, load_rooms
+    term_rooms = build_term_rooms(load_rooms(src), gis, overrides)
+    _write_v1_json(dst, term_rooms.model_dump_json())
+    return term_rooms
 
 
 def build_details_v1(out_dir: Path, term: str, details_nd: Path, course_dir: Path) -> dict:
@@ -393,6 +410,7 @@ _FRESHNESS_SOURCES = {
     "enrollment": ("enrollment",),
     "mprograms": ("mprograms",),
     "calendar": ("calendar",),
+    "rooms": ("rooms",),
 }
 
 
@@ -430,7 +448,7 @@ def write_manifest(out_dir: Path, generated_at: Optional[str] = None) -> Manifes
             continue
         term = term_dir.name
         files = {}
-        for name in ["catalog", "classes", "periods", "enrollment", "mprograms", "calendar"]:
+        for name in ["catalog", "classes", "periods", "enrollment", "mprograms", "calendar", "rooms"]:
             p = term_dir / f"{name}.json"
             if p.exists():
                 # calendar.json 走**獨立的** CALENDAR_SCHEMA_VERSION，不是全域那個。
@@ -455,6 +473,7 @@ def write_manifest(out_dir: Path, generated_at: Optional[str] = None) -> Manifes
             enrollment=files.get("enrollment"),
             mprograms=files.get("mprograms"),
             calendar=files.get("calendar"),
+            rooms=files.get("rooms"),
             details=_details_freshness(out_dir, state, term),
             dataset_version=files["catalog"].sha256,
         )

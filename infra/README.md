@@ -13,7 +13,7 @@
 | workflow | 觸發 | 跑什麼 |
 |---|---|---|
 | `.github/workflows/daily.yml` | cron 每日 04:00（台北）＋dispatch（`datasets`／`terms`） | calendar、catalog＋人數、mprograms；另跑行事曆 horizon／coverage、資料過期與 season 排程檢查 |
-| `.github/workflows/weekly.yml` | cron 每週一 05:30（台北）＋dispatch | details（課綱）、standards |
+| `.github/workflows/weekly.yml` | cron 每週一 05:30（台北）＋dispatch | details（課綱）、standards、rooms（教室課表）；alert job 另把 GIS updateSequence 記進 run summary（不開 issue） |
 | `.github/workflows/season.yml` | **僅 dispatch**（Cloudflare Worker 依 `course/ops/season-schedule.json` 觸發，見下），`terms` 必填 | enrollment（選課季人數刷新；全校一次查、失敗退回逐系所） |
 | `.github/workflows/maintenance.yml` | 僅 dispatch，`task` ∈ `backfill`／`republish` | 補爬、只 derive＋publish |
 | `.github/workflows/test.yml` | push／PR | pytest＋schema 同步檢查 |
@@ -24,14 +24,14 @@
 →（預設學期 catalog 有變時）POST web 的 Deploy Hook（D22，見 runbook「web 自動重新部署」）。
 
 相關腳本：`publish.py`（上傳）、`data_commit.py`（commit 範圍與訊息）、`redline_scan.py`（擋個資/機密）、
-`pipeline_alert.py`（`pipeline-alert` issue）、`web_redeploy.py`（要不要重新部署 web，D22）、`calendar_horizon_alert.py`／`calendar_coverage_check.py`（行事曆）、
+`pipeline_alert.py`（`pipeline-alert` issue；`gis-drift` 只記錄 GIS updateSequence）、`gis/build_snapshot.py`（本機產 GIS 快照，D23）、`web_redeploy.py`（要不要重新部署 web，D22）、`calendar_horizon_alert.py`／`calendar_coverage_check.py`（行事曆）、
 `r2-cors.json`。首次開通步驟見 `SETUP.md`。
 
 ## 維運 runbook
 
 ### 補爬：maintenance → `backfill`
 Actions → **maintenance** → Run workflow：
-- `task=backfill`、`dataset`＝登錄表名稱（`catalog`、`details`、`mprograms`、`standards`、`calendar`、`enrollment`）、
+- `task=backfill`、`dataset`＝登錄表名稱（`catalog`、`details`、`mprograms`、`standards`、`calendar`、`enrollment`、`rooms`）、
   `terms`＝學期（`110-1:114-2` 或 `115-1,114-2`；有學期維度的資料集必填，`calendar`／`standards` 留空）。
 - details 每學期一個 matrix leg（max-parallel 3、單學期約 53 分鐘），其他資料集一個 leg；全部 fan-in 到一個上鎖的 commit-publish。
 - 想先看發佈結果再動 R2：勾 `publish_dry_run`（只把上傳／刪除清單寫進 run summary；data branch 仍會 commit）。
@@ -67,6 +67,25 @@ Actions → **maintenance** → Run workflow：
   - 或把 repo var `ACTIVE_TERMS` 設成明確清單，例如 `gh variable set ACTIVE_TERMS --body 115-1,115-2`。
     **`ACTIVE_TERMS` 有值＝明確覆寫**：完全照它、不再併 current-term 與窗口學期——事後記得清空（`gh variable set ACTIVE_TERMS --body ""`）。
 - weekly 的 details 走 `current-term`；學期交界時學校預設學期何時切換要人工確認，需要時 dispatch weekly 帶 `terms`。
+
+### GIS 快照更新（空教室的教室 ↔ GIS 對應，D23）
+`rooms` 的 GIS 對應依據是 repo 內的 `crawler/ntut_catalog/reference/gis-rooms.json`。GIS 資料只在**本機**的
+`ntut-campus-map`（沒有 git remote；源頭是學校公開的 GeoServer），CI 拿不到，所以快照只能在本機更新：
+1. 在 `ntut-campus-map` 重抓並產生 v1（見該專案 README；學校憑證鏈驗不過時它會對個別 URL fallback，並記進 `source-metadata.json`）。
+2. `python infra/gis/build_snapshot.py <ntut-campus-map 路徑>` → 覆寫快照（確定性；`source.update_sequence` 記錄來源版本）。
+3. 拿一份 data branch 本機 `python -m ntut_catalog derive --out <data>`，看 v1 `terms/{t}/rooms.json` 的 `gis_match` 分布與 log 的
+   `override … 驗證不過` warning；具名廳堂要補對應時改 `crawler/ntut_catalog/reference/gis-room-overrides.json`（**只收 GIS 查得到的**，`gis_name` 填 GIS 上的名稱）。
+   `tests/test_rooms.py::test_vendored_snapshot_maps_real_115_1_list` 釘著 115-1 的分布，快照或規則改了要一起更新。
+4. 走 PR；合併後下一次 derive（任何 workflow 的 commit-publish、或 maintenance `republish`）自動重算對應——不必重爬 rooms。
+
+**快照現況**：停在 `updateSequence` **1044**。線上已是 1146（2026-09-27），但兩者的教室內容相同（room-index.json 完全一致，差異只有
+21 筆新建物＋2 處 sourceProperties 修改）；而 campus-map 的驗證器目前在新建物上失敗，**先不要從它重建快照**。長期改用外部 repo
+發佈的 GIS 資料，追蹤於 issue #120。
+
+**updateSequence 記錄（不告警）**：weekly 的 alert job 打一次 `https://geoserver.oga.ntut.edu.tw/ows?service=WFS&version=2.0.0&request=GetCapabilities`
+（`python3 infra/pipeline_alert.py gis-drift`），把線上與快照的 `updateSequence` 寫進 run summary＋`::notice`，**不開 issue**——
+它會因與教室無關的圖資變動前進（三週 1044→1146、教室 0 變動），不能當「快照過期」的訊號（#120）。要不要更新快照，靠人工比對
+room-index 的教室內容。學校憑證鏈 Python 驗不過時只對這個 URL 不驗證重試一次（log 有 `::notice`）；其他失敗只發 `::warning`。
 
 ### web 自動重新部署（Workers Builds Deploy Hook，D22）
 `/browse/**` hub 是 **build 期**產生的靜態頁（`apps/web/src/lib/hub/build-catalog.ts`），課程清單凍結在最後一次 build。
