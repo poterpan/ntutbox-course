@@ -1,22 +1,39 @@
 flowchart TD
-    A["cron / 手動 dispatch"] --> B["fetch job (不上鎖)<br/>pipeline --cadence X"]
-    B --> B2["每個 (資料集, 學期) 獨立 try<br/>→ stage + pipeline-result.json"]
+    A["cron / Worker 觸發 season / 手動 dispatch"] --> B["fetch job (不上鎖)<br/>pipeline --cadence X"]
+    B --> B2["每個 (資料集, 學期) 獨立 try<br/>→ stage + pipeline-result.json (含 current_term)"]
     B2 --> C["commit-publish job<br/>(concurrency: data-pipeline)"]
     C --> D["checkout 最新 data branch"]
-    D --> E["merge<br/>只收成功者 · 快照去重 · 觀測追加<br/>節點失敗規則 · catalog 課數檢查 · fetch-state"]
-    E --> H{"紅線掃描"}
+    D --> E["merge<br/>只收成功者 · 快照去重 · 觀測追加<br/>節點失敗規則 · fetch-state"]
+    E --> Q{"catalog 課數 / 人數快照列數<br/>對 HEAD 檢查"}
+    Q -->|"任何學期 0 課 / 0 列<br/>或當前學期驟減 < HEAD×0.95"| QX["丟棄該學期<br/>沿用 HEAD"]
+    Q -->|"驟減 · 非當前學期 (草案→定稿)"| QW["照收 + warning"]
+    Q -->|正常| H
+    QW --> H{"紅線掃描"}
     H -->|命中個資/機密| HX["✗ 中止"]
-    H -->|乾淨| I["pua-scan → derive<br/>(v1 + reports)"]
+    H -->|乾淨| I["pua-scan → derive<br/>(v1 + reports + ops/season-schedule.json)"]
     I --> J["commit + push data branch"]
     J --> K{"quality gate<br/>對線上 manifest count"}
-    K -->|課數驟降/0| KX["✗ 不發佈 (exit 1)"]
-    K -->|是| L["全量 MD5 比對 → 只傳差異<br/>manifest 最後 → 過期刪除 (10% 保險)"]
+    K -->|"當前學期課數驟降 / 任一學期 0 課"| KX["✗ 不發佈 (exit 1)"]
+    K -->|"非當前學期驟降 → ::warning 照發"| L
+    K -->|通過| L["全量 MD5 比對 → 只傳差異<br/>manifest 最後 → 過期刪除 (10% 保險)"]
     L --> M["R2 / cdn.ntutbox.com"]
+    L --> W{"預設學期的 catalog 有變？<br/>(infra/web_redeploy.py)"}
+    W -->|是| WH["POST Deploy Hook<br/>→ Workers Builds 重建 web"]
+    W -->|否 / secret 未設| WS["略過"]
+    WH -.->|失敗只 warning| AL
     L -.->|保險觸發 exit 3| AL
-    E -.->|丟棄 / 沿用| AL["alert job<br/>pipeline-alert issue"]
+    QX -.->|其他學期照常| H
+    QX -.-> AL["alert job<br/>pipeline-alert issue"]
+    QW -.-> AL
     KX -.-> AL
+    L --> DC["daily 限定檢查<br/>行事曆 horizon／coverage · 資料過期<br/>season 窗口學期缺 catalog · season 未依排程執行"]
+    DC -.-> AL
 
     classDef bad fill:#fecaca,stroke:#b91c1c,color:#000
+    classDef warn fill:#fde68a,stroke:#b45309,color:#000
     classDef ok fill:#bbf7d0,stroke:#15803d,color:#000
-    class HX,KX bad
+    classDef trig fill:#e9d5ff,stroke:#7e22ce,color:#000
+    class HX,KX,QX bad
+    class QW warn
     class M ok
+    class WH trig

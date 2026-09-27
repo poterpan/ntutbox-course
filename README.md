@@ -49,7 +49,7 @@ Web（Next.js PWA · 靜態匯出 + 前端搜尋 + Service Worker）
   └─ course.ntutbox.com ── 匯出選課計畫（規劃中）→ 北科盒子 iOS App
 ```
 
-> 更多圖（每日管線、資料模型、抓取邏輯、兩種抓取節奏）見 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
+> 更多圖（管線流程、資料模型、抓取邏輯、依頻率分的 workflow、選課季排程與學期切換）見 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)。
 
 ## Monorepo 結構
 

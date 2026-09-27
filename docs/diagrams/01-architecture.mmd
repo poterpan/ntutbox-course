@@ -3,7 +3,7 @@ flowchart TB
 
     subgraph GHA["GitHub Actions · daily / weekly / season / maintenance"]
         fetch["fetch<br/>pipeline --cadence X"]
-        derive["derive<br/>canonical → v1"]
+        derive["derive<br/>canonical → v1 + ops 排程"]
         publish["publish<br/>infra/publish.py"]
     end
 
@@ -14,10 +14,13 @@ flowchart TB
 
     subgraph CF["Cloudflare"]
         r2["R2: ntutbox-cdn"]
-        cdn["cdn.ntutbox.com"]
+        cdn["cdn.ntutbox.com<br/>course/v1/ · course/ops/season-schedule.json"]
+        sched["Worker ntutbox-season-scheduler<br/>cron 每小時整點"]
+        hook["Deploy Hook<br/>auto-rebuild-hub"]
+        build["Workers Builds<br/>ntutbox-course-web"]
     end
 
-    web["Web 排課器"]
+    web["Web 排課器<br/>course.ntutbox.com"]
     ios["北科盒子 App"]
 
     ntut -->|爬取| fetch
@@ -28,11 +31,20 @@ flowchart TB
     r2 --> cdn
     cdn -->|fetch JSON| web
     cdn -->|fetch JSON| ios
-    main -.->|Workers Builds 部署| web
+
+    cdn -.->|"讀 season-schedule.json + manifest"| sched
+    sched -.->|"命中觸發格 → workflow_dispatch season.yml<br/>週一 00:00 保活 enable daily / weekly"| GHA
+    sched -.->|"預設學期切換整點"| hook
+    publish -.->|"預設學期 catalog 有變"| hook
+    hook --> build
+    main -.->|push main 自動部署| build
+    build --> web
 
     classDef src fill:#fde68a,stroke:#b45309,color:#000
     classDef store fill:#bfdbfe,stroke:#1e40af,color:#000
     classDef out fill:#bbf7d0,stroke:#15803d,color:#000
+    classDef trig fill:#e9d5ff,stroke:#7e22ce,color:#000
     class ntut src
     class main,data store
-    class r2,cdn out
+    class r2,cdn,build out
+    class sched,hook trig
