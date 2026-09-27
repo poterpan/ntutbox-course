@@ -4,7 +4,7 @@ export const dynamic = "force-static"; // output: export 要求 metadata route �
 
 // 靜態輸出成 out/robots.txt。sitemap.xml 由 Next 產（首頁 + /browse/ 課程總覽 +
 // 逐系所 hub，見 app/sitemap.ts）；sitemap-courses.xml 由 edge worker 依 CDN
-// 最新學期 names.json 動態產（逐課分享連結，見 worker/index.ts）。
+// 預設學期（D21）names.json 動態產（逐課分享連結，見 worker/index.ts）。
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: { userAgent: "*", allow: "/" },

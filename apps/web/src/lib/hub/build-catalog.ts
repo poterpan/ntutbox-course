@@ -15,8 +15,9 @@
  * - 設為 CDN URL（prod）→ build 期 HTTP 抓最新資料，抓不到就退回 repo 內已 commit 的
  *   fixtures。**不讓 CDN 短暫失聯把部署整條擋下**，退回的也是真資料（只是可能舊一版）。
  *
- * 限制與緩解：hub 頁的課程清單凍結在「最後一次部署」的資料——連結不會壞（課程頁吃任何
- * term），只是可能不夠新。已由自動重新部署緩解（docs/DECISIONS.md D22、infra/README.md
+ * 限制與緩解：hub 頁的課程清單凍結在「最後一次部署」的資料與當時的預設學期（D21：本學期；
+ * 期中撤選截止起為下學期）——連結不會壞（課程頁吃任何 term、系所連結以 /hub-term.json 為準），
+ * 只是可能不夠新。已由自動重新部署緩解（docs/DECISIONS.md D22、infra/README.md
  * 「web 自動重新部署」）：資料管線在預設學期 catalog 有變時、season-scheduler Worker 在
  * manifest `term_schedule.default[].from` 生效的整點，各自 POST Workers Builds Deploy Hook。
  * 仍有的落差：hook secret 未設或觸發失敗時照舊停在上一次 build（管線會告警），以及 build
@@ -25,7 +26,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { dataBaseUrl, isLocalData } from "@/lib/env";
-import { latestTermKey } from "@/lib/share/course-sitemap";
+import { resolveTerms } from "@/lib/terms/term-schedule";
 import type { CourseOffering, Manifest, TermCatalog } from "@/lib/data/types";
 
 export interface HubCatalog {
@@ -48,7 +49,9 @@ async function fetchJson<T>(base: string, rel: string): Promise<T> {
 
 async function loadFrom(read: <T>(rel: string) => Promise<T>): Promise<HubCatalog> {
   const manifest = await read<Manifest>("manifest.json");
-  const termKey = latestTermKey(Object.keys(manifest.terms ?? {}));
+  // hub 跟**部署當下**的預設學期（D21）：期中撤選截止後的下一次部署起換成下學期。
+  // /hub-term.json 把這個值交給 client（課程詳情的系所連結），兩邊不會對不上。
+  const termKey = resolveTerms(manifest, new Date()).default;
   if (!termKey) throw new Error("manifest 沒有任何 term");
   const catalog = await read<TermCatalog>(`terms/${termKey}/catalog.json`);
   const courses = catalog.courses ?? [];

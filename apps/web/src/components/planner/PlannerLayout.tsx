@@ -16,7 +16,7 @@ import { SharedPlanFab } from "./SharedPlanFab";
 import { CreditSummary } from "./CreditSummary";
 import { AboutDialog } from "./AboutDialog";
 import { CourseJsonLd } from "./CourseJsonLd";
-import { TermSwitcher } from "./TermSwitcher";
+import { BackToCurrentTerm, TermSwitcher } from "./TermSwitcher";
 import { MatricSwitcher } from "./MatricSwitcher";
 import { FavoritesList } from "./FavoritesList";
 import { MicroProgramPane } from "./MicroProgramPane";
@@ -75,6 +75,9 @@ export function PlannerLayout() {
           <AboutDialog />
         </div>
       </header>
+
+      {/* 窄機：「回到本學期」放 header 下方（header 那列在 390px 已沒有空間）；sm 以上在學期選單旁 */}
+      <BackToCurrentTerm className="mx-4 mb-2 self-start sm:hidden" />
 
       {status === "error" && (
         <GlassPanel className="mx-4 mb-2 p-4 text-sm text-red-600">載入失敗：{error}（請重試）</GlassPanel>

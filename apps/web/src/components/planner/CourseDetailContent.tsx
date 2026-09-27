@@ -13,7 +13,7 @@ import { getDataSource } from "@/lib/data";
 import { buildCourseLink } from "@/lib/share/course-link";
 import { RelatedCourses } from "./RelatedCourses";
 import { unitSlug } from "@/lib/hub/units";
-import { useLatestTerm } from "@/lib/planner/use-latest-term";
+import { useHubTerm } from "@/lib/planner/use-hub-term";
 import { shareOrCopy } from "@/lib/share/share-course";
 import { useToast } from "@/components/ui/toast";
 import type { CourseDetail, LabeledValue } from "@/lib/data/types";
@@ -71,8 +71,9 @@ export function CourseDetailContent({
   const selectedTerm = useUiStore((s) => s.selectedTerm);
   const openProgram = useUiStore((s) => s.openProgram);
   const openDetail = useUiStore((s) => s.openDetail);
-  // 系所 hub（/browse/<unit>/）只為最新學期的單位產生靜態頁；看舊學期時不給連結（會 404）。
-  const latestTerm = useLatestTerm();
+  // 系所 hub（/browse/<unit>/）只為 hub 建構時的學期（部署當下的預設學期，D21）產生靜態頁；
+  // 看其他學期時不給連結（會 404）。
+  const hubTerm = useHubTerm();
   const { data: mprogDir } = useMprograms(termKey ?? selectedTerm);
   const programChips = useMemo(
     () => buildProgramIndex(mprogDir).get(offeringId) ?? [],
@@ -182,7 +183,7 @@ export function CourseDetailContent({
           <Row
             k="開課單位"
             v={
-              c.unit_code && c.unit_name && termKey && latestTerm === termKey ? (
+              c.unit_code && c.unit_name && termKey && hubTerm === termKey ? (
                 // 課程頁 → 系所 hub 的回連：2,4xx 個課程頁各給 hub 一條內部連結，
                 // 讓「首頁 → hub → 課程」這條爬行路徑變成雙向、權重能回流。
                 <a

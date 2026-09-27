@@ -10,7 +10,9 @@ export interface ActiveSlot { day: number; period: string; }
 
 interface UiState {
   query: string;
-  selectedTerm: string;      // 檢視中的學期（提升自 TermSwitcher，供分享連結程式化切換）
+  // 檢視中的學期（提升自 TermSwitcher，供分享連結程式化切換）。null＝尚未決定：
+  // TermSwitcher 拿到 manifest 後設為預設學期（D21，lib/terms/term-schedule.ts）。
+  selectedTerm: string | null;
   filters: FilterState;
   activeSlot: ActiveSlot | null;
   detailOfferingId: string | null;
@@ -48,7 +50,7 @@ interface UiState {
 }
 
 export const useUiStore = create<UiState>((set) => ({
-  query: "", selectedTerm: "115-1", filters: EMPTY_FILTER, activeSlot: null, detailOfferingId: null, hoveredOfferingId: null,
+  query: "", selectedTerm: null, filters: EMPTY_FILTER, activeSlot: null, detailOfferingId: null, hoveredOfferingId: null,
   viewMode: "week", selectedDay: 1, libraryOpen: false, libraryTab: "courses", selectedProgramCode: null, staleDropped: [],
   sharedPlan: null, sharedPlanOpen: false,
   setQuery: (query) => set({ query }),

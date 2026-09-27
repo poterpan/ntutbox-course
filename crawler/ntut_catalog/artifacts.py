@@ -45,6 +45,7 @@ from ntut_catalog.parse_progress import attach_weekly_progress, progress_report
 from ntut_catalog.periods import build_period_table
 from ntut_catalog.pua import normalize_pua
 from ntut_catalog.term_calendar import load_term
+from ntut_catalog.term_schedule import build_term_schedule, load_calendars
 
 # normalize.py 寫入 raw_fields 的 volatile 鍵（人數/撤選），結構檔需剔除以免每日 churn
 _VOLATILE_RAW_KEYS = ("enrolled", "withdrawn")
@@ -460,6 +461,12 @@ def write_manifest(out_dir: Path, generated_at: Optional[str] = None) -> Manifes
     calendar_freshness = _freshness(state, ("calendar",), None)
     calendars = {k: v.model_copy(update=calendar_freshness)
                  for k, v in _calendar_entries(out_dir).items()}
-    manifest = Manifest(generated_at=generated_at, terms=terms, calendars=calendars)
-    (out_dir / "v1" / "manifest.json").write_text(manifest.model_dump_json(), encoding="utf-8")
+    # 本學期／預設學期時刻表（D21）：範圍＝有 catalog 的學期 ∪ 有週次表的學期（含窗口的 target_term）。
+    all_calendars = load_calendars(out_dir)
+    term_schedule = build_term_schedule(set(terms) | set(all_calendars), all_calendars.values())
+    manifest = Manifest(generated_at=generated_at, terms=terms, calendars=calendars,
+                        term_schedule=term_schedule)
+    # by_alias：TermScheduleEntry 的 `from`（Python 保留字 → 欄位名 from_）。
+    (out_dir / "v1" / "manifest.json").write_text(manifest.model_dump_json(by_alias=True),
+                                                  encoding="utf-8")
     return manifest

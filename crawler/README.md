@@ -18,6 +18,7 @@
 - **跨學期 top-level**：`canonical/calendar/{events.ndjson,meta.json}` → `v1/calendar/events.json`（行事曆事件 feed，契約四）。內容沒變就不重寫。
 - **週次表（逐學期）**：`canonical/{term}/calendar.json` → `v1/terms/{term}/calendar.json`（契約三）。**不綁課程目錄是否已爬**——下學期的週次表往往早於課程目錄就能產。含 `enrollment_windows`（kind：`preselection` 預選＝校方「網路選課」／`freshman_preselection` 新生預選／`post_start_add_drop` 開學後加退選＝校方「加選及無紀錄退選」／`midterm_withdrawal` 期中撤選，日夜分開）。窗口放在**發生的學期**的檔（開始日所在學期），`target_term`＝被選的學期：115-2 預選 12/07 在 115-1 的檔、target 115-2；116-1 預選 2027-05-24 在 115-2 的檔、target 116-1。
 - **season 排程**：derive 把 manifest `calendars` 範圍內學期的 `enrollment_windows` 展開成整點觸發格（slot `terms`＝窗口的 `target_term`、`windows`＝顯示名 預選／新生預選／開學後加退選／期中撤選）→ `data/ops/season-schedule.json`（v1 之外、確定性）→ publish 傳 `course/ops/season-schedule.json`，Cloudflare Worker 讀它觸發 `season.yml`（`ntut_catalog/season_schedule.py`、D18）。
+- **manifest `term_schedule`**（D21）：`{"current": [{"term","from"}…], "default": [{"term","from"}…]}`，client 取 `from ≤ now` 的最後一筆。`current`＝本學期（8/1～1/31 上學期、2/1～7/31 下學期）；`default`＝網站預設學期，從本學期期中撤選截止（`midterm_withdrawal` 各部別 `end` 取晚者）起改為下學期，無撤選窗口時退用下學期預選 `start` − 14 天。由 derive 從全部 `v1/terms/*/calendar.json` 確定性產生（`ntut_catalog/term_schedule.py`），範圍＝有 catalog 的學期 ∪ 有週次表的學期 ∪ 窗口的 `target_term`。學期可能還沒有 catalog——退路在 client（`apps/web/src/lib/terms/term-schedule.ts`）。純新增欄位、不升 `SCHEMA_VERSION`（D15）。
 - **逐週進度**：derive 產 `course/{id}.json` 時由課綱原文 × 週次表即時計算（契約一），行事曆或 parser 改了下次 derive 自動生效；三態統計寫 `canonical/reports/{term}/weekly-progress.json`（commit 進 data branch，數字沒變就不 commit）。
 - `requirement.category` 由符號圖例（Cprog -5）於 normalize 補。
 
@@ -78,7 +79,7 @@ uv venv .venv && uv pip install -p .venv/bin/python -e '.[dev]'
 - `ntut_catalog/parse_subj.py` / `classes_builder.py` — 系所/班級 + pool kind 分類
 - `ntut_catalog/normalize.py` — → `CourseOffering`（內嵌班級 kind/unit/grade 由 directory lookup 填充）
 - `ntut_catalog/orchestrator.py` — 每學期：61 系所×QueryCourse + 13 學制碼×全系所；先建 directory 再 normalize。season 人數（`crawl_enrollment`）先全校一次查（`matric=全校13碼, unit=＊`，timeout 180 秒、最多 2 次），失敗退回逐系所，來源記進 pipeline-result 的 `enrollment_source`
-- `ntut_catalog/artifacts.py` — `structural_*`（去 volatile，非 mutate）/ `write_canonical` / `derive`（清空 v1 → `build_v1` 從全部 canonical 重建）/ `write_manifest`（dataset_version=結構 sha；freshness 取自 fetch-state）
+- `ntut_catalog/artifacts.py` — `structural_*`（去 volatile，非 mutate）/ `write_canonical` / `derive`（清空 v1 → `build_v1` 從全部 canonical 重建）/ `write_manifest`（dataset_version=結構 sha；freshness 取自 fetch-state；`term_schedule` 見 `term_schedule.py`）
 - `ntut_catalog/parse_detail.py` / `detail.py` — Curr(描述/EN)+ShowSyllabus(大綱)解析；`crawl_detail`（Curr 依 course_code 去重）+ `write_details`（只寫 canonical）
 - `ntut_catalog/parse_program.py` / `programs.py` — 微學程(SearchMProgram)+課程標準(Cprog -2→-3→-4)解析與爬取
 - `ntut_catalog/requirement_legend.py` — 符號→必/選類別（Cprog -5 全域圖例）；normalize 套用

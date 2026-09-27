@@ -83,7 +83,7 @@ vi.mock("@/lib/data", async (orig) => ({
 }));
 
 function seedDetail(syllabi: unknown[]) {
-  // 元件樹也會用 getManifest（use-latest-term），mock 要一併提供，否則整個 render 掛掉。
+  // 元件樹也可能用 getManifest，mock 要一併提供，否則整個 render 掛掉。
   mockGetDataSource.mockReturnValue({
     getManifest: () => Promise.resolve({ terms: { "115-1": {} } }),
     getCourseDetail: () => Promise.resolve({
