@@ -1300,6 +1300,46 @@
       "title": "ManifestTerm",
       "type": "object"
     },
+    "TermSchedule": {
+      "description": "`manifest.term_schedule`（D21）：client 取 `from ≤ now` 的最後一筆。\n\n- `current`：本學期（8/1～1/31 上學期、2/1～7/31 下學期）。\n- `default`：網站預設顯示的學期——本學期的期中撤選截止（日／夜間部取晚者）起改為下學期；\n  無撤選窗口時退用下學期預選開始 − 14 天。\n由 derive 從 calendar.json 確定性產生（不讀系統時間，`ntut_catalog/term_schedule.py`）。\n學期可能還沒有 catalog（不在 `terms`）——client 此時退回本學期、再退回 `terms` 最新者。",
+      "properties": {
+        "current": {
+          "items": {
+            "$ref": "#/$defs/TermScheduleEntry"
+          },
+          "title": "Current",
+          "type": "array"
+        },
+        "default": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/TermScheduleEntry"
+          },
+          "title": "Default"
+        }
+      },
+      "title": "TermSchedule",
+      "type": "object"
+    },
+    "TermScheduleEntry": {
+      "description": "時間軸的一格：自 `from`（ISO 8601 +08:00）起生效的學期，直到下一格的 `from`。",
+      "properties": {
+        "term": {
+          "title": "Term",
+          "type": "string"
+        },
+        "from": {
+          "title": "From",
+          "type": "string"
+        }
+      },
+      "required": [
+        "term",
+        "from"
+      ],
+      "title": "TermScheduleEntry",
+      "type": "object"
+    },
     "Manifest": {
       "description": "manifest.json：client 先抓（極小），比對 sha256 決定要不要重抓。",
       "properties": {
@@ -1357,6 +1397,17 @@
           },
           "title": "Calendars",
           "type": "object"
+        },
+        "term_schedule": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TermSchedule"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "Manifest",

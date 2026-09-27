@@ -6,7 +6,8 @@
 shell step 做（hook URL 是憑證，只經 secret → env，不進 Python 參數或 log）。
 
 預設學期：`data/v1/manifest.json` 的 `term_schedule.default`（`[{term, from}]`，`from`＝該學期成為
-預設的時刻）中 `from ≤ now` 且最晚的一筆。manifest 沒有 `term_schedule`、或沒有已生效的項目 →
+預設的時刻）中 `from ≤ now` 且最晚的一筆；該學期還沒有 catalog → 本學期 → `terms` 最新者（與 web
+`resolveTerms` 相同，D21——hub 實際建的就是這個學期）。manifest 沒有 `term_schedule`、或沒有已生效的項目 →
 解析不出來 → 退而求其次：**任一學期**的 catalog 有變就重新部署（簡單、寧可多 build；Deploy Hook
 在已排隊時會去重，多觸發的代價只是一次 build）。
 
@@ -44,10 +45,8 @@ def changed_catalog_terms(merge_reports: Optional[Path]) -> Set[str]:
     return out
 
 
-def resolve_default_term(manifest: Optional[dict], now: dt.datetime) -> Optional[str]:
-    """`term_schedule.default` 中已生效（from ≤ now）且最晚的學期；解析不出 → None。"""
-    ts = (manifest or {}).get("term_schedule")
-    entries = ts.get("default") if isinstance(ts, dict) else None
+def _effective(entries, now: dt.datetime) -> Optional[str]:
+    """`[{term, from}]` 中已生效（from ≤ now）且最晚的學期；沒有 → None。"""
     if not isinstance(entries, list):
         return None
     best: Optional[Tuple[dt.datetime, str]] = None
@@ -63,6 +62,47 @@ def resolve_default_term(manifest: Optional[dict], now: dt.datetime) -> Optional
         if since <= now and (best is None or since > best[0]):
             best = (since, e["term"])
     return best[1] if best else None
+
+
+def _containing_term(now: dt.datetime) -> str:
+    """台北日期所在學期（與 term_calendar._containing_term、web containingTerm 同規則）。"""
+    d = now.astimezone(TAIPEI).date()
+    if d.month >= 8:
+        return f"{d.year - 1911}-1"
+    if d.month == 1:
+        return f"{d.year - 1912}-1"
+    return f"{d.year - 1912}-2"
+
+
+def _term_order(term: str) -> Tuple[int, int]:
+    try:
+        y, s = term.split("-")
+        return int(y), int(s)
+    except ValueError:
+        return (-1, -1)
+
+
+def resolve_default_term(manifest: Optional[dict], now: dt.datetime) -> Optional[str]:
+    """hub 會建的學期——與 web `resolveTerms`（apps/web/src/lib/terms/term-schedule.ts）同語意：
+
+    `term_schedule.default` 已生效且最晚的一筆；該學期不在 `manifest.terms`（還沒有 catalog）→
+    本學期（`term_schedule.current`，無則日期規則）；本學期也不在 → `terms` 最新者。
+    解析不出預設學期（無 `term_schedule`／沒有已生效的項目）→ None（呼叫端退為「任一學期有變就部署」）。
+    manifest 沒有 `terms` 鍵時不做 catalog 存在檢查。
+    """
+    ts = (manifest or {}).get("term_schedule")
+    if not isinstance(ts, dict):
+        return None
+    raw = _effective(ts.get("default"), now)
+    if raw is None:
+        return None
+    terms = (manifest or {}).get("terms")
+    if not isinstance(terms, dict) or raw in terms:
+        return raw
+    current = _effective(ts.get("current"), now) or _containing_term(now)
+    if current in terms:
+        return current
+    return max(terms, key=_term_order) if terms else None
 
 
 def decide(changed: Set[str], default_term: Optional[str]) -> Tuple[bool, str]:

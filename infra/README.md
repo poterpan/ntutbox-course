@@ -74,7 +74,7 @@ Actions → **maintenance** → Run workflow：
 
 | 觸發者 | 何時 | secret |
 |---|---|---|
-| 資料管線（commit-publish action，daily／weekly／season／maintenance-backfill） | publish 成功（exit 0／3、非 dry-run）後，merge 報告顯示**預設學期**的 `catalog` 內容有變。預設學期＝`data/v1/manifest.json` 的 `term_schedule.default` 中 `from ≤ 現在` 最晚的一筆；manifest 還沒有 `term_schedule` → 退而求其次，**任一學期** catalog 有變就部署。人數、課綱變動不觸發（hub 只列課程目錄）；republish 沒有 merge 報告，不觸發 | GitHub Actions secret **`WEB_DEPLOY_HOOK_URL`** |
+| 資料管線（commit-publish action，daily／weekly／season／maintenance-backfill） | publish 成功（exit 0／3、非 dry-run）後，merge 報告顯示**預設學期**的 `catalog` 內容有變。預設學期＝`data/v1/manifest.json` 的 `term_schedule.default` 中 `from ≤ 現在` 最晚的一筆，該學期還沒有 catalog 時退回本學期、再退回最新學期（與 web `resolveTerms` 同語意，D21）；manifest 還沒有 `term_schedule` → 退而求其次，**任一學期** catalog 有變就部署。人數、課綱變動不觸發（hub 只列課程目錄）；republish 沒有 merge 報告，不觸發 | GitHub Actions secret **`WEB_DEPLOY_HOOK_URL`** |
 | season Worker（`ntutbox-season-scheduler`，每小時） | 這個整點＝某筆 `term_schedule.default[].from` 生效的整點（不在整點上的 `from` 取下一個整點）——例如 115-2 `from` 2026-11-21T17:00+08:00 → 當天 17:00 那次 cron 觸發。與 season slot、保活無關 | Worker secret **`DEPLOY_HOOK_URL`** |
 
 - **建立 hook**：Cloudflare dashboard → Workers & Pages → `ntutbox-course-web` → Settings → Builds → Deploy Hooks → 輸入名稱、

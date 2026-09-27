@@ -157,6 +157,10 @@ export type CheckedAt3 = string | null;
 export type ChangedAt3 = string | null;
 export type FirstWeekStart = string;
 export type LastWeekEnd = string;
+export type Term = string;
+export type From = string;
+export type Current = TermScheduleEntry[];
+export type Default = TermScheduleEntry[];
 export type TermKey3 = string;
 export type OfferingId1 = string;
 export type CourseCode1 = string | null;
@@ -481,6 +485,7 @@ export interface Manifest {
   min_app_version?: MinAppVersion;
   terms?: Terms;
   calendars?: Calendars;
+  term_schedule?: TermSchedule | null;
   [k: string]: unknown;
 }
 export interface Terms {
@@ -560,6 +565,28 @@ export interface CalendarManifestEntry {
   changed_at?: ChangedAt3;
   first_week_start: FirstWeekStart;
   last_week_end: LastWeekEnd;
+  [k: string]: unknown;
+}
+/**
+ * `manifest.term_schedule`（D21）：client 取 `from ≤ now` 的最後一筆。
+ *
+ * - `current`：本學期（8/1～1/31 上學期、2/1～7/31 下學期）。
+ * - `default`：網站預設顯示的學期——本學期的期中撤選截止（日／夜間部取晚者）起改為下學期；
+ *   無撤選窗口時退用下學期預選開始 − 14 天。
+ * 由 derive 從 calendar.json 確定性產生（不讀系統時間，`ntut_catalog/term_schedule.py`）。
+ * 學期可能還沒有 catalog（不在 `terms`）——client 此時退回本學期、再退回 `terms` 最新者。
+ */
+export interface TermSchedule {
+  current?: Current;
+  default?: Default;
+  [k: string]: unknown;
+}
+/**
+ * 時間軸的一格：自 `from`（ISO 8601 +08:00）起生效的學期，直到下一格的 `from`。
+ */
+export interface TermScheduleEntry {
+  term: Term;
+  from: From;
   [k: string]: unknown;
 }
 /**

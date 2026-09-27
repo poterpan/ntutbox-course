@@ -3,11 +3,13 @@
 //    OG/Twitter meta with the course name / plan size; course links also get a
 //    self-canonical + og:url so they can index as long-tail pages.
 // 2. `/sitemap-courses.xml`: dynamic sitemap of every course share link in the
-//    latest published term (from CDN manifest + names.json).
+//    default term at request time (D21 — the current term, switching to the next
+//    term at the current term's 期中撤選截止; from CDN manifest + names.json).
 // Every other request passes straight through to the assets.
 // Excluded from the app tsconfig (separate runtime); wrangler bundles it.
 import { resolveShareOg } from "../src/lib/share/og";
-import { buildCourseSitemapXml, latestTermKey } from "../src/lib/share/course-sitemap";
+import { buildCourseSitemapXml } from "../src/lib/share/course-sitemap";
+import { resolveTerms, type ManifestLike } from "../src/lib/terms/term-schedule";
 import { buildCourseNoscriptHtml } from "../src/lib/share/course-noscript";
 
 // Canonical host baked into the static metadata; worker-written canonical /
@@ -101,8 +103,9 @@ async function courseSitemap(env: Env): Promise<Response> {
     cf: { cacheTtl: 3600, cacheEverything: true },
   } as RequestInit);
   if (!res.ok) throw new Error(`manifest ${res.status}`);
-  const manifest = (await res.json()) as { terms: Record<string, unknown> };
-  const term = latestTermKey(Object.keys(manifest.terms));
+  const manifest = (await res.json()) as ManifestLike;
+  // 推廣的是「網站預設學期」（D21），以請求當下判定；與首頁預設顯示的學期一致。
+  const term = resolveTerms(manifest, new Date()).default;
   if (!term) throw new Error("no terms");
   const names = await getNames(term, env.DATA_BASE_URL);
   return new Response(buildCourseSitemapXml(SITE_ORIGIN, term, names), {

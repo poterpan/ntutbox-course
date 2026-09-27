@@ -23,13 +23,13 @@ beforeEach(() => {
 
 describe("useTermBootstrap", () => {
   it("loads default term then reconciles stale drafts (drops GONE)", async () => {
-    renderHook(() => useTermBootstrap());
+    renderHook(() => useTermBootstrap("115-1"));
     await waitFor(() => expect(useTermStore.getState().status).toBe("ready"));
     await waitFor(() => expect(useDraftStore.getState().placed).toEqual([]));
   });
 
   it("surfaces stale dropped ids in useUiStore.staleDropped after reconcile", async () => {
-    renderHook(() => useTermBootstrap());
+    renderHook(() => useTermBootstrap("115-1"));
     await waitFor(() => expect(useTermStore.getState().status).toBe("ready"));
     // "GONE" is not in the mocked catalog (only "A" exists), so it must appear in staleDropped.
     await waitFor(() => expect(useUiStore.getState().staleDropped).toContain("GONE"));

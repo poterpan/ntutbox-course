@@ -50,6 +50,18 @@ def test_resolve_default_term_unresolvable():
     assert resolve_default_term(bad, NOW) is None
 
 
+def test_resolve_default_term_falls_back_like_web_resolveTerms():
+    """與 apps/web resolveTerms 同語意：預設學期沒有 catalog → 本學期 → terms 最新者（D21）。"""
+    no_115_2 = {**SCHEDULE, "terms": {"114-2": {}, "115-1": {}}}
+    assert resolve_default_term(no_115_2, NOW) == "115-1"          # hub 仍建 115-1
+    assert decide({"115-1"}, resolve_default_term(no_115_2, NOW))[0] is True
+    assert resolve_default_term({**SCHEDULE, "terms": {"115-1": {}, "115-2": {}}}, NOW) == "115-2"
+    assert resolve_default_term({**SCHEDULE, "terms": {"114-1": {}, "114-2": {}}}, NOW) == "114-2"
+    no_current = {"term_schedule": {"default": SCHEDULE["term_schedule"]["default"]},
+                  "terms": {"115-1": {}}}                           # current 缺 → 日期規則
+    assert resolve_default_term(no_current, NOW) == "115-1"
+
+
 def test_decide():
     assert decide(set(), "115-2")[0] is False
     assert decide({"115-2"}, "115-2")[0] is True

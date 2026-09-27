@@ -734,6 +734,26 @@ class ManifestTerm(BaseModel):
     dataset_version: Optional[str] = None         # payload 帶此值；App 過舊→提示重驗
 
 
+class TermScheduleEntry(BaseModel):
+    """時間軸的一格：自 `from`（ISO 8601 +08:00）起生效的學期，直到下一格的 `from`。"""
+    model_config = ConfigDict(populate_by_name=True)
+    term: str
+    from_: str = Field(alias="from")
+
+
+class TermSchedule(BaseModel):
+    """`manifest.term_schedule`（D21）：client 取 `from ≤ now` 的最後一筆。
+
+    - `current`：本學期（8/1～1/31 上學期、2/1～7/31 下學期）。
+    - `default`：網站預設顯示的學期——本學期的期中撤選截止（日／夜間部取晚者）起改為下學期；
+      無撤選窗口時退用下學期預選開始 − 14 天。
+    由 derive 從 calendar.json 確定性產生（不讀系統時間，`ntut_catalog/term_schedule.py`）。
+    學期可能還沒有 catalog（不在 `terms`）——client 此時退回本學期、再退回 `terms` 最新者。
+    """
+    current: List[TermScheduleEntry] = Field(default_factory=list)
+    default: List[TermScheduleEntry] = Field(default_factory=list)
+
+
 class Manifest(BaseModel):
     """manifest.json：client 先抓（極小），比對 sha256 決定要不要重抓。"""
     schema_version: int = SCHEMA_VERSION
@@ -750,6 +770,8 @@ class Manifest(BaseModel):
     # 內容限**當前與前一學年度**（最多 4 筆、永遠不會長大）：清單是發現機制不是歷史檔案館。
     # 舊的 calendar.json 檔案照舊留在 CDN、不刪，只是不列出來——與孤兒課程檔同一原則。
     calendars: Dict[str, CalendarManifestEntry] = Field(default_factory=dict)
+    # 本學期／預設學期的切換時刻表（D21）。純新增（D15），舊 manifest 沒有 → null，client 自行退路。
+    term_schedule: Optional[TermSchedule] = None
 
 
 # ============================================================== 排課 → App handoff

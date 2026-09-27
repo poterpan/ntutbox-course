@@ -5,15 +5,15 @@ import { useTermStore } from "@/store/term-store";
 import { useDraftStore } from "@/store/draft-store";
 import { useUiStore } from "@/store/ui-store";
 
-const DEFAULT_TERM = "115-1";
-
-/** Loads a term, swaps the per-term persisted draft, and reconciles stale entries. */
-export function useTermBootstrap(termKey: string = DEFAULT_TERM) {
+/** Loads a term, swaps the per-term persisted draft, and reconciles stale entries.
+ * termKey 為 null（預設學期還沒決定，見 TermSwitcher）→ 什麼都不做。 */
+export function useTermBootstrap(termKey: string | null) {
   const loadTerm = useTermStore((s) => s.loadTerm);
   const bundle = useTermStore((s) => s.bundle);
   const status = useTermStore((s) => s.status);
 
   useEffect(() => {
+    if (!termKey) return;
     // per-term persistence key (spec §4 — draft isolated by term)
     useDraftStore.persist.setOptions({ name: `ntutbox-draft-${termKey}` });
     void useDraftStore.persist.rehydrate();

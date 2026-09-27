@@ -114,10 +114,23 @@ merge（鎖內、對最新 HEAD）的規則：
 - **規則**：驟減比例只對**當前學期**（學校 current-term 偵測結果）嚴格——丟棄／不發佈，行為不變。其他學期（即將選課、過去學期）：0 課／0 列仍丟棄＋告警；驟減 → **照樣採用**，發 warning 等級告警（進 `[pipeline] <workflow> 失敗` issue，人工確認）。人數快照同一套規則；publish 閘門同樣切分。
 - **當前學期在 run 內確定**：fetch job 把偵測結果記進 `pipeline-result.json` 的 `current_term`（學期規則沒用到時——明確 `--terms`／`ACTIVE_TERMS`——且有資料集成功，就跑完補偵測一次）；merge 讀它並寫進 merge 報告，commit-publish 從報告取值傳 `publish.py --current-term`。鎖內不再打學校。取不到（偵測失敗、舊 stage、republish、多份報告不一致）→ 全部學期都嚴格（保守，等同原行為）。
 
+## D21 — 本學期 vs 預設學期：期中撤選截止起預設顯示下學期；「回到本學期」按鈕
+- **問題**：排課站的預設學期寫死 `115-1`（ui-store、use-term-bootstrap、TermSwitcher 三處），sitemap-courses／hub 跟「manifest 最新學期」。D19 起下學期約在預選 30 天前就進 manifest（草案課表），「最新學期」會在學生還在修本學期、撤選都還沒截止時就把整站推到下學期；寫死的值則每學期要改程式。
+- **兩個概念**：
+  - **本學期（current）**：台北日期所在的學期——8/1～隔年 1/31 上學期、2/1～7/31 下學期（與 `term_calendar._containing_term` 同一條規則）。
+  - **預設學期（default）**：網站預設顯示的學期＝本學期；從本學期的**期中撤選截止**（本學期 calendar.json 中 `midterm_withdrawal` 日／夜間部 `end` 取晚者；115-1＝2026-11-21 17:00、115-2＝2027-05-08 17:00）起改為下學期——那之後本學期已沒有能改的選課動作，學生接著要排下學期（115-2 預選 12/07）。推不出撤選窗口 → 退用下學期預選開始 − 14 天；兩者皆無 → 不提前切換。不看下學期 catalog 是不是草案。
+- **資料**：derive 寫 manifest 新增欄位 `term_schedule`（`current`／`default` 兩條 `{term, from}` 時間軸），由 calendar.json 確定性產生、不讀系統時間（D11）；純新增、不升 `SCHEMA_VERSION`（D15）。規則放 Python 是為了跟 season 排程共用同一份窗口、能在 pytest 驗，client 只做「取 `from ≤ now` 的最後一筆」。
+- **client 退路**（`apps/web/src/lib/terms/term-schedule.ts` 的 `resolveTerms`，planner／hub build／worker 共用）：預設學期不在 `manifest.terms`（還沒有 catalog）→ 本學期；本學期也不在 → `terms` 最新者。舊 manifest 沒有 `term_schedule` → 預設＝`terms` 最新者（等同 D21 之前）。
+- **各處怎麼用**：
+  - planner：預設選取＝預設學期；分享連結（`?term=&course=`／`?plan=`）照舊優先。手動切換**不跨次保存**（每次進站回到預設學期）。
+  - 「回到本學期（115-1）」按鈕：檢視中的學期 ≠ 本學期時出現在學期選單旁（窄機放 header 下一列），按下切回本學期；本學期沒有 catalog 時不出現。沿用 `AccentButton tone="soft"`、文字用 `--accent-ink` 提高對比。
+  - `/sitemap-courses.xml`（worker）：以**請求當下**的預設學期產。
+  - `/browse/**` hub：以**部署當下**的預設學期建（build 期）；切換時刻由 D22 的 season-scheduler Worker 觸發重新部署。課程詳情的系所 hub 連結改讀 build 期產出的 `/hub-term.json`（與 hub 同一次載入），不在 client 重算——否則預設學期已切換、重新部署還沒完成（或 hook 失敗）時，連結會指向沒有產生的 hub 頁（404）。
+
 ## D22 — web 自動重新部署：資料變動與預設學期切換各自 POST Workers Builds Deploy Hook（Refs #111）
 - **問題**：`/browse/**` hub 在 build 期讀 catalog 產靜態 HTML（給不執行 JS 的爬蟲看真實 `<a>`，`apps/web/src/lib/hub/build-catalog.ts`），課程清單凍結在最後一次 code 部署。資料每天更新、預設學期每學期切換，但 web 只在有人 push `main` 時才 build → hub 會悄悄過期。
 - **做法**：Cloudflare Workers Builds 的 Deploy Hook（2026-04 起；綁 branch 的唯一 URL，`POST` 無 body、無 Authorization 就 build＋deploy `main`；限 10 builds／分鐘／Worker，已有 build 在 queued／initializing 時重複 POST 回同一個 `build_uuid`、不疊加）。兩個觸發點：
-  1. **資料管線**（commit-publish action）：publish 成功（exit 0／3、非 dry-run）後，merge 報告 `applied[]` 中 `name=catalog`、`changed=true` 的學期含**預設學期** → curl hook。預設學期＝`data/v1/manifest.json` 的 `term_schedule.default` 中 `from ≤ now` 最晚的一筆；manifest 尚無 `term_schedule`（或沒有已生效的項目）→ **任一學期** catalog 有變就部署——簡單、寧可多 build（hook 去重，多一次的代價只是一次 build），不另寫一套「hub 用哪個學期」的推論。決策在 `infra/web_redeploy.py`（pytest），shell step 只做 curl。人數／課綱變動不觸發（hub 只列目錄）。
+  1. **資料管線**（commit-publish action）：publish 成功（exit 0／3、非 dry-run）後，merge 報告 `applied[]` 中 `name=catalog`、`changed=true` 的學期含**預設學期** → curl hook。預設學期＝`data/v1/manifest.json` 的 `term_schedule.default` 中 `from ≤ now` 最晚的一筆（還沒有 catalog → 本學期 → 最新學期，與 web `resolveTerms` 同語意，D21）；manifest 尚無 `term_schedule`（或沒有已生效的項目）→ **任一學期** catalog 有變就部署——簡單、寧可多 build（hook 去重，多一次的代價只是一次 build），不另寫一套「hub 用哪個學期」的推論。決策在 `infra/web_redeploy.py`（pytest），shell step 只做 curl。人數／課綱變動不觸發（hub 只列目錄）。
   2. **season-scheduler Worker**：每小時讀線上 manifest，這個整點＝某筆 `term_schedule.default[].from` 的生效整點 → POST。預設學期切換不伴隨資料變動（例：115-2 的 catalog 早在 11 月就上線、12 月才成為預設），管線端抓不到，只能靠時間觸發。`from` 不在整點上時取**下一個**整點（截整點會在切換前 build、產出舊學期）；行事曆推導的 `from` 都在整點上，兩者相同。與 season slot、保活無關。
 - **secret**：GitHub `WEB_DEPLOY_HOOK_URL`（composite action 讀不到 `secrets`，由各 workflow 以 input 傳入）、Worker `DEPLOY_HOOK_URL`；建議建兩個 hook 各用一邊，外洩時可單獨撤銷。**兩者皆選填**：未設 → 略過（notice／log），不算失敗。
 - **失敗不擋資料**：管線端非 2xx（curl 對 5xx／逾時重試一次）→ `::warning` ＋ commit-publish 輸出 `web-redeploy=failed（HTTP …）` → alert job 列進 `[pipeline] <workflow> 失敗` issue；資料 job 不紅燈。Worker 端 manifest 讀取失敗或 hook 失敗 → 該次 cron 標失敗（dashboard 看得到）。URL 本身是憑證，兩邊的 log 都不印。

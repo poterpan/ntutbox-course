@@ -1,4 +1,4 @@
-/** Pure builders for /sitemap-courses.xml（worker 動態產：最新學期的逐課分享連結）。
+/** Pure builders for /sitemap-courses.xml（worker 動態產：預設學期〔D21〕的逐課分享連結）。
  * Cloudflare-free，vitest 可測；worker/index.ts 負責抓 manifest / names.json。 */
 import { buildCourseLink } from "./course-link";
 
