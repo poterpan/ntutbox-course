@@ -3,6 +3,7 @@ import { useTermCourses } from "@/lib/planner/use-term-courses";
 import { useScheduleView } from "@/lib/planner/use-schedule-view";
 import { useUiStore } from "@/store/ui-store";
 import { cn } from "@/lib/utils";
+import { cellRoom } from "@/lib/schedule/meeting-rooms";
 
 export function TimetableCell({ day, period }: { day: number; period: string }) {
   const { byId } = useTermCourses();
@@ -13,7 +14,8 @@ export function TimetableCell({ day, period }: { day: number; period: string }) 
   const ids = occupants(day, period);
   const conflicted = ids.length > 1;
   const first = ids[0] ? byId(ids[0]) : undefined;
-  const room = first?.classrooms?.[0]?.name;
+  // 這一格（星期×節次）的教室；逐時段查不到時退回課程層級全部教室（D24）
+  const room = first ? cellRoom(first, day, period) : undefined;
 
   // Hover ghost (desktop): the course hovered in the library meets at this (day, period).
   // Touch is gated upstream (CourseListItem only sets hover for mouse pointers).

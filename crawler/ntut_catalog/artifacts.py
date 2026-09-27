@@ -10,6 +10,7 @@
   data/v1/terms/{term}/rooms.json           TermRooms（教室課表＋GIS 對應，D23；對應在 derive 算）
   data/v1/manifest.json                     sha256/size/dataset_version＋來源新鮮度
   data/canonical/reports/{term}/weekly-progress.json   逐週進度精度報告（derive 產、commit 回 data branch）
+  data/canonical/reports/{term}/meeting-rooms.json     逐時段教室一致性報告（D24；derive 產、內容變才重寫）
   data/ops/season-schedule.json             season 觸發時刻表（derive 產、v1 之外 → R2 course/ops/）
 """
 from __future__ import annotations
@@ -90,27 +91,30 @@ def write_canonical(result: TermResult, out_dir: Path) -> None:
     (d / "classes.json").write_text(result.classes.model_dump_json(), encoding="utf-8")
 
 
-def derive(out_dir: Path) -> Manifest:
+def derive(out_dir: Path, alerts: Optional[List[dict]] = None) -> Manifest:
     """derive 層的唯一入口：canonical → 全新的 v1（spec §1 derive 規則）。
 
     - **確定性**：同一份 canonical → 逐位元組相同的 v1。不讀系統時間、不連網；
       manifest 的 `generated_at`／`published_at` 留空，由 publish 在上傳前寫入。
     - 另產 `ops/season-schedule.json`（season 觸發時刻表，範圍＝manifest `calendars` 的學期；
       見 season_schedule.py）。它在 v1 之外、每次整份重寫。
+    - `alerts`（選填）：derive 層的 warning 告警（格式同 merge 報告的 `alerts`）追加到這個 list，
+      例如逐時段教室的 conflict（D24）。CLI 以 `--alerts` 寫成檔交給 pipeline_alert。
     - **先清空 `v1/`**：publish 以「本地 v1 有沒有這個檔」判斷 R2 上的物件是否過期，
       殘留的舊產物（例如已消失的課號）會讓它永遠刪不掉。v1 是純衍生物，重建即可。
     """
     v1 = out_dir / "v1"
     if v1.exists():
         shutil.rmtree(v1)
-    manifest = build_v1(out_dir, None)
+    manifest = build_v1(out_dir, None, alerts=alerts)
     # season 排程（v1 之外，publish 另傳到 course/ops/）：範圍＝manifest 的週次表窗口
     from ntut_catalog.season_schedule import write_season_schedule
     write_season_schedule(out_dir, manifest.calendars)
     return manifest
 
 
-def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
+def build_v1(out_dir: Path, generated_at: Optional[str] = None,
+             alerts: Optional[List[dict]] = None) -> Manifest:
     """從【全部】canonical 學期重建完整 v1（catalog/classes/periods/enrollment）+ manifest。
 
     catalog 純結構（無時間戳）；enrollment.json 取該學期最後一次觀測（enrollment_store.latest）；
@@ -138,6 +142,18 @@ def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
         )
         v1 = out_dir / "v1" / "terms" / term
         v1.mkdir(parents=True, exist_ok=True)
+        # 逐時段教室（D24）：有 rooms.json → 反查教室課表填 meetings[].classroom_codes（只動 v1）
+        rooms_src = term_dir / "rooms.json"
+        room_dir = None
+        if rooms_src.exists():
+            from ntut_catalog import meeting_rooms
+            from ntut_catalog.rooms import load_rooms
+            room_dir = load_rooms(rooms_src)
+            report = meeting_rooms.attach_meeting_rooms(courses, room_dir)
+            changed = meeting_rooms.write_report(out_dir, term, report)
+            alert = meeting_rooms.conflict_alert(term, report) if changed else None
+            if alert and alerts is not None:
+                alerts.append(alert)
         _write_v1_json(v1 / "catalog.json", catalog.model_dump_json())
         # names 索引（邊緣 OG 用；課號→中文課名，小檔、隨 cron 自動發，新學期零介入）
         names = {c.offering_id: c.name.zh for c in courses if c.name and c.name.zh}
@@ -165,12 +181,11 @@ def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
         if mp.exists():
             _write_v1_json(v1 / "mprograms.json", mp.read_text(encoding="utf-8"))
         # 選用：教室課表（canonical/{term}/rooms.json 存在 → 加上 GIS 對應，D23）
-        rooms_src = term_dir / "rooms.json"
-        if rooms_src.exists():
+        if room_dir is not None:
             if room_mapping is None:
                 from ntut_catalog.room_gis import load_gis_index, load_overrides
                 room_mapping = (load_gis_index(), load_overrides())
-            build_rooms_v1(rooms_src, v1 / "rooms.json", *room_mapping)
+            build_rooms_v1(rooms_src, v1 / "rooms.json", *room_mapping, directory=room_dir)
         # 選用：詳情（canonical/{term}/details.ndjson 存在 → 炸成 course/{id}.json）
         det = term_dir / "details.ndjson"
         if det.exists():
@@ -191,10 +206,11 @@ def build_v1(out_dir: Path, generated_at: Optional[str] = None) -> Manifest:
     return write_manifest(out_dir, generated_at)
 
 
-def build_rooms_v1(src: Path, dst: Path, gis, overrides):
+def build_rooms_v1(src: Path, dst: Path, gis, overrides, directory=None):
     """canonical rooms.json → v1 rooms.json（加 GIS 對應；GIS 快照更新後下一次 derive 自動重算）。"""
     from ntut_catalog.rooms import build_term_rooms, load_rooms
-    term_rooms = build_term_rooms(load_rooms(src), gis, overrides)
+    term_rooms = build_term_rooms(directory if directory is not None else load_rooms(src),
+                                  gis, overrides)
     _write_v1_json(dst, term_rooms.model_dump_json())
     return term_rooms
 

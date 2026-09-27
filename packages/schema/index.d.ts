@@ -417,7 +417,7 @@ export interface EntityRef {
   [k: string]: unknown;
 }
 /**
- * 單一上課時段。weekPattern/dateRange/教室對應＝來源未提供（§4.7）→ optional。
+ * 單一上課時段。weekPattern/dateRange＝來源未提供（§4.7）→ optional；教室對應由 derive 反查（D24）。
  */
 export interface Meeting {
   day: Day;

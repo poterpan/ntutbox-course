@@ -266,7 +266,7 @@ def test_writes_patterns_do_not_cross_directories():
     ("115-1/catalog.ndjson", True), ("115-1/enrollment/2026-09-26T0610.ndjson", True),
     ("115-1/enrollment/observations.ndjson", True), ("115-1/details.ndjson", True),
     ("calendar/meta.json", True), ("115-2/calendar.json", True), ("standards/115.json", True),
-    ("_meta/fetch-state.json", True), ("reports/115-1/weekly-progress.json", True),
+    ("_meta/fetch-state.json", True), ("reports/115-1/weekly-progress.json", True), ("reports/115-1/meeting-rooms.json", True),
     ("pipeline-log-x.txt", False), ("115-1/stray.json", False), ("reports/115-1/calendar.json", False),
 ])
 def test_committable_scope_comes_from_registry(rel, ok):

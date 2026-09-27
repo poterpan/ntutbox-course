@@ -91,6 +91,19 @@ def test_merge_alert_opens_issue(tmp_path):
     assert "課數 12" in next(a for a in gh.calls if a[:2] == ["issue", "create"])[-1]
 
 
+def test_derive_report_warning_opens_issue(tmp_path):
+    """derive --alerts 的檔（artifact derive-reports-*，D24）與 merge 報告放同一目錄。"""
+    gh = FakeGh()
+    d = tmp_path / "reports" / "derive-reports-commit-publish"
+    d.mkdir(parents=True)
+    (d / "derive-report.json").write_text(json.dumps({"alerts": [
+        {"level": "warning", "name": "meeting-rooms", "term": "115-1", "message": "1 門課不一致"}]}),
+        encoding="utf-8")
+    _run(gh, "--needs-json", OK_NEEDS, "--merge-reports", str(tmp_path / "reports"))
+    body = next(a for a in gh.calls if a[:2] == ["issue", "create"])[-1]
+    assert "derive 警告 `meeting-rooms` 115-1：1 門課不一致" in body
+
+
 def test_repeat_failure_comments_instead_of_duplicating(tmp_path):
     gh = FakeGh({run_title("daily"): 7})
     _run(gh, "--publish-exit", "1")
