@@ -3,15 +3,15 @@
  "term_key": "115-1",
  "parser_version": "progress/1.0.0",
  "term_weeks_available": true,
- "syllabi": 2288,
+ "syllabi": 2296,
  "status_counts": {
   "resolved": 1497,
   "partial": 225,
-  "unparsed": 566
+  "unparsed": 574
  },
  "week_cells": {
-  "total": 41184,
-  "with_topic": 27735,
-  "rate": 0.673441
+  "total": 41328,
+  "with_topic": 27731,
+  "rate": 0.670998
  }
 }
