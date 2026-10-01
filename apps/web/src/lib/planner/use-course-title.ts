@@ -1,10 +1,11 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { useUiStore } from "@/store/ui-store";
+import { HOME_TITLE } from "@/lib/site";
 import { useTermCourses } from "./use-term-courses";
 
-/** 首頁固定 title，與 app/layout.tsx 的 metadata.title.default 一致。 */
-export const HOME_TITLE = "北科盒子 排課｜北科大課表規劃・課程檢索";
+/** 首頁固定 title（lib/site.ts，與 app/layout.tsx 的 metadata.title.default 同一來源）。 */
+export { HOME_TITLE };
 
 /** 課程 title 格式，與 lib/share/og.ts 的 resolveShareOg 一致。 */
 export function courseTitle(name: string): string {
