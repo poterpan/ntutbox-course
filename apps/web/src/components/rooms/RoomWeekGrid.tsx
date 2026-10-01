@@ -75,7 +75,7 @@ export function RoomWeekGrid({
   return (
     // 頁面本身不能橫捲：只有課表這塊在窄螢幕內部橫向捲動。relative 必要——內部的 absolute（sr-only）
     // 若沒有定位祖先會逃出 overflow 裁切、把整頁撐寬。
-    <div className="thin-scroll group relative -mx-4 overflow-x-auto px-4 pb-2 pt-1 sm:mx-0 sm:px-0">
+    <div className="thin-scroll room-grid-scroll group relative -mx-4 overflow-x-auto px-4 pb-2 pt-1 sm:mx-0 sm:px-0">
       <div
         role="group"
         aria-label="教室週課表"
@@ -87,11 +87,12 @@ export function RoomWeekGrid({
       >
         {/* 手機橫捲時的節次欄底：一整條連續玻璃欄（節次格本身透明，避免格間縫透出課格）；
             課表往右捲了（RoomTimetable 設 data-scrolled）才在右緣加陰影。
+            用不透明底：外層 .room-grid-scroll 有 mask，backdrop-blur 會失效，半透明底會透出課名。
             捲動容器有 px-4、sticky 以內容邊為準 → -left-4＋-ml-4／pl-4 讓欄貼齊容器左緣。 */}
         <div
           aria-hidden
-          style={{ gridColumn: 1, gridRow: "1 / -1" }}
-          className="sticky -left-4 z-[5] -my-1 -ml-4 border-r border-black/[0.06] bg-[var(--glass-bg)] backdrop-blur-md transition-shadow duration-200 group-data-[scrolled=true]:shadow-[8px_0_12px_-10px_rgba(15,23,42,0.45)] sm:hidden dark:border-white/10"
+          style={{ gridColumn: 1, gridRow: "2 / -1" }}
+          className="sticky -left-4 z-[5] -ml-4 rounded-r-xl border-y border-r border-black/[0.06] bg-white dark:bg-[rgb(26,30,38)] transition-shadow duration-200 group-data-[scrolled=true]:shadow-[8px_0_12px_-10px_rgba(15,23,42,0.45)] sm:hidden dark:border-white/10"
         />
         <div
           style={{ gridColumn: 1, gridRow: 1 }}
