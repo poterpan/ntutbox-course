@@ -1,8 +1,10 @@
 """資料發佈後要不要觸發 web 重新部署（D22）。
 
-`/browse/**` hub 是 build 期產生的靜態頁（apps/web/src/lib/hub/build-catalog.ts）：課程清單凍結在
-最後一次 build 的資料。所以 publish 成功後，若這次 merge 讓**預設學期**的 catalog 內容有變，
-就 POST Workers Builds Deploy Hook 重新 build。本檔只做決策；curl 由 commit-publish action 的
+`/browse/**` hub 與 `/rooms/**` 教室課表頁都是 build 期產生的靜態頁（apps/web/src/lib/hub/）：
+內容凍結在最後一次 build 的資料。所以 publish 成功後，若這次 merge 符合下列任一條件，就 POST Workers
+Builds Deploy Hook 重新 build：
+  1. **預設學期**的 `catalog` 內容有變（hub）；
+  2. **教室學期**的 `catalog` 或 `rooms` 內容有變（教室頁的課名／教師來自 catalog、格子來自 rooms）。本檔只做決策；curl 由 commit-publish action 的
 shell step 做（hook URL 是憑證，只經 secret → env，不進 Python 參數或 log）。
 
 預設學期：`data/v1/manifest.json` 的 `term_schedule.default`（`[{term, from}]`，`from`＝該學期成為
@@ -11,8 +13,12 @@ shell step 做（hook URL 是憑證，只經 secret → env，不進 Python 參�
 解析不出來 → 退而求其次：**任一學期**的 catalog 有變就重新部署（簡單、寧可多 build；Deploy Hook
 在已排隊時會去重，多觸發的代價只是一次 build）。
 
-只看 merge 報告的 `applied[]` 裡 `name == "catalog"` 且 `changed` 為真者——hub 只列課程目錄；
-人數快照、課綱等變動不影響 hub。沒有 merge 報告（republish）→ 不部署。
+教室學期（與 web 教室頁同語意，見 docs/superpowers/specs/2026-10-01-room-timetable-design.md「學期」）：
+本學期（`term_schedule.current` 已生效最晚一筆，無則日期規則）若 `manifest.terms[t].rooms` 存在且非 null
+→ 用它；否則 manifest 中 `rooms` 非 null 的最新學期；都沒有 → None（不因教室觸發，行為同舊版）。
+
+只看 merge 報告的 `applied[]` 裡 `name` 為 `catalog`／`rooms` 且 `changed` 為真者——人數快照、課綱等
+變動不影響這些頁面。只更新 GIS 快照（derive 層、不出現在 merge 報告）不觸發，需要時手動重建。沒有 merge 報告（republish）→ 不部署。
 預設學期的切換本身（`from` 那一刻）由 season-scheduler Worker 觸發，不在這裡。
 
 用法：
@@ -31,18 +37,29 @@ from typing import List, Optional, Set, Tuple
 
 TAIPEI = dt.timezone(dt.timedelta(hours=8))
 HUB_DATASET = "catalog"
+ROOMS_DATASET = "rooms"   # crawler/ntut_catalog/registry.py 的 Dataset 名稱
 
 
-def changed_catalog_terms(merge_reports: Optional[Path]) -> Set[str]:
-    """merge 報告中 catalog 內容有變的學期。"""
+def changed_terms(merge_reports: Optional[Path], dataset: str) -> Set[str]:
+    """merge 報告中 `dataset` 內容有變的學期。"""
     out: Set[str] = set()
     if not merge_reports or not merge_reports.exists():
         return out
     for p in sorted(merge_reports.rglob("merge-report*.json")):
         for a in json.loads(p.read_text(encoding="utf-8")).get("applied", []):
-            if a.get("name") == HUB_DATASET and a.get("changed") and a.get("term"):
+            if a.get("name") == dataset and a.get("changed") and a.get("term"):
                 out.add(str(a["term"]))
     return out
+
+
+def changed_catalog_terms(merge_reports: Optional[Path]) -> Set[str]:
+    """merge 報告中 catalog 內容有變的學期。"""
+    return changed_terms(merge_reports, HUB_DATASET)
+
+
+def changed_rooms_terms(merge_reports: Optional[Path]) -> Set[str]:
+    """merge 報告中 rooms 內容有變的學期。"""
+    return changed_terms(merge_reports, ROOMS_DATASET)
 
 
 def _effective(entries, now: dt.datetime) -> Optional[str]:
@@ -109,15 +126,54 @@ def resolve_default_term(manifest: Optional[dict], now: dt.datetime) -> Optional
     return max(terms, key=_term_order) if terms else None
 
 
-def decide(changed: Set[str], default_term: Optional[str]) -> Tuple[bool, str]:
-    if not changed:
-        return False, "catalog 沒有內容變動"
-    terms = ",".join(sorted(changed))
-    if default_term is None:
-        return True, f"預設學期解析不出（manifest 無 term_schedule），任一學期 catalog 有變：{terms}"
-    if default_term in changed:
-        return True, f"預設學期 {default_term} 的 catalog 有變"
-    return False, f"catalog 有變的是 {terms}，不是預設學期 {default_term}"
+def resolve_room_term(manifest: Optional[dict], now: dt.datetime) -> Optional[str]:
+    """教室頁會建的學期——與 web 教室頁同語意（spec 2026-10-01「學期」）：
+
+    本學期（`term_schedule.current` 已生效最晚一筆，無則日期規則）若 `manifest.terms[t].rooms` 存在且非 null
+    → 本學期；否則 `rooms` 非 null 的最新學期；都沒有（或 manifest 無 `terms`）→ None。
+    舊學期的 manifest 項可能帶 `"rooms": null`，視同沒有。
+    """
+    terms = (manifest or {}).get("terms")
+    if not isinstance(terms, dict):
+        return None
+    with_rooms = [t for t, v in terms.items() if isinstance(v, dict) and v.get("rooms") is not None]
+    if not with_rooms:
+        return None
+    ts = (manifest or {}).get("term_schedule")
+    current = (_effective(ts.get("current"), now) if isinstance(ts, dict) else None) or _containing_term(now)
+    if current in with_rooms:
+        return current
+    return max(with_rooms, key=_term_order)
+
+
+def decide(changed: Set[str], default_term: Optional[str],
+           rooms_changed: Optional[Set[str]] = None,
+           room_term: Optional[str] = None) -> Tuple[bool, str]:
+    """`changed`＝catalog 有變的學期；`rooms_changed`＝rooms 有變的學期。
+
+    條件 1（hub）：預設學期的 catalog 有變（預設學期解析不出 → 任一學期 catalog 有變）。
+    條件 2（教室頁）：教室學期的 catalog 或 rooms 有變（教室學期為 None → 不檢查）。
+    """
+    rooms_changed = rooms_changed or set()
+    if changed:
+        terms = ",".join(sorted(changed))
+        if default_term is None:
+            return True, f"預設學期解析不出（manifest 無 term_schedule），任一學期 catalog 有變：{terms}"
+        if default_term in changed:
+            return True, f"預設學期 {default_term} 的 catalog 有變"
+    if room_term is not None:
+        hit = [n for n, s in ((HUB_DATASET, changed), (ROOMS_DATASET, rooms_changed)) if room_term in s]
+        if hit:
+            return True, f"教室學期 {room_term} 的 {'、'.join(hit)} 有變"
+    if not changed and not rooms_changed:
+        return False, "catalog／rooms 沒有內容變動"
+    parts = []
+    if changed:
+        parts.append(f"catalog 有變的是 {','.join(sorted(changed))}")
+    if rooms_changed:
+        parts.append(f"rooms 有變的是 {','.join(sorted(rooms_changed))}")
+    room_desc = f"教室學期 {room_term}" if room_term else "（無教室學期）"
+    return False, f"{'；'.join(parts)}，不是預設學期 {default_term or '（解析不出）'} 的 catalog 或{room_desc}的 catalog／rooms"
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -134,7 +190,9 @@ def main(argv: Optional[List[str]] = None) -> int:
         except ValueError:
             manifest = None
     redeploy, reason = decide(changed_catalog_terms(args.merge_reports),
-                              resolve_default_term(manifest, now))
+                              resolve_default_term(manifest, now),
+                              changed_rooms_terms(args.merge_reports),
+                              resolve_room_term(manifest, now))
     print(f"web redeploy: {'yes' if redeploy else 'no'} — {reason}")
     out = os.environ.get("GITHUB_OUTPUT")
     if out:

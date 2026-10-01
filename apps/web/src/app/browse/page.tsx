@@ -56,6 +56,14 @@ export default async function BrowseIndexPage() {
               </Link>{" "}
               搜尋、排週課表與檢查衝堂。
             </p>
+            <p className="mt-3">
+              <Link
+                href="/rooms/"
+                className="inline-flex items-center gap-1.5 rounded-full bg-[var(--accent)]/10 px-3 py-1.5 text-xs font-semibold text-[var(--accent-ink)] transition-colors hover:bg-[var(--accent)]/15"
+              >
+                教室課表：查每間教室整週排了哪些課 →
+              </Link>
+            </p>
           </>
         }
       >

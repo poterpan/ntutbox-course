@@ -156,3 +156,14 @@ merge（鎖內、對最新 HEAD）的規則：
 - **告警**：conflict > 0 **且報告內容這次有變** → warning（`derive --alerts` 寫 `derive-report.json` → artifact `derive-reports-*` → alert job 列進 `[pipeline] <workflow> 失敗` issue），不擋發佈。只在變動時告警，是因為 derive 每次 run 都跑（season 選課季每小時），持續存在的衝突若每次都告警，issue 會每小時被留言、也永遠關不掉；衝突清單本身留在 git 的報告裡。
 - **Web**：課程詳情「教室」逐時段列出（「週四 5–6　六教526 ／ 週五 7　六教626」，一個時段一行）；全部時段同一間 → 只列教室；某時段查不到 → 該時段退回課程層級清單；全都查不到 → 與之前相同。名稱取該課 `classrooms[].name`（code 對不到名稱視同查不到）。排課格子顯示「那一格」的教室（split 時段顯示聯集），查不到退回課程層級**全部**教室（多教室課不猜其中一間；沒有 rooms 的舊學期會走到這裡）。邏輯在 `apps/web/src/lib/schedule/meeting-rooms.ts`（vitest）。
 - **不做**：不改 App handoff payload 的 `l`（課程層級教室字串，App 端合約另議）；不在 canonical 存逐時段教室（兩份來源的 join 是衍生物）。
+
+## D25 — 教室課表頁 `/rooms/`：build 期靜態產出、跟本學期、URL 用教室代碼
+- **問題**：rooms 資料（D23）只餵給 App 與課程詳情的逐時段教室（D24），web 沒有「查一間教室整週排了什麼課」的入口。找空教室的完整體驗（定位、個人課表）在 App，不在本範圍。
+- **做法**：`/rooms/`（依 GIS 大樓分組、client 端搜尋、「目前沒排課」開關）＋ `/rooms/<code>/`（整週課表＋「現在／下一堂」），比照 `/browse/` hub：build 期 `loadRoomsCatalog()`（`apps/web/src/lib/rooms/build-rooms.ts`）讀 v1 `rooms.json`＋`catalog.json`＋`periods.json`，CDN 失敗退回 repo fixtures；`force-static`＋`generateStaticParams`＋`dynamicParams = false`，每頁覆寫 canonical，sitemap 收錄。頁面拿精簡結構（課號已對好課名／教師／課程頁連結），client 不另抓 catalog。不改爬蟲、不升 schema。
+- **學期**：**本學期**（`resolveTerms().current`），不是 hub 的預設學期——期中撤選截止後預設學期已切下學期，但教室裡上的仍是本學期；本學期沒有 rooms → 有 rooms 的最新學期（`lib/rooms/room-term.ts`）。
+- **URL 用教室代碼**：112-1／114-2／115-1 驗證代碼↔名稱零變動，URL 不帶學期（學期寫在頁面裡）。
+- **大樓名稱**：v1 rooms.json 只有 `building_id`；名稱在 build 期讀 vendored GIS 快照 `crawler/ntut_catalog/reference/gis-rooms.json`（讀不到退回 building_id）；沒有 GIS → 「其他」。
+- **「現在」**：純函式 `roomNow`（`lib/rooms/room-now.ts`），以 periods.json 的 timezone 取星期與時:分；節內＝上課中、節間歸下一節、其他時間只給「下一堂」（跨週繞回）。只在 client mount 後算（靜態 HTML 不帶時間狀態），每分鐘＋`visibilitychange` 重算。不讀行事曆。
+- **誠實語意**：沿用 D23，頁面一律寫「依課表」，頁尾說明「有排課不代表教室正在使用，沒排課也不保證空著」＋ manifest rooms `checked_at`。
+- **課程詳情 → 教室頁**：教室名稱只在「該課學期＝教室學期且代碼有頁面」時連結；清單由 build 期 `/rooms-index.json` 提供（同 `/hub-term.json` 的理由：部署後學期可能已切換，client 不重算）。
+- **重建**：`infra/web_redeploy.py` 擴大為「預設學期 catalog 有變，或教室學期的 catalog／rooms 有變」才 POST Deploy Hook（`infra/README.md`）。已知不涵蓋：只更新 GIS 快照不觸發；教室學期在 `term_schedule.current[].from`（新學期開始）翻頁的那一刻也不觸發（season Worker 只看 `default[].from`）——要等新學期第一次 catalog／rooms 變動（通常 ≤1 天）才重建，期間 `/rooms/` 仍是上學期。兩者都可手動重建；之後可讓 Worker 也看 `current[].from`。

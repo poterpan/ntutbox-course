@@ -20,6 +20,8 @@ import type { CourseDetail, LabeledValue } from "@/lib/data/types";
 import { resolveMatric } from "@/lib/planner/matric";
 import { cn } from "@/lib/utils";
 import { courseRoomsView } from "@/lib/schedule/meeting-rooms";
+import { roomLinkHref, type RoomsIndex } from "@/lib/rooms/room-link";
+import { useRoomsIndex } from "@/lib/rooms/use-rooms-index";
 
 const DAY = ["日", "一", "二", "三", "四", "五", "六"];
 
@@ -75,6 +77,8 @@ export function CourseDetailContent({
   // 系所 hub（/browse/<unit>/）只為 hub 建構時的學期（部署當下的預設學期，D21）產生靜態頁；
   // 看其他學期時不給連結（會 404）。
   const hubTerm = useHubTerm();
+  // 教室頁（/rooms/<code>/）只為 build 期的教室學期產生；其他學期或清單外的教室維持純文字（D25）。
+  const roomsIndex = useRoomsIndex();
   const { data: mprogDir } = useMprograms(termKey ?? selectedTerm);
   const programChips = useMemo(
     () => buildProgramIndex(mprogDir).get(offeringId) ?? [],
@@ -201,7 +205,7 @@ export function CourseDetailContent({
           <Row k="開課班級" v={(c.classes ?? []).map((k) => `${k.name}${k.kind === "pool" ? "(池)" : k.kind === "virtual" ? "(佔位)" : ""}`).join("、") || "—"} />
           <Row k="時數" v={c.hours != null ? String(c.hours) : "—"} />
           <Row k="上課時間" v={(c.meetings ?? []).map((m) => `週${DAY[m.day]} ${m.periods.join("、")}節`).join("；") || "—"} />
-          <Row k="教室" v={<CourseRooms c={c} />} />
+          <Row k="教室" v={<CourseRooms c={c} termKey={termKey} roomsIndex={roomsIndex} />} />
           <Row k="已選人數" v={e?.enrolled_count != null ? String(e.enrolled_count) : "—"} />
           {c.tags && c.tags.length > 0 && <Row k="標籤" v={c.tags.join("、")} />}
         </dl>
@@ -324,15 +328,44 @@ function DcardChip({ query, label }: { query: string; label: string }) {
 }
 
 /** 教室：逐時段（D24，Croom 教室課表反查）或課程層級清單。一個時段一行，窄機不會斷在教室名中間。 */
-function CourseRooms({ c }: { c: Parameters<typeof courseRoomsView>[0] }) {
+function CourseRooms({
+  c,
+  termKey,
+  roomsIndex,
+}: {
+  c: Parameters<typeof courseRoomsView>[0];
+  termKey: string | null;
+  roomsIndex: RoomsIndex | null;
+}) {
   const view = courseRoomsView(c);
-  if (view.kind === "list") return <>{view.rooms.join("、") || "—"}</>;
+  // courseRoomsView 給的是顯示名；以該課 classrooms 反查代碼才能連到教室頁
+  const codeByName = new Map<string, string>();
+  for (const r of c.classrooms ?? []) if (r.name && r.code && !codeByName.has(r.name)) codeByName.set(r.name, r.code);
+  const names = (rooms: string[]) =>
+    rooms.length === 0
+      ? "—"
+      : rooms.map((name, i) => {
+          const href = roomLinkHref(codeByName.get(name), termKey, roomsIndex);
+          return (
+            <Fragment key={`${name}-${i}`}>
+              {i > 0 && "、"}
+              {href ? (
+                <a href={href} className="font-medium text-[var(--accent-ink)] hover:underline">
+                  {name}
+                </a>
+              ) : (
+                name
+              )}
+            </Fragment>
+          );
+        });
+  if (view.kind === "list") return <>{names(view.rooms)}</>;
   return (
     <ul className="space-y-0.5" data-testid="meeting-rooms">
       {view.lines.map((l, i) => (
         <li key={i} className="flex flex-wrap gap-x-2">
           <span className="shrink-0 font-medium tabular-nums text-[var(--ink)]">{l.when}</span>
-          <span className="min-w-0">{l.rooms.join("、") || "—"}</span>
+          <span className="min-w-0">{names(l.rooms)}</span>
         </li>
       ))}
     </ul>

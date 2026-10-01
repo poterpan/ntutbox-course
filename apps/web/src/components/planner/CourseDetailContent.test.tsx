@@ -146,3 +146,48 @@ describe("彈性學習（17-18 週）", () => {
     expect(screen.queryByText("彈性學習（17-18 週）")).toBeNull();
   });
 });
+
+// ── 教室名稱 → 教室頁（D25）──────────────────────────────────
+// 只在「該課學期＝教室學期」且代碼在 build 期清單（/rooms-index.json）內時連結。
+const { mockUseRoomsIndex } = vi.hoisted(() => ({ mockUseRoomsIndex: vi.fn(() => null as unknown) }));
+vi.mock("@/lib/rooms/use-rooms-index", () => ({ useRoomsIndex: mockUseRoomsIndex }));
+
+function seedRoomCourse() {
+  useTermStore.setState({ status: "ready", termKey: "115-1", error: null, generation: 1,
+    bundle: { termKey: "115-1", catalog: { courses: [
+      { offering_id: "A", course_code: "2B05003", name: { zh: "資料結構" }, credits: 3, teachers: [],
+        classrooms: [{ code: "154", name: "共同312(e)" }, { code: "999", name: "神秘教室" }],
+        meetings: [
+          { day: 1, periods: ["3", "4"], classroom_codes: ["154"] },
+          { day: 3, periods: ["5"], classroom_codes: ["999"] },
+        ],
+        classes: [], unit_name: "資工" },
+    ] } as never, periods: { periods: [] } as never, classes: { classes: [] } as never, enrollment: null } as never });
+}
+
+describe("教室名稱連到教室頁", () => {
+  beforeEach(() => {
+    mockUseMprograms.mockReturnValue({ data: dirNone, error: false, loading: false, retry: vi.fn() });
+    seedRoomCourse();
+  });
+
+  it("同學期且有頁面的教室 → 連到 /rooms/<code>/；清單外的維持純文字", () => {
+    mockUseRoomsIndex.mockReturnValue({ termKey: "115-1", codes: new Set(["154"]) });
+    render(<CourseDetailContent offeringId="A" />);
+    expect(screen.getByRole("link", { name: "共同312(e)" })).toHaveAttribute("href", "/rooms/154/");
+    expect(screen.getByText("神秘教室").closest("a")).toBeNull();
+  });
+
+  it("教室學期與該課學期不同 → 全部純文字", () => {
+    mockUseRoomsIndex.mockReturnValue({ termKey: "114-2", codes: new Set(["154", "999"]) });
+    render(<CourseDetailContent offeringId="A" />);
+    expect(screen.queryByRole("link", { name: "共同312(e)" })).toBeNull();
+    expect(screen.getByText("共同312(e)")).toBeInTheDocument();
+  });
+
+  it("清單未就緒／失敗 → 純文字", () => {
+    mockUseRoomsIndex.mockReturnValue(null);
+    render(<CourseDetailContent offeringId="A" />);
+    expect(screen.queryByRole("link", { name: "共同312(e)" })).toBeNull();
+  });
+});
