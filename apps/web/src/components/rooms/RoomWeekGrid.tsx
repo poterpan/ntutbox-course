@@ -75,19 +75,27 @@ export function RoomWeekGrid({
   return (
     // 頁面本身不能橫捲：只有課表這塊在窄螢幕內部橫向捲動。relative 必要——內部的 absolute（sr-only）
     // 若沒有定位祖先會逃出 overflow 裁切、把整頁撐寬。
-    <div className="thin-scroll relative -mx-4 overflow-x-auto px-4 pb-2 pt-1 sm:mx-0 sm:px-0">
+    <div className="thin-scroll group relative -mx-4 overflow-x-auto px-4 pb-2 pt-1 sm:mx-0 sm:px-0">
       <div
         role="group"
         aria-label="教室週課表"
-        className="grid min-w-[640px] gap-1"
+        className="grid min-w-[640px] gap-1 [--label-col:2.25rem] sm:[--label-col:3rem]"
         style={{
-          gridTemplateColumns: `3rem repeat(${days.length}, minmax(0, 1fr))`,
+          gridTemplateColumns: `var(--label-col) repeat(${days.length}, minmax(0, 1fr))`,
           gridTemplateRows: `2rem repeat(${tokens.length}, minmax(2.75rem, auto))`,
         }}
       >
+        {/* 手機橫捲時的節次欄底：一整條連續玻璃欄（節次格本身透明，避免格間縫透出課格）；
+            課表往右捲了（RoomTimetable 設 data-scrolled）才在右緣加陰影。
+            捲動容器有 px-4、sticky 以內容邊為準 → -left-4＋-ml-4／pl-4 讓欄貼齊容器左緣。 */}
+        <div
+          aria-hidden
+          style={{ gridColumn: 1, gridRow: "1 / -1" }}
+          className="sticky -left-4 z-[5] -my-1 -ml-4 border-r border-black/[0.06] bg-[var(--glass-bg)] backdrop-blur-md transition-shadow duration-200 group-data-[scrolled=true]:shadow-[8px_0_12px_-10px_rgba(15,23,42,0.45)] sm:hidden dark:border-white/10"
+        />
         <div
           style={{ gridColumn: 1, gridRow: 1 }}
-          className="sticky -left-4 z-10 -ml-4 bg-white/85 pl-4 backdrop-blur-sm sm:static sm:ml-0 sm:bg-transparent sm:pl-0 sm:backdrop-blur-none dark:bg-black/60 sm:dark:bg-transparent"
+          className="sticky -left-4 z-10 -ml-4 pl-4 sm:static sm:ml-0 sm:pl-0"
         />
         {days.map((d, ci) => {
           const isToday = today === d;
@@ -118,8 +126,7 @@ export function RoomWeekGrid({
             <div
               key={p.token}
               style={{ gridColumn: 1, gridRow: ri + 2 }}
-              // 手機橫捲課表時節次欄固定在左側（需不透明底，否則課格從底下透出）；捲動容器有 px-4，sticky 以內容邊為準，故 -left-4＋-ml-4／pl-4 把底色延伸到容器左緣。
-              className="sticky -left-4 z-10 -ml-4 flex flex-col items-center justify-center bg-white/85 pl-4 sm:ml-0 sm:pl-0 leading-none backdrop-blur-sm sm:static sm:bg-transparent sm:backdrop-blur-none dark:bg-black/60 sm:dark:bg-transparent"
+              className="sticky -left-4 z-10 -ml-4 flex flex-col items-center justify-center pl-4 leading-none sm:static sm:ml-0 sm:pl-0"
             >
               <span className={cn("text-xs font-semibold text-[var(--ink-soft)]", muted && "opacity-75")}>{p.token}</span>
               <span className={cn("mt-0.5 text-[9px] tabular-nums text-[var(--ink-faint)]", muted && "opacity-75")}>

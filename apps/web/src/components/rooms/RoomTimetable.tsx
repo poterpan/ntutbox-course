@@ -70,6 +70,18 @@ export function RoomTimetable({
     }
   }, [today]);
 
+  // 課表往右捲了 → data-scrolled，讓節次欄右緣出陰影（RoomWeekGrid 的 group-data-[scrolled=true]）。
+  useEffect(() => {
+    const scroller = gridRef.current?.firstElementChild;
+    if (!(scroller instanceof HTMLElement)) return;
+    const sync = () => {
+      scroller.setAttribute("data-scrolled", String(scroller.scrollLeft > 4));
+    };
+    sync();
+    scroller.addEventListener("scroll", sync, { passive: true });
+    return () => scroller.removeEventListener("scroll", sync);
+  }, [today]);
+
   return (
     <div className="flex flex-col gap-3">
       <div
