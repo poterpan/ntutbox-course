@@ -175,7 +175,8 @@ runs:
         fi
         exit "$code"
 
-    # D22：`/browse/**` hub 是 build 期靜態頁 → 預設學期 catalog 有變就 POST Deploy Hook 重新 build。
+    # D22：`/browse/**` hub 與 `/rooms/**` 教室頁是 build 期靜態頁 → 預設學期 catalog、或教室學期 catalog／rooms
+    # 有變就 POST Deploy Hook 重新 build。
     # 決策在 infra/web_redeploy.py（有單元測試）；這裡只做 curl。失敗只發 warning＋交給告警，不讓資料 job 紅燈。
     # publish 失敗（exit 非 0／3）時整個 job 已中止、不會跑到這裡；dry-run 不部署。
     - name: Trigger web redeploy (Workers Builds Deploy Hook)

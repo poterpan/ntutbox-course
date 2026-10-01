@@ -79,6 +79,7 @@ kind：預選（校方稱「網路選課」）、新生預選、開學後加退�
 - **逐時段教室**（D24）：derive 把 rooms 的 (教室, 星期, 節次) → 課號反過來，填 v1 catalog 的 `meetings[].classroom_codes`。canonical `catalog.ndjson` 不動；
   每次 derive 都以最新的 `catalog.ndjson` 與 `rooms.json` 重算，所以 daily／season 重寫 catalog 也不會蓋掉它。一致性報告 `canonical/reports/{t}/meeting-rooms.json`（full／partial／missing／split／conflict），內容沒變就不重寫。
 - **誠實語意**：slot＝「有排課」，不是「被占用」；沒有 slot 不保證教室空著。
+- **Web 教室課表頁**（D25）：`/rooms/`（依大樓分組）與 `/rooms/<code>/`（整週課表＋「現在／下一堂」），build 期讀「教室學期」（本學期，沒有 rooms 才退回有 rooms 的最新學期）的 v1 `rooms.json`＋`catalog.json` 靜態產出；課程詳情的教室名稱連到該頁（`/rooms-index.json` 判斷有無頁面）。
 
 ## 8. 憑證與 secrets 對照
 

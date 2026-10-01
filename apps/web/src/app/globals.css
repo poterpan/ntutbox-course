@@ -198,6 +198,22 @@ body {
 .thin-scroll::-webkit-scrollbar { width: 8px; height: 8px; }
 .thin-scroll::-webkit-scrollbar-thumb { background: rgba(120,130,150,0.35); border-radius: 999px; }
 
+/* 教室課表（RoomWeekGrid）手機橫捲：表頭列在固定節次欄的位置淡出，
+   免得捲過去的「週X」從左上角露出半個字（節次欄本身從第 1 節開始，不蓋表頭）。
+   3.25rem＝節次欄寬 2.25rem＋捲動容器 px-4；2.25rem＝pt-1＋表頭列 2rem。 */
+@media (max-width: 639.98px) {
+  .room-grid-scroll {
+    -webkit-mask-image: linear-gradient(to right, transparent 3.25rem, #000 4rem), linear-gradient(#000, #000);
+    mask-image: linear-gradient(to right, transparent 3.25rem, #000 4rem), linear-gradient(#000, #000);
+    -webkit-mask-size: 100% 2.25rem, 100% calc(100% - 2.25rem);
+    mask-size: 100% 2.25rem, 100% calc(100% - 2.25rem);
+    -webkit-mask-position: top, bottom;
+    mask-position: top, bottom;
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+  }
+}
+
 /* Accessibility fallbacks: opaque + no blur/motion */
 @media (prefers-reduced-transparency: reduce) {
   .glass-surface, .glass-soft { background: var(--glass-bg-strong); backdrop-filter: none; -webkit-backdrop-filter: none; }
