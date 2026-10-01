@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { HOME_DESCRIPTION, SITE_NAME } from "@/lib/site";
 
 export const dynamic = "force-static"; // output: export 要求 metadata route 明確靜態
 
@@ -6,10 +7,9 @@ export const dynamic = "force-static"; // output: export 要求 metadata route �
 // 顏色對齊 globals.css body 漸層底色；icon 走 app-dir metadata route（/icon.png）。
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "北科盒子 排課",
+    name: SITE_NAME,
     short_name: "北科排課",
-    description:
-      "查詢國立臺北科技大學（北科大）歷年課程與課綱，排週課表、即時檢查衝堂與學分、分享課表，一鍵匯入北科盒子 App。",
+    description: HOME_DESCRIPTION,
     id: "/",
     start_url: "/",
     scope: "/",

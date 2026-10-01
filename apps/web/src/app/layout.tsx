@@ -2,14 +2,14 @@ import type { Metadata, Viewport } from "next";
 import { dataBaseUrl, isLocalData } from "@/lib/env";
 import { AnalyticsConsent } from "@/components/analytics/AnalyticsConsent";
 import { GoogleAnalytics } from "@/components/analytics/GoogleAnalytics";
+import { HOME_DESCRIPTION, HOME_TITLE, SITE_NAME, SITE_ORIGIN } from "@/lib/site";
 import "./globals.css";
 
-const SITE_URL = "https://course.ntutbox.com";
-const SITE_NAME = "北科盒子 排課";
-// 首頁 title 帶搜尋字（北科大／課表規劃／課程檢索，使用者定稿）；分享連結的 title 由 edge worker 換成課名。
-const TITLE = "北科盒子 排課｜北科大課表規劃・課程檢索";
-const DESCRIPTION =
-  "查詢國立臺北科技大學（北科大）歷年課程與課綱，排週課表、即時檢查衝堂與學分、分享課表，一鍵匯入北科盒子 App。";
+const SITE_URL = SITE_ORIGIN;
+// 首頁 title／description 的唯一來源在 lib/site.ts（use-course-title 也讀同一份）；
+// 分享連結的 title 由 edge worker 換成課名。
+const TITLE = HOME_TITLE;
+const DESCRIPTION = HOME_DESCRIPTION;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: SITE_NAME,
+    title: TITLE,
     description: DESCRIPTION,
     images: ["/og.jpg"],
   },

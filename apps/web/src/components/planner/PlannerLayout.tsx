@@ -53,7 +53,7 @@ export function PlannerLayout() {
             <span>資料更新</span>
             <span className="font-medium text-[var(--ink-soft)]">{fmtDate(enrollAt ?? catalogAt)}</span>
           </div>
-          {/* 兩個內容入口都要：排課器是 app shell、沒有頁尾，這些頁若沒有站內連結
+          {/* 三個內容入口（課程總覽／教室課表／選課指南）都要：排課器是 app shell、沒有頁尾，這些頁若沒有站內連結
               就是孤兒頁（爬蟲只能從 sitemap 找到）。
               兩者都用 hidden sm:inline-flex——實測 390px 視寬塞不進這條 header
               （兩個入口並排會把 h1 擠成兩行、產生 6px 橫向溢出）。行動版的入口
@@ -65,6 +65,14 @@ export function PlannerLayout() {
             className="hidden shrink-0 rounded-lg px-2 py-2 text-[11px] font-medium text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)] sm:inline-flex"
           >
             課程總覽
+          </Link>
+          <Link
+            href="/rooms/"
+            // lg 才出現：sm–lg 之間 header 再多一個入口會把 h1 擠成兩行（實測到 ~745px 才放得下）；
+            // 那段寬度由下方 MobileViewControls（lg:hidden）的「教室」入口負責。
+            className="hidden shrink-0 rounded-lg px-2 py-2 text-[11px] text-[var(--ink-faint)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)] lg:inline-flex"
+          >
+            教室課表
           </Link>
           <Link
             href="/guide/"
@@ -197,6 +205,12 @@ function MobileViewControls() {
         className="ml-auto shrink-0 rounded-lg px-2 py-1 text-[11px] font-medium text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)]"
       >
         指南
+      </Link>
+      <Link
+        href="/rooms/"
+        className="shrink-0 rounded-lg px-2 py-1 text-[11px] font-medium text-[var(--ink-soft)] transition-colors hover:bg-[var(--accent)]/10 hover:text-[var(--accent-ink)]"
+      >
+        教室
       </Link>
       <Link
         href="/browse/"

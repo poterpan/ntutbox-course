@@ -52,6 +52,18 @@ describe("PlannerLayout (integration)", () => {
     expect(screen.getByLabelText("搜尋課程")).toBeInTheDocument();
   });
 
+  it("頁首有三個內容入口（桌機 header＋行動版那排），全是靜態 <a>", async () => {
+    render(<PlannerLayout />);
+    await waitFor(() => expect(screen.getByText("微積分")).toBeInTheDocument());
+    // vitest 下 next/link 不套 trailingSlash（吐 "/rooms"），比對前補斜線。
+    const hrefs = screen.getAllByRole("link").map((a) => (a.getAttribute("href") ?? "").replace(/\/?$/, "/"));
+    for (const href of ["/browse/", "/rooms/", "/guide/"]) {
+      // ≥2：桌機 header 與行動版那排各一（/browse/ 另可能出現在課程列的系所連結）。
+      expect(hrefs.filter((h) => h === href).length).toBeGreaterThanOrEqual(2);
+    }
+    expect(screen.getByRole("link", { name: "教室課表" }).getAttribute("href")).toMatch(/^\/rooms\/?$/);
+  });
+
   it("點微學程 tab → 顯示微學程列表", async () => {
     render(<PlannerLayout />);
     await waitFor(() => expect(screen.getByText("微積分")).toBeInTheDocument()); // booted on 課程庫

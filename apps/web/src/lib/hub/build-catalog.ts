@@ -32,6 +32,9 @@ import type { CourseOffering, Manifest, TermCatalog } from "@/lib/data/types";
 export interface HubCatalog {
   termKey: string;
   courses: CourseOffering[];
+  /** manifest `terms[t].catalog.checked_at`（最後一次確認課程資料的時間；首頁「資料更新」用）。
+   * 舊 manifest 沒有 → 退回 catalog `freshness.catalog_crawled_at` → 都沒有 null。 */
+  checkedAt: string | null;
 }
 
 /** repo 內已 commit 的 fixtures（.gitignore 明確 un-ignore 了這個目錄）。 */
@@ -56,7 +59,9 @@ async function loadFrom(read: <T>(rel: string) => Promise<T>): Promise<HubCatalo
   const catalog = await read<TermCatalog>(`terms/${termKey}/catalog.json`);
   const courses = catalog.courses ?? [];
   if (courses.length === 0) throw new Error(`${termKey} catalog 沒有課程`);
-  return { termKey, courses };
+  const checkedAt =
+    manifest.terms?.[termKey]?.catalog?.checked_at ?? catalog.freshness?.catalog_crawled_at ?? null;
+  return { termKey, courses, checkedAt };
 }
 
 let cached: Promise<HubCatalog> | null = null;
