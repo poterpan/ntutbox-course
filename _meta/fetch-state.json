@@ -3,7 +3,7 @@
   "calendar": {
    "_global": {
     "changed_at": "2026-09-27T18:31:24+08:00",
-    "checked_at": "2026-10-02T07:34:47+08:00",
+    "checked_at": "2026-10-03T07:25:55+08:00",
     "content_sha256": "4f14f846f73e3a37d50e136b3486d479abde4b28fcdc5aa35b3ef75caa4b2ac8"
    }
   },
@@ -59,9 +59,9 @@
     "content_sha256": "e3be29334296e5088791b094de59ef17df2a01e8a55fe4057855781950d9dc14"
    },
    "115-1": {
-    "changed_at": "2026-10-02T07:39:42+08:00",
-    "checked_at": "2026-10-02T07:39:42+08:00",
-    "content_sha256": "a69da061d7e6b93a05838843098b61affeb3ca90fba3f053557aba3bc5227374"
+    "changed_at": "2026-10-03T07:30:48+08:00",
+    "checked_at": "2026-10-03T07:30:48+08:00",
+    "content_sha256": "a5ebcc67df219e7a39027275beb07199a49c1047d886abb854cc8cbebe67a77a"
    }
   },
   "details": {
@@ -173,9 +173,9 @@
     "content_sha256": "f7a80dbb7b42b38a0769764c6c479b8b74c97980e12c416164ce2c015b297fd2"
    },
    "115-1": {
-    "changed_at": "2026-10-02T07:34:00+08:00",
-    "checked_at": "2026-10-02T07:39:42+08:00",
-    "content_sha256": "c5353f2de5421da8e7fc538bdc0f90544929e38fa1db88d55f560c432187bcb8"
+    "changed_at": "2026-10-03T07:25:00+08:00",
+    "checked_at": "2026-10-03T07:30:48+08:00",
+    "content_sha256": "b9add3fbfb79436b27df3a6f0883a0843fe492cc31dde92c4fc990f47f641230"
    }
   },
   "mprograms": {
@@ -231,7 +231,7 @@
    },
    "115-1": {
     "changed_at": "2026-09-23T06:55:09+08:00",
-    "checked_at": "2026-10-02T07:41:10+08:00",
+    "checked_at": "2026-10-03T07:32:16+08:00",
     "content_sha256": "64d68734e259cea6284f8359ce4a3a01a8053595f6000514faafefddbef515ee"
    }
   },
