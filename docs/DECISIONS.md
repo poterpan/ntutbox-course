@@ -167,3 +167,16 @@ merge（鎖內、對最新 HEAD）的規則：
 - **誠實語意**：沿用 D23，頁面一律寫「依課表」，頁尾說明「有排課不代表教室正在使用，沒排課也不保證空著」＋ manifest rooms `checked_at`。
 - **課程詳情 → 教室頁**：教室名稱只在「該課學期＝教室學期且代碼有頁面」時連結；清單由 build 期 `/rooms-index.json` 提供（同 `/hub-term.json` 的理由：部署後學期可能已切換，client 不重算）。
 - **重建**：`infra/web_redeploy.py` 擴大為「預設學期 catalog 有變，或教室學期的 catalog／rooms 有變」才 POST Deploy Hook（`infra/README.md`）。已知不涵蓋：只更新 GIS 快照不觸發；教室學期在 `term_schedule.current[].from`（新學期開始）翻頁的那一刻也不觸發（season Worker 只看 `default[].from`）——要等新學期第一次 catalog／rooms 變動（通常 ≤1 天）才重建，期間 `/rooms/` 仍是上學期。兩者都可手動重建；之後可讓 Worker 也看 `current[].from`。
+
+## D26 — AI 爬蟲政策：擋訓練、留搜尋（robots.txt ＋ Cloudflare WAF）
+- **問題**：排課站刻意讓爬蟲讀得到課程（逐課 sitemap、為不執行 JS 的爬蟲注入 `<noscript>` 課綱），但「被搜尋到」與「被拿去訓練」是兩件事。2026-10 的 30 天流量：Meta 的訓練爬蟲 `meta-externalagent` 約 2,000 次、GPTBot 60 次；AI 搜尋（OAI-SearchBot 約 200 次）與搜尋引擎（bingbot 約 400 次、Googlebot 約 100 次）。
+- **決定**：**擋 AI 訓練爬蟲，放行 AI 搜尋／助理與搜尋引擎。**
+  - 學生問 ChatGPT／Perplexity「北科某某課」時，回答靠的是**即時搜尋**並附連結——那是 OAI-SearchBot、ChatGPT-User、PerplexityBot 與搜尋引擎索引，照常放行。
+  - 訓練吸收的是逐課的課綱、時間、教師，不會帶來點擊；每學期會變，模型可能用舊學期資料很有把握地答錯，又不標來源。
+  - 把學校的課綱與教師姓名整批送進 AI 公司的訓練資料，是學校最可能有意見的地方；擋訓練是低成本的善意表態。
+  - 品牌認知（「北科盒子是什麼」）交給官網 `ntutbox.com`，那邊不擋。
+- **做法**：
+  - **實際阻擋**在 Cloudflare WAF custom rule「course: block AI training crawlers」（UA 比對），見 `ntutbox-edge/docs/zone-topology.md`。
+  - **robots.txt 宣告**：`apps/web/src/lib/seo/ai-crawlers.ts` 的清單 `Disallow: /`，其餘 `Allow: /`。Google-Extended、Applebot-Extended 沒有獨立爬蟲，只能在這裡控制。
+  - 測試（`ai-crawlers.test.ts`）保證 AI 搜尋／助理與搜尋引擎不會被誤加進封鎖清單。
+- **同時生效的 CDN 規則**（不在本 repo，但影響本站）：`cdn.ntutbox.com` 只放行 `/course/v1/`、`/course/ops/`、`/campus/v1/`、`/robots.txt` 與 GET／HEAD／OPTIONS，且擋所有爬蟲（含搜尋引擎）——CDN 的 JSON 是給程式讀的。**自己的程式讀 CDN 時 UA 不要含 `bot`／`crawl`／`spider`**。edge worker 的子請求沒有 UA，不受影響（分享預覽與 `sitemap-courses.xml` 已實測正常）。
