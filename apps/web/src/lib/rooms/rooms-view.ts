@@ -12,6 +12,15 @@ export interface RawRoom {
   capacity?: number | null;
   slots?: { day: number; period: string; offering_ids?: string[] | null }[] | null;
   gis?: { building_id: string; floor_id?: string | null; class_number?: string | null }[] | null;
+  /** rule／override＝對到門牌；floor_only＝只知道樓層；building_only／none＝地圖上放不了 */
+  gis_match?: string | null;
+}
+
+/** 教室在 GIS 上的位置（v1 `gis[]`）。一間教室可能對到多個空間。 */
+export interface RoomGisRef {
+  buildingId: string;
+  floorId: string | null;
+  classNumber: string | null;
 }
 
 export interface RawCourse {
@@ -44,6 +53,9 @@ export interface RoomView {
   buildingId: string | null;
   buildingName: string;
   floorId: string | null;
+  /** 全部 GIS 對應（地圖用）；`buildingId`／`floorId` 是第一筆，清單分組用 */
+  gis: RoomGisRef[];
+  gisMatch: string | null;
   slots: RoomSlotView[];
 }
 
@@ -82,6 +94,12 @@ export function buildRoomViews(
       // 大樓名稱查不到（GIS 快照讀不到）→ 退回 building_id，仍分得出組；只有完全沒有 GIS 才歸「其他」
       buildingName: buildingId ? buildingNames.get(buildingId) ?? buildingId : OTHER_BUILDING,
       floorId: g?.floor_id ?? null,
+      gis: (r.gis ?? []).map((x) => ({
+        buildingId: x.building_id,
+        floorId: x.floor_id ?? null,
+        classNumber: x.class_number ?? null,
+      })),
+      gisMatch: r.gis_match ?? null,
       slots: (r.slots ?? []).map((s) => ({
         day: s.day,
         period: s.period,

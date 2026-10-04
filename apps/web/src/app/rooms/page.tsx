@@ -9,7 +9,8 @@ import Link from "next/link";
 import { loadRoomsCatalog } from "@/lib/rooms/build-rooms";
 import { groupRoomsByBuilding } from "@/lib/rooms/rooms-view";
 import { HubShell, HubJsonLd, type Crumb } from "@/components/hub/HubShell";
-import { RoomsDirectory, type DirectoryGroup } from "@/components/rooms/RoomsDirectory";
+import type { DirectoryGroup } from "@/components/rooms/RoomsDirectory";
+import { RoomsBrowser } from "@/components/rooms/RoomsBrowser";
 import { RoomsNote } from "@/components/rooms/RoomsNote";
 import { SITE_ORIGIN } from "@/lib/site";
 
@@ -42,6 +43,8 @@ export default async function RoomsIndexPage() {
       capacity: r.capacity,
       slotCount: r.slots.length,
       slotKeys: r.slots.map((s) => `${s.day}-${s.period}`),
+      gis: r.gis,
+      gisMatch: r.gisMatch,
     })),
   }));
   const periodTable = {
@@ -71,7 +74,7 @@ export default async function RoomsIndexPage() {
           </p>
         }
       >
-        <RoomsDirectory groups={groups} periods={periodTable} />
+        <RoomsBrowser groups={groups} periods={periodTable} />
         <RoomsNote termKey={termKey} checkedAt={checkedAt} />
       </HubShell>
     </>

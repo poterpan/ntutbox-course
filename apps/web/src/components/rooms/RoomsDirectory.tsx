@@ -11,7 +11,7 @@ import Link from "next/link";
 import { SearchInput } from "@/components/ui/search-input";
 import { filterChipVariants } from "@/components/ui/filter-chip";
 import { roomNow, type PeriodsLike } from "@/lib/rooms/room-now";
-import { roomHref } from "@/lib/rooms/rooms-view";
+import { roomHref, type RoomGisRef } from "@/lib/rooms/rooms-view";
 import { cn } from "@/lib/utils";
 import { useNow } from "./RoomTimetable";
 
@@ -23,6 +23,9 @@ export interface DirectoryRoom {
   slotCount: number;
   /** `${day}-${period}`，判斷「目前沒排課」用 */
   slotKeys: string[];
+  /** 地圖（D27）用：GIS 對應與比對方式 */
+  gis: RoomGisRef[];
+  gisMatch: string | null;
 }
 
 export interface DirectoryGroup {

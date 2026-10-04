@@ -3,3 +3,5 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
   workerd: true
+minimumReleaseAgeExclude:
+  - '@ntutbox/map@0.9.0'

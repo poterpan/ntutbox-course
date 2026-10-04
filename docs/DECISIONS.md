@@ -180,3 +180,25 @@ merge（鎖內、對最新 HEAD）的規則：
   - **robots.txt 宣告**：`apps/web/src/lib/seo/ai-crawlers.ts` 的清單 `Disallow: /`，其餘 `Allow: /`。Google-Extended、Applebot-Extended 沒有獨立爬蟲，只能在這裡控制。
   - 測試（`ai-crawlers.test.ts`）保證 AI 搜尋／助理與搜尋引擎不會被誤加進封鎖清單。
 - **同時生效的 CDN 規則**（不在本 repo，但影響本站）：`cdn.ntutbox.com` 只放行 `/course/v1/`、`/course/ops/`、`/campus/v1/`、`/robots.txt` 與 GET／HEAD／OPTIONS，且擋所有爬蟲（含搜尋引擎）——CDN 的 JSON 是給程式讀的。**自己的程式讀 CDN 時 UA 不要含 `bot`／`crawl`／`spider`**。edge worker 的子請求沒有 UA，不受影響（分享預覽與 `sitemap-courses.xml` 已實測正常）。
+
+## D27 — 教室地圖 Beta：`/rooms/` 加上 @ntutbox/map 的 2.5D 樓層圖（擴大 D25 的範圍）
+- **問題**：清單回答「哪間教室這節沒排課」，但看不出位置——「三教 3F 哪幾間空、離我近不近、這層滿了往哪層走」要靠地圖。
+  D25 曾把「找空教室的完整體驗」劃給 App；地圖引擎已獨立成公開套件 `@ntutbox/map`（repo `ntutbox-map`），網頁可以先以 Beta 提供。
+- **範圍**：`/rooms/` 加「清單｜地圖 Beta」切換。**預設清單**；靜態 HTML 一律是清單，231 間教室的 `<a>` 都在（D25 的 SEO 前提不變）。
+  mount 後才讀 `?view=map` 或上次的選擇（localStorage `ntutbox-rooms-view`）。定位、個人課表等仍屬 App。
+- **載入**：地圖元件以 `next/dynamic`（`ssr: false`）引入，three.js 與引擎只在切到地圖時下載；WebGL 不可用或資料載不到 → 提示並可切回清單。
+- **資料**：
+  - 地理資料由套件直接讀 `cdn.ntutbox.com/campus/v1`（ntutbox-campus 每週發布；CSP `connect-src` 已涵蓋，CORS 允許本站）。
+  - 課表狀態在 client 算：`lib/rooms/rooms-occupancy.ts`（純函式、有測試），從 `DirectoryRoom` 的 `slotKeys` 與節次表得出
+    沒排課／快有課（60 分鐘內有課）／有課，以及「沒排課到幾點」「有課到幾點」（連堂算到最後一節）。
+  - 頁面因此多傳每間教室的全部 GIS 對應（`gis[]`、`gisMatch`）。地圖鍵 `棟/層/門牌`；`floor_only` 用 `棟/層/?代碼`（算進樓層統計、沒有多邊形）；
+    `building_only`／`none` 放不上地圖，仍在清單。
+- **時間**：預設「現在」（節內＝該節；節間＝下一節；最後一節後＝明天第一節，判斷基準是現在時刻），可改選星期與節次（判斷基準是該節開始）。不讀行事曆。
+- **版面**：桌機＝地圖＋右側面板；手機＝地圖＋可拖動的底部面板（收合／一半／展開）。面板只列「目前這棟」的教室，點了地圖會飛過去；
+  跨大樓搜尋交給清單模式。
+- **語意**：沿用 D23，一律「依課表」，並說明沒排課不保證空著。
+- **相依**：`@ntutbox/map ~0.9.0`、`three ~0.180.0`。`pnpm-workspace.yaml` 的 `minimumReleaseAgeExclude` 只放行自家套件的這一個版本；
+  套件還沒附型別，暫以 `src/types/ntutbox-map.d.ts` 宣告用到的部分。
+- **已知限制**：底部面板拉到一半時，地圖取景只避開收合高度，選取的教室可能被面板蓋住一部分；引擎會把 `.indoor-map`（`position: relative`）加在宿主容器上，
+  容器要用尺寸撐滿、不能靠 `absolute`。
+- **順帶修正**：`infra/r2-cors.json` 補上線上已有的 `https://*.poterpan.workers.dev`（預覽部署），讓設定檔與 R2 實際設定一致。
