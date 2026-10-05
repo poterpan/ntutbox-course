@@ -424,7 +424,7 @@ function campusTotals(list: BuildingOption[]): string {
   return total ? `依課表 ${free}/${total} 間沒排課` : "";
 }
 
-/** 校園白模時的面板：各棟依課表的沒排課數，點了飛進那棟。順序同清單模式（`groups`），地圖上高亮的那棟排在最前面。 */
+/** 校園白模時的面板：各棟依課表的沒排課數，點了飛進那棟。順序固定、同清單模式（`groups`）；地圖上高亮的那棟只加底色，不移位置（學生靠位置找）。 */
 function CampusPanel({
   buildings,
   focus,
@@ -435,14 +435,13 @@ function CampusPanel({
   onPick: (id: string) => void;
 }) {
   const withRooms = buildings.filter((b) => b.total > 0);
-  const ordered = focus ? [...withRooms].sort((a, b) => Number(b.id === focus) - Number(a.id === focus)) : withRooms;
   return (
     <div className="pt-1">
       <p className="pb-2 text-xs text-[var(--ink-soft)]">
         選一棟大樓，或在地圖上點大樓、放大進入。
       </p>
       <ul className="divide-y divide-black/[0.05] dark:divide-white/10">
-        {ordered.map((b) => (
+        {withRooms.map((b) => (
           <li key={b.id}>
             <button
               type="button"
