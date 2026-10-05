@@ -28,4 +28,15 @@ describe("buildingsFromRooms（rooms.json `buildings`，D28）", () => {
     expect(warn).toHaveBeenCalledOnce();
     warn.mockRestore();
   });
+
+  it("舊檔沒有 buildings → 退回凍結快照的官方名稱與順序", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const { names, order } = buildingsFromRooms({}, "115-1", [
+      { building_id: "A1T", name: "第一教學大樓" },
+      { building_id: "HR", name: "宏裕科技研究大樓" },
+    ]);
+    expect(order).toEqual(["A1T", "HR"]);
+    expect(names.get("HR")).toBe("宏裕科技研究大樓");
+    warn.mockRestore();
+  });
 });

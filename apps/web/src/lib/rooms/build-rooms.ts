@@ -9,7 +9,9 @@
  * 大樓名稱與順序：v1 rooms.json 的 `buildings`（`[{building_id, label, order}]`，derive 從
  * canonical `gis/gis-rooms.json` 算出，D28——與教室對應、地圖引擎讀的是同一份 ntutbox-campus 資料）。
  * 名稱＝`label`（derive 已退回 GIS 名稱），再退回 building_id；順序＝陣列順序（已依 `order` 排好）。
- * 舊檔沒有 `buildings` → 名稱用 building_id、依代碼排序，並告警。
+ * 舊檔沒有 `buildings`（合併後到第一次 daily derive 之間）→ 退回爬蟲打包的凍結快照
+ * （`crawler/ntut_catalog/reference/gis-rooms.fallback.json`）的官方名稱與順序＝D28 之前的行為，並告警；
+ * 連它也讀不到才用 building_id、依代碼排序。
  *
  * ⚠️ 只能被 server component / metadata route 匯入（用到 node:fs）。
  */
@@ -42,15 +44,37 @@ async function fetchJson<T>(base: string, rel: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-/** rooms.json `buildings` → 名稱表與順序（`label ?? building_id`；排序同 derive：有 order 的在前、再依代碼）。 */
+/** 凍結快照裡的大樓（只用名稱與陣列順序）；`buildingsFromRooms` 的退路。 */
+export interface FallbackBuilding {
+  building_id: string;
+  name?: string | null;
+}
+
+const FALLBACK_SNAPSHOT = path.join(process.cwd(), "..", "..", "crawler", "ntut_catalog", "reference", "gis-rooms.fallback.json");
+
+async function readFallbackBuildings(): Promise<FallbackBuilding[]> {
+  try {
+    const snap = JSON.parse(await readFile(FALLBACK_SNAPSHOT, "utf8")) as { buildings?: FallbackBuilding[] };
+    return snap.buildings ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** rooms.json `buildings` → 名稱表與順序（`label ?? building_id`；排序同 derive：有 order 的在前、再依代碼）。
+ * 沒有 `buildings` → 用 `fallback`（凍結快照：官方名稱、快照順序）。 */
 export function buildingsFromRooms(
   rooms: Pick<TermRooms, "buildings">,
   termKey: string,
+  fallback: readonly FallbackBuilding[] = [],
 ): { names: Map<string, string>; order: string[] } {
   const list = [...(rooms.buildings ?? [])];
   if (list.length === 0) {
-    console.warn(`[rooms] ${termKey} rooms.json 沒有 buildings（derive 尚未更新？），大樓名稱改用 building_id、依代碼排序`);
-    return { names: new Map(), order: [] };
+    console.warn(`[rooms] ${termKey} rooms.json 沒有 buildings（derive 尚未更新？），大樓名稱與順序退回凍結的 GIS 快照`);
+    return {
+      names: new Map(fallback.filter((b) => b.name).map((b) => [b.building_id, b.name!])),
+      order: fallback.map((b) => b.building_id),
+    };
   }
   list.sort((a, b) => {
     const oa = a.order ?? null;
@@ -77,7 +101,7 @@ async function loadFrom(read: <T>(rel: string) => Promise<T>): Promise<RoomsCata
     read<TermCatalog>(`terms/${termKey}/catalog.json`),
     read<PeriodTable>(`terms/${termKey}/periods.json`),
   ]);
-  const buildings = buildingsFromRooms(rooms, termKey);
+  const buildings = buildingsFromRooms(rooms, termKey, rooms.buildings?.length ? [] : await readFallbackBuildings());
   const list = (rooms.rooms ?? []) as unknown as RawRoom[];
   if (list.length === 0) throw new Error(`${termKey} rooms.json 沒有教室`);
   const entry = (manifest.terms?.[termKey] as { rooms?: { checked_at?: string | null } | null } | undefined)?.rooms;
