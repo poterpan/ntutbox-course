@@ -260,10 +260,12 @@ export function RoomsMap({
       if (rec.status !== "busy") c.available++;
       counts.set(b, c);
     }
-    return Object.entries(buildings)
-      .map(([id, cfg]) => ({ id, name: cfg.short || cfg.name, ...(counts.get(id) ?? { total: 0, available: 0 }) }))
-      .sort((a, b) => b.available - a.available || b.total - a.total || a.name.localeCompare(b.name, "zh-Hant"));
-  }, [buildings, occ]);
+    // 名稱與順序跟清單模式一致（`groups`＝rooms.json `buildings` 的 label／order，D28）：
+    // 只列有課程教室、且引擎進得去的大樓；「其他」（對不到 GIS）不列。
+    return groups
+      .filter((g) => g.key !== "other" && buildings[g.key])
+      .map((g) => ({ id: g.key, name: g.buildingName, ...(counts.get(g.key) ?? { total: 0, available: 0 }) }));
+  }, [buildings, occ, groups]);
 
   if (failure) {
     return (
@@ -355,6 +357,10 @@ export function RoomsMap({
               onChange={(e) => void mapRef.current?.setView({ building: e.target.value, view: "overview" })}
               className="truncate rounded-xl bg-white/95 py-2 pl-3 text-sm font-semibold text-[var(--ink)] shadow-sm ring-1 ring-black/[0.08]"
             >
+              {view?.building && !buildingOptions.some((b) => b.id === view.building) && (
+                // 在地圖上點進沒有課程教室的大樓：補一個選項，選單才不會顯示成別棟
+                <option value={view.building}>{view.buildingName ?? view.building}</option>
+              )}
               {buildingOptions.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
@@ -418,7 +424,7 @@ function campusTotals(list: BuildingOption[]): string {
   return total ? `依課表 ${free}/${total} 間沒排課` : "";
 }
 
-/** 校園白模時的面板：各棟依課表的沒排課數，點了飛進那棟。地圖上高亮的那棟排在最前面。 */
+/** 校園白模時的面板：各棟依課表的沒排課數，點了飛進那棟。順序同清單模式（`groups`），地圖上高亮的那棟排在最前面。 */
 function CampusPanel({
   buildings,
   focus,

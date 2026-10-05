@@ -2555,7 +2555,7 @@
       "type": "object"
     },
     "GisSnapshotInfo": {
-      "description": "對應所依據的 GIS 快照版本（`crawler/ntut_catalog/reference/gis-rooms.json`）。",
+      "description": "對應所依據的 GIS 版本。\n\n來源是 canonical `gis/gis-rooms.json`（`campus_gis` 資料集鏡像 ntutbox-campus 的 CDN，D28）；\ncanonical 沒有時退回套件內凍結的 `reference/gis-rooms.fallback.json`（D23 的舊快照）。",
       "properties": {
         "update_sequence": {
           "anyOf": [
@@ -2580,6 +2580,30 @@
           ],
           "default": null,
           "title": "Campus Map Manifest Sha256"
+        },
+        "campus_revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Campus Revision"
+        },
+        "campus_sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Campus Sha256"
         }
       },
       "title": "GisSnapshotInfo",
@@ -2743,6 +2767,37 @@
       "title": "TermRoom",
       "type": "object"
     },
+    "TermRoomBuilding": {
+      "description": "v1 rooms.json 的大樓清單名稱與排序（取自 ntutbox-campus gis-rooms 的 `label`／`order`，D28）。\n\n只列該學期教室 GIS 對應裡出現的大樓。`label` 缺 → GIS 名稱 → building_id；`order` 缺 → None\n（排在有 order 的後面，再依 building_id）。陣列本身已照這個順序排好。",
+      "properties": {
+        "building_id": {
+          "title": "Building Id",
+          "type": "string"
+        },
+        "label": {
+          "title": "Label",
+          "type": "string"
+        },
+        "order": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Order"
+        }
+      },
+      "required": [
+        "building_id",
+        "label"
+      ],
+      "title": "TermRoomBuilding",
+      "type": "object"
+    },
     "TermRooms": {
       "description": "v1 `terms/{t}/rooms.json`（北科盒子 App 的空教室查找）。\n\n語意：slot＝「有排課」，不是「被占用」；沒有 slot 的時段不保證空著。",
       "properties": {
@@ -2757,6 +2812,13 @@
         },
         "gis_snapshot": {
           "$ref": "#/$defs/GisSnapshotInfo"
+        },
+        "buildings": {
+          "items": {
+            "$ref": "#/$defs/TermRoomBuilding"
+          },
+          "title": "Buildings",
+          "type": "array"
         },
         "rooms": {
           "items": {

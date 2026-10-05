@@ -33,9 +33,15 @@
 - **fetch**：`Croom.jsp?format=-2`（清單，失敗＝資料集失敗、0 間 → raise）→ 每間 `format=-3&code=`（週課表，一間＝一個節點 `{"room": code}`）。115-1：231 間、約 232 請求、3 分鐘。
 - **canonical `{term}/rooms.json`**：只記學校給的——`code`（Croom 教室碼，跨學期穩定）、`raw`（簡稱原文，如「六教526(e)」）、`full_name`、`capacity`（空白 → null）、`slots: [{day 0..6（0=日）, period, offering_ids（排序）}]`。依 code 排序、不帶時間、一列一間。同一格可有多門課（合開）。
 - **節點失敗**：失敗的那一間由 merge 從 HEAD 沿用（逐位元組相同）；HEAD 也沒有就**不寫**（空課表會被當成整週沒課）；> 5% 整筆丟棄。
-- **v1 `terms/{term}/rooms.json`（derive）**：每間加 `gis: [{building_id, floor_id, class_number}]` 與 `gis_match`（`rule`／`override`／`building_only`／`floor_only`／`none`），頂層 `gis_snapshot`（GIS 快照的 updateSequence）。規則在 `ntut_catalog/room_gis.py`；GIS 快照 `reference/gis-rooms.json`（由 `../infra/gis/build_snapshot.py` 從本機 ntut-campus-map 產，勿手改）；人工對應 `reference/gis-room-overrides.json`（只收 GIS 查得到者，`gis_name` 為 GIS 上的名稱、derive 會驗）。`raw` 永遠保留。
+- **v1 `terms/{term}/rooms.json`（derive）**：每間加 `gis: [{building_id, floor_id, class_number}]` 與 `gis_match`（`rule`／`override`／`building_only`／`floor_only`／`none`），頂層 `gis_snapshot`（updateSequence＋ntutbox-campus 的 `campus_revision`／`campus_sha256`）與 `buildings: [{building_id, label, order}]`（該學期對應到的大樓，web /rooms/ 的分組名稱與順序）。規則在 `ntut_catalog/room_gis.py`；GIS 來源是 canonical `gis/gis-rooms.json`（見下「校園 GIS」），沒有才退回套件內凍結的 `reference/gis-rooms.fallback.json`（updateSequence 1044，勿手改）；人工對應 `reference/gis-room-overrides.json`（只收 GIS 查得到者，`gis_name` 為 GIS 上的名稱、derive 會驗）。`raw` 永遠保留。
 - **逐時段教室（D24，`ntut_catalog/meeting_rooms.py`）**：derive 把 rooms 的 slots 反查成 (課號, 星期, 節次) → 教室碼，填 v1 catalog 每個 `meetings[].classroom_codes`（該時段各節的聯集、依 code 排序）；canonical `catalog.ndjson` 不動、該學期沒有 rooms.json 就維持空 list。一致性報告 `canonical/reports/{term}/meeting-rooms.json`：`full`／`partial`／`missing`／`split`／`conflict` 計數＋`partial_ids`／`conflict_ids`（最多 50 筆），不帶時間、內容沒變就不重寫、隨 commit-publish 進 data branch。`conflict` > 0 且報告有變 → `derive --alerts` 寫 `derive-report.json`（artifact `derive-reports-*`），alert job 以 warning 列進 `[pipeline] <workflow> 失敗` issue（不擋發佈）。
 - **語意**：slot＝「**有排課**」，不是「被占用」。沒有 slot ≠ 保證空著——社團借用、補課、會議都不在課表裡；App 文案不可講死。房間只有課程系統的教室（不是 GIS 全部空間）。
+
+### 校園 GIS（`campus_gis`；D28）
+- **fetch**：ntutbox-campus 公開 CDN `https://cdn.ntutbox.com/campus/v1/current.json` → `manifest.<hash>.json` → `files["gis-rooms.json"].path`，**驗 sha256**。
+  `gis/source.json` 的 `manifest` 與 current.json 相同 → 只打這 1 個請求、不寫檔。schema_version ≠ 1、manifest 沒有 gis-rooms、sha256 不符 → raise（merge 不收，保留上一份）。
+- **canonical**：`gis/gis-rooms.json`（一列一筆、鍵排序，與 CDN 原檔逐位元組相同）、`gis/source.json`（`manifest`、`revision`＝`"r<N>"`——字串，避免紅線掃描把長數字當學號、`sha256`、`update_sequence`）。不帶時間。
+- **client**：`ntut_catalog/campus_cdn_client.py`，專屬 UA（CDN WAF 擋含 `bot`／`crawl`／`spider` 的 UA，D26）。
 
 ### 資料集登錄表（`ntut_catalog/registry.py`）
 每個資料集**唯一**的宣告處：`DATASETS` 裡一筆 `Dataset(name, cadence, terms, fetch, writes, append_only, content)`。
@@ -46,6 +52,7 @@ workflow 依 cadence 跑、merge 依 `writes` 決定哪些檔可進 data branch�
 | `calendar` | daily | calendar（fetcher 自決學期） | `calendar/events.ndjson`、`calendar/meta.json`、`{term}/calendar.json` |
 | `catalog` | daily | active | `{term}/catalog.ndjson`、`{term}/classes.json`、`{term}/enrollment/*.ndjson`（append_only：`observations.ndjson`） |
 | `mprograms` | daily | active | `{term}/mprograms.json` |
+| `campus_gis` | daily | none | `gis/gis-rooms.json`、`gis/source.json`（ntutbox-campus CDN 鏡像；content 只算 gis-rooms，D28） |
 | `details` | weekly | current | `{term}/details.ndjson` |
 | `standards` | weekly | none | `standards/*.json`（入學年＝當前學年與前 5 學年） |
 | `rooms` | weekly | active | `{term}/rooms.json`（教室課表；一間教室＝一個節點） |

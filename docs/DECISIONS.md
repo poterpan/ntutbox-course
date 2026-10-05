@@ -143,9 +143,9 @@ merge（鎖內、對最新 HEAD）的規則：
 - **登錄表一筆**：`rooms`、cadence **weekly**（教室課表一學期內幾乎不動；約 232 請求、3 分鐘，節流沿用 client 預設）、學期規則 `active`（同 catalog，含即將選課的學期）。節點＝一間教室的 -3 頁；清單頁失敗＝整個資料集失敗；清單 0 間 → raise、不覆寫。套 D16：單間失敗 → merge 從 HEAD 沿用那一間（逐位元組相同），HEAD 也沒有 → **不寫那一間**（寫空課表等於謊稱整週沒排課）；失敗 > 5% → 整筆丟棄。
 - **canonical `{term}/rooms.json` 只記學校給的**：`code`、簡稱原文 `raw`、`full_name`、`capacity`（空白 → null）、`slots: [{day 0..6（0=日）, period, offering_ids（排序）}]`；依 code 排序、不帶時間、一列一間（合法 JSON，git diff 看得出哪間變了）。不存使用率（可由 slots 算）。
 - **GIS 對應放在 derive**：v1 `terms/{t}/rooms.json` 的每間多 `gis: [{building_id, floor_id, class_number}]`（list：一個房號可對多個多邊形／樓層）與 `gis_match`（`rule`／`override`／`building_only`／`floor_only`／`none`），頂層帶 `gis_snapshot`（updateSequence＋campus-map manifest sha256）。`raw` 永遠保留（#242：對不上時 App 靠它模糊比對與除錯）。放 derive 是為了快照一更新、下一次 derive 自動重算，不必重爬。manifest `terms.{t}.rooms`（`checked_at`／`changed_at` 取 fetch-state）；純新增、不升 `SCHEMA_VERSION`（D15）。
-- **GIS 快照 vendored**：GIS 只在本機的 `ntut-campus-map`（無 remote，源頭是學校公開 GeoServer），CI 拿不到 → `infra/gis/build_snapshot.py` 抽成 `crawler/ntut_catalog/reference/gis-rooms.json`（建物＋有 classNumber 的房間，**無幾何**，約 380 KB）。房間鍵＝(buildingId, classNumber)——classNumber 只在同一棟內唯一；**不用 sourceFeatureId**（gid 重新匯入就會變）。
+- ~~**GIS 快照 vendored**~~（**D28 取代**：改為 daily `campus_gis` 鏡像 ntutbox-campus CDN；舊快照留作 `reference/gis-rooms.fallback.json`、`infra/gis/build_snapshot.py` 已刪）：GIS 只在本機的 `ntut-campus-map`（無 remote，源頭是學校公開 GeoServer），CI 拿不到 → `infra/gis/build_snapshot.py` 抽成 `crawler/ntut_catalog/reference/gis-rooms.json`（建物＋有 classNumber 的房間，**無幾何**，約 380 KB）。房間鍵＝(buildingId, classNumber)——classNumber 只在同一棟內唯一；**不用 sourceFeatureId**（gid 重新匯入就會變）。
 - **對應規則**：前綴表（一教 A1T … 科研大樓／科研 HR，最長優先）→ 去空白、`(e)`、數字後的 `e` → 樓層式（`1F_1`）＝`floor_only`；房號式 `_N`→`-N`、再試去前導零 → GIS 有＝`rule`、沒有＝`building_only`；其他文字＝`building_only`；沒有前綴（紡織：GIS 沒這棟）＝`none`。具名廳堂只在 **GIS 上查得到**時進 `reference/gis-room-overrides.json`，每筆帶該房間在 GIS 上的名稱 `gis_name`（不必與課程系統同名；derive 會再驗一次，不過就忽略＋warning）。115-1：rule 216、override 5（思源講堂→CB 417-2、綜二／綜三演講廳→CB B19／B20、科研哈佛講堂→A6T B425「哈佛講堂」（實在宏裕科研大樓 B4，兩棟相連、GIS 歸在六教）、共同演講廳→GB B07「視聽教室(255人)」（B02「十二甲講堂」是展覽廳）；後兩筆 2026-09-27 使用者確認）、floor_only 7（一教1F(e) 維持 floor_only，使用者確認）、building_only 1（科研大樓243e：GIS 沒有 HR 243）、none 2（紡織501A／503）。
-- **updateSequence 只記錄、不告警**（weekly alert job，1 請求）：GeoServer GetCapabilities 的 `updateSequence` 與快照的值寫進 run summary＋`::notice`，**不開 issue**。原本設計成「不相等就開 issue」，但實測 2026-09 三週內 1044→1146、教室 0 變動（room-index.json 完全相同，只多 21 筆建物＋2 處 sourceProperties 修改）——它不是「教室變了」的訊號，拿來告警只會每週誤報。長期處理（改用外部 repo 發佈的 GIS 資料、含研究室名稱等欄位的治理）追蹤於 **issue #120**。快照暫留 1044：教室內容與 1146 相同，而 campus-map 的驗證器目前在新建物上失敗，不從它重建。學校憑證鏈 Python 驗不過時，**只對這一個公開唯讀 URL** 不驗證重試一次並記 log（campus-map 也是逐 URL fallback）；其他失敗只發 warning。
+- ~~**updateSequence 只記錄、不告警**~~（**D28 移除** `gis-drift`：GIS 改由 ntutbox-campus 每週發布、本 repo 每天鏡像，不必再比對）（weekly alert job，1 請求）：GeoServer GetCapabilities 的 `updateSequence` 與快照的值寫進 run summary＋`::notice`，**不開 issue**。原本設計成「不相等就開 issue」，但實測 2026-09 三週內 1044→1146、教室 0 變動（room-index.json 完全相同，只多 21 筆建物＋2 處 sourceProperties 修改）——它不是「教室變了」的訊號，拿來告警只會每週誤報。長期處理（改用外部 repo 發佈的 GIS 資料、含研究室名稱等欄位的治理）追蹤於 **issue #120**。快照暫留 1044：教室內容與 1146 相同，而 campus-map 的驗證器目前在新建物上失敗，不從它重建。學校憑證鏈 Python 驗不過時，**只對這一個公開唯讀 URL** 不驗證重試一次並記 log（campus-map 也是逐 URL fallback）；其他失敗只發 warning。
 - **誠實語意**：slot＝「有排課」，不是「被占用」；沒有 slot ≠ 保證空著（社團借用、補課、會議不在課表裡）。
 
 ## D24 — 逐時段教室：derive 以 Croom 教室課表反查 `meetings[].classroom_codes`
@@ -162,11 +162,11 @@ merge（鎖內、對最新 HEAD）的規則：
 - **做法**：`/rooms/`（依 GIS 大樓分組、client 端搜尋、「目前沒排課」開關）＋ `/rooms/<code>/`（整週課表＋「現在／下一堂」），比照 `/browse/` hub：build 期 `loadRoomsCatalog()`（`apps/web/src/lib/rooms/build-rooms.ts`）讀 v1 `rooms.json`＋`catalog.json`＋`periods.json`，CDN 失敗退回 repo fixtures；`force-static`＋`generateStaticParams`＋`dynamicParams = false`，每頁覆寫 canonical，sitemap 收錄。頁面拿精簡結構（課號已對好課名／教師／課程頁連結），client 不另抓 catalog。不改爬蟲、不升 schema。
 - **學期**：**本學期**（`resolveTerms().current`），不是 hub 的預設學期——期中撤選截止後預設學期已切下學期，但教室裡上的仍是本學期；本學期沒有 rooms → 有 rooms 的最新學期（`lib/rooms/room-term.ts`）。
 - **URL 用教室代碼**：112-1／114-2／115-1 驗證代碼↔名稱零變動，URL 不帶學期（學期寫在頁面裡）。
-- **大樓名稱**：v1 rooms.json 只有 `building_id`；名稱在 build 期讀 vendored GIS 快照 `crawler/ntut_catalog/reference/gis-rooms.json`（讀不到退回 building_id）；沒有 GIS → 「其他」。
+- **大樓名稱**：~~v1 rooms.json 只有 `building_id`；名稱在 build 期讀 vendored GIS 快照 `crawler/ntut_catalog/reference/gis-rooms.json`（讀不到退回 building_id）~~（**D28 取代**：名稱與順序改讀 v1 rooms.json 的 `buildings`）；沒有 GIS → 「其他」。
 - **「現在」**：純函式 `roomNow`（`lib/rooms/room-now.ts`），以 periods.json 的 timezone 取星期與時:分；節內＝上課中、節間歸下一節、其他時間只給「下一堂」（跨週繞回）。只在 client mount 後算（靜態 HTML 不帶時間狀態），每分鐘＋`visibilitychange` 重算。不讀行事曆。
 - **誠實語意**：沿用 D23，頁面一律寫「依課表」，頁尾說明「有排課不代表教室正在使用，沒排課也不保證空著」＋ manifest rooms `checked_at`。
 - **課程詳情 → 教室頁**：教室名稱只在「該課學期＝教室學期且代碼有頁面」時連結；清單由 build 期 `/rooms-index.json` 提供（同 `/hub-term.json` 的理由：部署後學期可能已切換，client 不重算）。
-- **重建**：`infra/web_redeploy.py` 擴大為「預設學期 catalog 有變，或教室學期的 catalog／rooms 有變」才 POST Deploy Hook（`infra/README.md`）。已知不涵蓋：只更新 GIS 快照不觸發；教室學期在 `term_schedule.current[].from`（新學期開始）翻頁的那一刻也不觸發（season Worker 只看 `default[].from`）——要等新學期第一次 catalog／rooms 變動（通常 ≤1 天）才重建，期間 `/rooms/` 仍是上學期。兩者都可手動重建；之後可讓 Worker 也看 `current[].from`。
+- **重建**：`infra/web_redeploy.py` 擴大為「預設學期 catalog 有變，或教室學期的 catalog／rooms 有變」才 POST Deploy Hook（`infra/README.md`）。已知不涵蓋：~~只更新 GIS 快照不觸發~~（D28 起 `campus_gis` 有變即觸發）；教室學期在 `term_schedule.current[].from`（新學期開始）翻頁的那一刻也不觸發（season Worker 只看 `default[].from`）——要等新學期第一次 catalog／rooms 變動（通常 ≤1 天）才重建，期間 `/rooms/` 仍是上學期。兩者都可手動重建；之後可讓 Worker 也看 `current[].from`。
 
 ## D26 — AI 爬蟲政策：擋訓練、留搜尋（robots.txt ＋ Cloudflare WAF）
 - **問題**：排課站刻意讓爬蟲讀得到課程（逐課 sitemap、為不執行 JS 的爬蟲注入 `<noscript>` 課綱），但「被搜尋到」與「被拿去訓練」是兩件事。2026-10 的 30 天流量：Meta 的訓練爬蟲 `meta-externalagent` 約 2,000 次、GPTBot 60 次；AI 搜尋（OAI-SearchBot 約 200 次）與搜尋引擎（bingbot 約 400 次、Googlebot 約 100 次）。
@@ -204,3 +204,24 @@ merge（鎖內、對最新 HEAD）的規則：
 - **已知限制**：底部面板拉到一半時，地圖取景只避開收合高度，選取的教室可能被面板蓋住一部分；引擎會把 `.indoor-map`（`position: relative`）加在宿主容器上，
   容器要用尺寸撐滿、不能靠 `absolute`。
 - **順帶修正**：`infra/r2-cors.json` 補上線上已有的 `https://*.poterpan.workers.dev`（預覽部署），讓設定檔與 R2 實際設定一致。
+
+## D28 — 校園 GIS 改由 `campus_gis` 資料集鏡像 ntutbox-campus 的 CDN（取代 D23 的 vendored 快照與 gis-drift）
+- **問題**：教室 ↔ GIS 對應（D23）讀 repo 內手動 vendored 的 `reference/gis-rooms.json`（本機 ntut-campus-map 產，停在 updateSequence 1044），
+  `/rooms/` 清單的大樓名稱也讀它（D25），地圖（D27）卻由 `@ntutbox/map` 直接讀 ntutbox-campus 的 CDN——同一頁兩份 GIS、名稱與順序對不上，
+  快照只能在本機更新，weekly 的 `gis-drift` 只能記錄落差。issue #120 要的「改用外部 repo 發佈的 GIS 資料」，ntutbox-campus 已經每週發布到
+  `cdn.ntutbox.com/campus/v1/`（公開、`current.json` → 雜湊命名的 manifest → 雜湊命名的檔案）。
+- **決定：一份來源**。新增登錄表資料集 `campus_gis`（daily、學期規則 `none`）：讀 `current.json`，manifest 與 data branch `gis/source.json` 記的相同 → 只打這 1 個請求、不寫檔；
+  否則讀 manifest、依雜湊路徑抓 `gis-rooms.json`、**驗 sha256**，寫 canonical `gis/gis-rooms.json`（一列一筆、鍵排序；與 CDN 原檔逐位元組相同）＋`gis/source.json`
+  （`manifest`、`revision`、`sha256`、`update_sequence`）。fetch-state 的 content 只算 gis-rooms，所以只有 revision 前進、內容沒變時不算「有變」。
+- **derive 不連網**（D11）：`load_gis_index(canonical)` 讀 canonical `gis/`；沒有（本機開發、資料集首次跑之前）→ 退回凍結的 `reference/gis-rooms.fallback.json`（原 1044 快照，
+  教室內容與 1146 相同）並 warning。fallback 隨套件安裝（package-data），任何環境的 derive 都跑得起來；它不再更新。
+- **保留上一份好的**：schema_version ≠ 1、manifest 沒有 gis-rooms、sha256 不符、內容缺 buildings／rooms → fetcher raise，pipeline 記失敗、merge 不收，data branch 照舊（D16 的精神）。
+- **v1 rooms.json**：`gis_snapshot` 加 `campus_revision`／`campus_sha256`（`campus_map_manifest_sha256` 留作舊快照用、CDN 版為 null）；新增 `buildings: [{building_id, label, order}]`——
+  只列該學期教室對應裡出現的大樓（這是課程教室的清單，完整建物表在 campus CDN；App 也可直接用），`label` 缺 → GIS 名稱，依 `order`（缺的排後）再依 id 排。
+  純新增欄位、不升 `SCHEMA_VERSION`（D15）。label／order 是 ntutbox-campus `curation/buildings.json` 的人工資料（例：HR「宏裕科研大樓」排在六教之後），改名改序在那邊改。
+- **Web**：`/rooms/` 清單的分組名稱與順序取 `buildings`（沒有 → building_id、依代碼，並 warning）；地圖的大樓選單與校園面板改用同一份 `groups`（同名同序、不列「其他」、只列有課程教室且引擎進得去的大樓），
+  仍顯示「N 間沒排課」。引擎能進哪些大樓仍由 `campusCdnSource()` 的 buildings 決定。`campus_gis` 有變且有教室學期 → web 重新部署（`infra/web_redeploy.py` 條件 ③）。
+- **revision 存字串 `"r<N>"`**：`infra/redline_scan.py` 把 9 位以上的裸數字當疑似學號擋下 commit；revision 長大後不能讓 canonical 被擋。
+- **UA**：CDN 的 WAF 擋 UA 含 `bot`／`crawl`／`spider` 的請求（D26），既有 `ntutbox-course-crawler/…` 會 403 → 專屬 client `campus_cdn_client.py`、UA `ntutbox-course/0.1 (+https://github.com/ntutbox; campus GIS mirror)`（有測試防回歸）。
+- **移除**：`infra/gis/build_snapshot.py`、`pipeline_alert.py gis-drift` 與 weekly 的對應步驟、舊路徑 `reference/gis-rooms.json`。對應分布不變（115-1 實測 CDN r2／1146：rule 216、override 5、floor_only 7、building_only 1、none 2）。
+- **代價**：ntutbox-campus 發布新 revision（即使 gis-rooms 沒變）會讓 v1 rooms.json 的 `campus_revision` 跟著變、重傳一次；每週至多一次，可接受。

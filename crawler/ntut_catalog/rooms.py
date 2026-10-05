@@ -83,7 +83,7 @@ def write_rooms(directory: RoomDirectory, out_dir: Path) -> Path:
 
 
 def build_term_rooms(directory: RoomDirectory, gis, overrides) -> TermRooms:
-    """canonical ＋ GIS 快照 → v1 TermRooms（確定性、不連網）。"""
+    """canonical ＋ GIS 快照 → v1 TermRooms（確定性、不連網）。`buildings` 只列對應裡出現的大樓。"""
     from ntut_catalog.room_gis import map_room
 
     warnings: List[str] = []
@@ -93,7 +93,10 @@ def build_term_rooms(directory: RoomDirectory, gis, overrides) -> TermRooms:
         rooms.append(TermRoom(**r.model_dump(), gis=refs, gis_match=match))
     for w in sorted(set(warnings)):
         logger.warning("[%s] rooms: %s", directory.term_key, w)
-    return TermRooms(term_key=directory.term_key, gis_snapshot=gis.source, rooms=rooms)
+    from ntut_catalog.room_gis import building_entries
+    used = {ref.building_id for r in rooms for ref in r.gis}
+    return TermRooms(term_key=directory.term_key, gis_snapshot=gis.source,
+                     buildings=building_entries(gis, used), rooms=rooms)
 
 
 def match_summary(term_rooms: TermRooms) -> Counter:

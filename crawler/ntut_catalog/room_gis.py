@@ -4,9 +4,13 @@
 這裡只負責「課程系統這間教室在 GIS 的哪裡」，對不到就老實標 `none`，原始簡稱 `raw` 永遠保留
 （App 校園地圖規劃指出：教室字串與 GIS 房號之間的 join key 是最大風險）。
 
-GIS 端用 repo 內的精簡快照 `reference/gis-rooms.json`（`infra/gis/build_snapshot.py` 從本機
-ntut-campus-map 產生），房間鍵＝(building_id, class_number)——class_number 只在同一棟內唯一；
-**不用** sourceFeatureId（gid 重新匯入就會變）。對應放在 derive：快照更新後下一次 derive 自動重算。
+GIS 端讀 canonical `gis/gis-rooms.json`——`campus_gis` 資料集（D28）每天從校園資料平台
+ntutbox-campus 的公開 CDN 鏡像進 data branch，`gis/source.json` 記它的 revision／sha256。
+canonical 沒有（本機開發、資料集上線前）→ 退回套件內凍結的 `reference/gis-rooms.fallback.json`
+（D23 時代的 vendored 快照，updateSequence 1044，教室內容與 1146 相同）並 warning。fallback 隨套件安裝
+（package-data），所以 derive 在任何環境都跑得起來；它不再更新，只是保底。
+房間鍵＝(building_id, class_number)——class_number 只在同一棟內唯一；**不用** sourceFeatureId
+（gid 重新匯入就會變）。對應放在 derive：GIS 一更新，下一次 derive 自動重算。
 
 規則（依序）：
   1. override：`reference/gis-room-overrides.json` 以簡稱原文為鍵，**只收 GIS 查得到的**
@@ -28,12 +32,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Tuple
 
-from models import GisSnapshotInfo, RoomGisRef
+from models import GisSnapshotInfo, RoomGisRef, TermRoomBuilding
 
 logger = logging.getLogger(__name__)
 
 REFERENCE = Path(__file__).parent / "reference"
-SNAPSHOT_PATH = REFERENCE / "gis-rooms.json"
+FALLBACK_PATH = REFERENCE / "gis-rooms.fallback.json"
+# canonical 內 campus_gis 資料集的兩個檔（registry.py 的 writes 用同樣的路徑）
+GIS_ROOMS_REL = "gis/gis-rooms.json"
+GIS_SOURCE_REL = "gis/source.json"
 OVERRIDES_PATH = REFERENCE / "gis-room-overrides.json"
 
 # 課程系統教室簡稱的棟別前綴 → GIS buildingId。比對時最長前綴優先（「科研大樓」先於「科研」）。
@@ -60,16 +67,29 @@ class GisIndex:
     floors: Dict[str, Set[str]] = field(default_factory=dict)                   # building → floors
     rooms: Dict[Tuple[str, str], Set[str]] = field(default_factory=dict)        # (b, cn) → floors
     names: Dict[Tuple[str, str], Set[str]] = field(default_factory=dict)        # (b, cn) → 名稱/用途
+    # building → {"name", "label", "order"}（label／order 是 ntutbox-campus 的清單名稱與固定排序，選填）
+    building_meta: Dict[str, dict] = field(default_factory=dict)
 
     @classmethod
-    def from_snapshot(cls, snap: dict) -> "GisIndex":
+    def from_snapshot(cls, snap: dict, campus: Optional[dict] = None) -> "GisIndex":
+        """`snap`＝gis-rooms.json；`campus`＝canonical `gis/source.json`（CDN 鏡像才有）。
+
+        兩種 `source` 形狀都收：舊 vendored 快照帶 `campus_map_manifest_sha256`，CDN 版只有
+        `description`＋`update_sequence`。"""
         src = snap.get("source") or {}
+        campus = campus or {}
         idx = cls(source=GisSnapshotInfo(
             update_sequence=src.get("update_sequence"),
-            campus_map_manifest_sha256=src.get("campus_map_manifest_sha256")))
+            campus_map_manifest_sha256=src.get("campus_map_manifest_sha256"),
+            campus_revision=campus.get("revision"),
+            campus_sha256=campus.get("sha256")))
         for b in snap.get("buildings", []):
-            idx.buildings.add(b["building_id"])
-            idx.floors[b["building_id"]] = set(b.get("floor_ids") or [])
+            bid = b["building_id"]
+            idx.buildings.add(bid)
+            idx.floors[bid] = set(b.get("floor_ids") or [])
+            order = b.get("order")
+            idx.building_meta[bid] = {"name": b.get("name"), "label": b.get("label"),
+                                      "order": order if isinstance(order, int) else None}
         for r in snap.get("rooms", []):
             key = (r["building_id"], r["class_number"])
             idx.rooms.setdefault(key, set()).add(r["floor_id"])
@@ -77,8 +97,51 @@ class GisIndex:
         return idx
 
 
-def load_gis_index(path: Path = SNAPSHOT_PATH) -> GisIndex:
-    return GisIndex.from_snapshot(json.loads(path.read_text(encoding="utf-8")))
+def load_gis_index(canonical: Optional[Path] = None, fallback: Path = FALLBACK_PATH) -> GisIndex:
+    """canonical `gis/gis-rooms.json`（campus_gis 鏡像，D28）優先；沒有 → fallback＋warning。"""
+    path = canonical / GIS_ROOMS_REL if canonical is not None else None
+    if path is not None and path.exists():
+        src_path = canonical / GIS_SOURCE_REL
+        campus = json.loads(src_path.read_text(encoding="utf-8")) if src_path.exists() else None
+        return GisIndex.from_snapshot(json.loads(path.read_text(encoding="utf-8")), campus)
+    logger.warning("canonical 沒有 %s（campus_gis 尚未跑過？）——教室 GIS 對應改用凍結的 fallback %s",
+                   GIS_ROOMS_REL, fallback.name)
+    return GisIndex.from_snapshot(json.loads(fallback.read_text(encoding="utf-8")))
+
+
+def dump_gis_rooms(snap: dict) -> str:
+    """gis-rooms.json 的確定性序列化：一列一筆（仍是合法 JSON），git diff 看得出哪些房間變了。
+
+    鍵排序、緊湊分隔——與 ntutbox-campus 發布的格式相同，上游沒改格式時寫出的位元組＝CDN 原檔。
+    建物保留上游順序（已依 `order`、再依 id 排好），房間也保留上游順序。"""
+    def line(x) -> str:
+        return json.dumps(x, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+
+    def block(items) -> str:
+        return "[\n" + ",\n".join(line(x) for x in items) + "\n]"
+
+    return ('{"source":' + line(snap["source"]) + ',\n"buildings":' + block(snap["buildings"])
+            + ',\n"rooms":' + block(snap["rooms"]) + "}\n")
+
+
+def dump_gis_source(info: dict) -> str:
+    """`gis/source.json`：鏡像的是哪一版（不帶時間，D13）。"""
+    return json.dumps(info, ensure_ascii=False, sort_keys=True, indent=1) + "\n"
+
+
+def building_entries(gis: GisIndex, building_ids) -> List[TermRoomBuilding]:
+    """v1 rooms.json 的 `buildings`：給定建物的清單名稱與排序（label 缺 → name → id）。
+
+    排序同 ntutbox-campus：有 order 的依 order，沒有的排後面，再依 id。不在 GIS 的 id 略過。"""
+    out = []
+    for bid in sorted(set(building_ids)):
+        meta = gis.building_meta.get(bid)
+        if meta is None:
+            continue
+        out.append(TermRoomBuilding(building_id=bid, label=meta.get("label") or meta.get("name") or bid,
+                                    order=meta.get("order")))
+    out.sort(key=lambda b: (b.order is None, b.order or 0, b.building_id))
+    return out
 
 
 def load_overrides(path: Path = OVERRIDES_PATH) -> Dict[str, dict]:

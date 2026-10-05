@@ -320,8 +320,9 @@ def test_override_failing_verification_falls_back_to_rules(gis):
     assert len(warnings) == 1 and "驗證不過" in warnings[0]
 
 
-def test_vendored_snapshot_maps_real_115_1_list():
-    """repo 內的快照＋overrides 對 115-1 真實清單：分布是 D23 記錄的基準（快照或規則改了要更新這裡）。"""
+def test_fallback_snapshot_maps_real_115_1_list():
+    """套件內凍結的 fallback 快照（D28；canonical 沒有 gis/ 時用）＋overrides 對 115-1 真實清單：
+    分布是 D23 記錄的基準（規則改了要更新這裡；CDN 版 1146 的教室內容相同、分布一致）。"""
     rows, _ = parse_room_list(_fx("croom_-2_115-1.html"))
     gis, overrides = load_gis_index(), load_overrides()
     assert gis.source.update_sequence == 1044

@@ -21,17 +21,17 @@
 每支資料 workflow 都是 fetch job（不上鎖）→ commit-publish job（`concurrency: data-pipeline`）→ alert job，
 共用 `.github/actions/{setup,commit-publish,alert}`。commit-publish 的順序：checkout 最新 data branch →
 `python -m ntut_catalog merge` → `redline_scan.py`（命中即中止）→ `pua-scan` → `derive` → commit＋push → `publish.py`
-→（預設學期 catalog、或教室學期 catalog／rooms 有變時）POST web 的 Deploy Hook（D22，見 runbook「web 自動重新部署」）。
+→（預設學期 catalog、或教室學期 catalog／rooms、或 campus_gis 有變時）POST web 的 Deploy Hook（D22，見 runbook「web 自動重新部署」）。
 
 相關腳本：`publish.py`（上傳）、`data_commit.py`（commit 範圍與訊息）、`redline_scan.py`（擋個資/機密）、
-`pipeline_alert.py`（`pipeline-alert` issue；`gis-drift` 只記錄 GIS updateSequence）、`gis/build_snapshot.py`（本機產 GIS 快照，D23）、`web_redeploy.py`（要不要重新部署 web，D22）、`calendar_horizon_alert.py`／`calendar_coverage_check.py`（行事曆）、
+`pipeline_alert.py`（`pipeline-alert` issue）、`web_redeploy.py`（要不要重新部署 web，D22）、`calendar_horizon_alert.py`／`calendar_coverage_check.py`（行事曆）、
 `r2-cors.json`。首次開通步驟見 `SETUP.md`。
 
 ## 維運 runbook
 
 ### 補爬：maintenance → `backfill`
 Actions → **maintenance** → Run workflow：
-- `task=backfill`、`dataset`＝登錄表名稱（`catalog`、`details`、`mprograms`、`standards`、`calendar`、`enrollment`、`rooms`）、
+- `task=backfill`、`dataset`＝登錄表名稱（`catalog`、`details`、`mprograms`、`standards`、`calendar`、`enrollment`、`rooms`、`campus_gis`）、
   `terms`＝學期（`110-1:114-2` 或 `115-1,114-2`；有學期維度的資料集必填，`calendar`／`standards` 留空）。
 - details 每學期一個 matrix leg（max-parallel 3、單學期約 53 分鐘），其他資料集一個 leg；全部 fan-in 到一個上鎖的 commit-publish。
 - 想先看發佈結果再動 R2：勾 `publish_dry_run`（只把上傳／刪除清單寫進 run summary；data branch 仍會 commit）。
@@ -68,24 +68,18 @@ Actions → **maintenance** → Run workflow：
     **`ACTIVE_TERMS` 有值＝明確覆寫**：完全照它、不再併 current-term 與窗口學期——事後記得清空（`gh variable set ACTIVE_TERMS --body ""`）。
 - weekly 的 details 走 `current-term`；學期交界時學校預設學期何時切換要人工確認，需要時 dispatch weekly 帶 `terms`。
 
-### GIS 快照更新（空教室的教室 ↔ GIS 對應，D23）
-`rooms` 的 GIS 對應依據是 repo 內的 `crawler/ntut_catalog/reference/gis-rooms.json`。GIS 資料只在**本機**的
-`ntut-campus-map`（沒有 git remote；源頭是學校公開的 GeoServer），CI 拿不到，所以快照只能在本機更新：
-1. 在 `ntut-campus-map` 重抓並產生 v1（見該專案 README；學校憑證鏈驗不過時它會對個別 URL fallback，並記進 `source-metadata.json`）。
-2. `python infra/gis/build_snapshot.py <ntut-campus-map 路徑>` → 覆寫快照（確定性；`source.update_sequence` 記錄來源版本）。
-3. 拿一份 data branch 本機 `python -m ntut_catalog derive --out <data>`，看 v1 `terms/{t}/rooms.json` 的 `gis_match` 分布與 log 的
-   `override … 驗證不過` warning；具名廳堂要補對應時改 `crawler/ntut_catalog/reference/gis-room-overrides.json`（**只收 GIS 查得到的**，`gis_name` 填 GIS 上的名稱）。
-   `tests/test_rooms.py::test_vendored_snapshot_maps_real_115_1_list` 釘著 115-1 的分布，快照或規則改了要一起更新。
-4. 走 PR；合併後下一次 derive（任何 workflow 的 commit-publish、或 maintenance `republish`）自動重算對應——不必重爬 rooms。
-
-**快照現況**：停在 `updateSequence` **1044**。線上已是 1146（2026-09-27），但兩者的教室內容相同（room-index.json 完全一致，差異只有
-21 筆新建物＋2 處 sourceProperties 修改）；而 campus-map 的驗證器目前在新建物上失敗，**先不要從它重建快照**。長期改用外部 repo
-發佈的 GIS 資料，追蹤於 issue #120。
-
-**updateSequence 記錄（不告警）**：weekly 的 alert job 打一次 `https://geoserver.oga.ntut.edu.tw/ows?service=WFS&version=2.0.0&request=GetCapabilities`
-（`python3 infra/pipeline_alert.py gis-drift`），把線上與快照的 `updateSequence` 寫進 run summary＋`::notice`，**不開 issue**——
-它會因與教室無關的圖資變動前進（三週 1044→1146、教室 0 變動），不能當「快照過期」的訊號（#120）。要不要更新快照，靠人工比對
-room-index 的教室內容。學校憑證鏈 Python 驗不過時只對這個 URL 不驗證重試一次（log 有 `::notice`）；其他失敗只發 `::warning`。
+### 校園 GIS（`campus_gis`，教室 ↔ GIS 對應與 /rooms/ 大樓名稱，D28）
+`rooms` 的 GIS 對應、v1 rooms.json 的 `buildings`（大樓清單名稱／排序）都來自 data branch 的 `gis/gis-rooms.json`——daily 的
+`campus_gis` 資料集從 ntutbox-campus 的公開 CDN（`https://cdn.ntutbox.com/campus/v1/current.json`）鏡像，`gis/source.json` 記 revision 與 sha256。
+**不用手動更新**：ntutbox-campus 發布新版（每週）後，下一次 daily 就抓到、derive 重算、web 重新部署。
+- 看現在用哪一版：data branch `gis/source.json`，或 v1 `terms/{t}/rooms.json` 的 `gis_snapshot.campus_revision`。
+- 抓取失敗（CDN 不通、sha256 不符、schema_version 不是 1）→ `[pipeline] daily 失敗` issue，data branch 保留上一份，對應照舊。
+  CDN 的 WAF 擋 UA 含 `bot`／`crawl`／`spider` 的請求（D26），client 用專屬 UA（`crawler/ntut_catalog/campus_cdn_client.py`），別改成爬蟲 UA。
+- 只想立刻跟上：dispatch daily 帶 `datasets=campus_gis`。
+- 對應分布：拿一份 data branch 本機 `python -m ntut_catalog derive --out <data>`，看 `gis_match` 分布與 log 的 `override … 驗證不過` warning；
+  具名廳堂要補對應時改 `crawler/ntut_catalog/reference/gis-room-overrides.json`（**只收 GIS 查得到的**，`gis_name` 填 GIS 上的名稱）。
+  `tests/test_rooms.py::test_fallback_snapshot_maps_real_115_1_list` 釘著 115-1 的分布（115-1：rule 216／override 5／floor_only 7／building_only 1／none 2）。
+- 大樓名稱、排序、簡稱要改 → 改 ntutbox-campus 的 `curation/buildings.json`（`label`／`order`），不在本 repo。
 
 ### web 自動重新部署（Workers Builds Deploy Hook，D22）
 `/browse/**` hub 與 `/rooms/**` 教室課表頁是 **build 期**產生的靜態頁（`apps/web/src/lib/hub/`），內容凍結在最後一次 build。
@@ -93,7 +87,7 @@ room-index 的教室內容。學校憑證鏈 Python 驗不過時只對這個 URL
 
 | 觸發者 | 何時 | secret |
 |---|---|---|
-| 資料管線（commit-publish action，daily／weekly／season／maintenance-backfill） | publish 成功（exit 0／3、非 dry-run）後，merge 報告符合任一條件：① **預設學期**的 `catalog` 內容有變（hub）。預設學期＝`data/v1/manifest.json` 的 `term_schedule.default` 中 `from ≤ 現在` 最晚的一筆，該學期還沒有 catalog 時退回本學期、再退回最新學期（與 web `resolveTerms` 同語意，D21）；manifest 還沒有 `term_schedule` → 退而求其次，**任一學期** catalog 有變就部署。② **教室學期**的 `catalog` 或 `rooms` 內容有變（`/rooms/**` 教室課表頁）。教室學期＝本學期（`term_schedule.current`，無則日期規則）若 manifest 有它的 `rooms` 就用它，否則 `rooms` 非 null 的最新學期；都沒有 → 不檢查 ②。人數、課綱變動不觸發；只更新 GIS 快照不觸發（手動重建）；republish 沒有 merge 報告，不觸發 | GitHub Actions secret **`WEB_DEPLOY_HOOK_URL`** |
+| 資料管線（commit-publish action，daily／weekly／season／maintenance-backfill） | publish 成功（exit 0／3、非 dry-run）後，merge 報告符合任一條件：① **預設學期**的 `catalog` 內容有變（hub）。預設學期＝`data/v1/manifest.json` 的 `term_schedule.default` 中 `from ≤ 現在` 最晚的一筆，該學期還沒有 catalog 時退回本學期、再退回最新學期（與 web `resolveTerms` 同語意，D21）；manifest 還沒有 `term_schedule` → 退而求其次，**任一學期** catalog 有變就部署。② **教室學期**的 `catalog` 或 `rooms` 內容有變（`/rooms/**` 教室課表頁）。教室學期＝本學期（`term_schedule.current`，無則日期規則）若 manifest 有它的 `rooms` 就用它，否則 `rooms` 非 null 的最新學期；都沒有 → 不檢查 ②。③ `campus_gis`（校園 GIS）內容有變且有教室學期（大樓對應、名稱與順序，D28）。人數、課綱變動不觸發；republish 沒有 merge 報告，不觸發 | GitHub Actions secret **`WEB_DEPLOY_HOOK_URL`** |
 | season Worker（`ntutbox-season-scheduler`，每小時） | 這個整點＝某筆 `term_schedule.default[].from` 生效的整點（不在整點上的 `from` 取下一個整點）——例如 115-2 `from` 2026-11-21T17:00+08:00 → 當天 17:00 那次 cron 觸發。與 season slot、保活無關 | Worker secret **`DEPLOY_HOOK_URL`** |
 
 - **建立 hook**：Cloudflare dashboard → Workers & Pages → `ntutbox-course-web` → Settings → Builds → Deploy Hooks → 輸入名稱、

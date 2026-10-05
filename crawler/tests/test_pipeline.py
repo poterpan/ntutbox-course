@@ -67,8 +67,8 @@ def test_daily_end_to_end_then_idempotent_rerun(tmp_path):
     result, report = _run_daily(tmp_path, data, clock, "1")
     assert result.ok, result.datasets
     assert {(e["name"], e["term"]) for e in result.datasets} == {
-        ("calendar", None), ("catalog", "115-1"), ("mprograms", "115-1")}
-    assert report.datasets() == ["calendar", "catalog", "mprograms"] and report.changed
+        ("calendar", None), ("catalog", "115-1"), ("mprograms", "115-1"), ("campus_gis", None)}
+    assert report.datasets() == ["calendar", "campus_gis", "catalog", "mprograms"] and report.changed
     manifest = derive(data)
     t = manifest.terms["115-1"]
     assert t.catalog.checked_at == t.catalog.changed_at == "2026-09-26T06:26:10+08:00"
@@ -216,7 +216,8 @@ def test_season_enrollment_records_source_and_merges(tmp_path, school_fails, exp
 # ------------------------------------------------------------ 登錄表與學期規則
 
 def test_registry_cadences():
-    assert {d.name for d in registry.for_cadence("daily")} == {"calendar", "catalog", "mprograms"}
+    assert {d.name for d in registry.for_cadence("daily")} == {"calendar", "catalog", "mprograms",
+                                                                 "campus_gis"}
     assert {d.name for d in registry.for_cadence("weekly")} == {"details", "standards", "rooms"}
     assert {d.name for d in registry.for_cadence("season")} == {"enrollment"}
 

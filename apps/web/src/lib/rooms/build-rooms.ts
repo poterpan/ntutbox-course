@@ -6,9 +6,10 @@
  * 學期＝教室學期（`resolveRoomTerm`：本學期，沒有 rooms 才退回有 rooms 的最新學期），
  * **不是** hub 的預設學期。
  *
- * 大樓名稱：v1 rooms.json 只帶 `building_id`，名稱取自 repo 內 vendored 的 GIS 快照
- * （`crawler/ntut_catalog/reference/gis-rooms.json`，derive 對應用的同一份）。讀不到 → 退回
- * building_id 當名稱（仍分得出組），並告警。
+ * 大樓名稱與順序：v1 rooms.json 的 `buildings`（`[{building_id, label, order}]`，derive 從
+ * canonical `gis/gis-rooms.json` 算出，D28——與教室對應、地圖引擎讀的是同一份 ntutbox-campus 資料）。
+ * 名稱＝`label`（derive 已退回 GIS 名稱），再退回 building_id；順序＝陣列順序（已依 `order` 排好）。
+ * 舊檔沒有 `buildings` → 名稱用 building_id、依代碼排序，並告警。
  *
  * ⚠️ 只能被 server component / metadata route 匯入（用到 node:fs）。
  */
@@ -25,12 +26,11 @@ export interface RoomsCatalog {
   checkedAt: string | null;
   periods: PeriodTable;
   rooms: RoomView[];
-  /** GIS 快照的大樓順序（分組排序用） */
+  /** 大樓順序（rooms.json `buildings`，分組排序用；沒有 → 空，退回依代碼） */
   buildingOrder: string[];
 }
 
 const LOCAL_ROOT = path.join(process.cwd(), "public", "data", "v1");
-const GIS_SNAPSHOT = path.join(process.cwd(), "..", "..", "crawler", "ntut_catalog", "reference", "gis-rooms.json");
 
 async function readLocalJson<T>(rel: string): Promise<T> {
   return JSON.parse(await readFile(path.join(LOCAL_ROOT, rel), "utf8")) as T;
@@ -42,32 +42,42 @@ async function fetchJson<T>(base: string, rel: string): Promise<T> {
   return (await res.json()) as T;
 }
 
-async function loadBuildings(): Promise<{ names: Map<string, string>; order: string[] }> {
-  try {
-    const snap = JSON.parse(await readFile(GIS_SNAPSHOT, "utf8")) as {
-      buildings?: { building_id: string; name?: string | null }[];
-    };
-    const list = snap.buildings ?? [];
-    return {
-      names: new Map(list.filter((b) => b.name).map((b) => [b.building_id, b.name!])),
-      order: list.map((b) => b.building_id),
-    };
-  } catch (e) {
-    console.warn(`[rooms] 讀不到 GIS 快照（${e instanceof Error ? e.message : e}），大樓名稱改用 building_id`);
+/** rooms.json `buildings` → 名稱表與順序（`label ?? building_id`；排序同 derive：有 order 的在前、再依代碼）。 */
+export function buildingsFromRooms(
+  rooms: Pick<TermRooms, "buildings">,
+  termKey: string,
+): { names: Map<string, string>; order: string[] } {
+  const list = [...(rooms.buildings ?? [])];
+  if (list.length === 0) {
+    console.warn(`[rooms] ${termKey} rooms.json 沒有 buildings（derive 尚未更新？），大樓名稱改用 building_id、依代碼排序`);
     return { names: new Map(), order: [] };
   }
+  list.sort((a, b) => {
+    const oa = a.order ?? null;
+    const ob = b.order ?? null;
+    if (oa !== ob) {
+      if (oa === null) return 1;
+      if (ob === null) return -1;
+      return oa - ob;
+    }
+    return a.building_id < b.building_id ? -1 : a.building_id > b.building_id ? 1 : 0;
+  });
+  return {
+    names: new Map(list.map((b) => [b.building_id, b.label || b.building_id])),
+    order: list.map((b) => b.building_id),
+  };
 }
 
 async function loadFrom(read: <T>(rel: string) => Promise<T>): Promise<RoomsCatalog> {
   const manifest = await read<Manifest>("manifest.json");
   const termKey = resolveRoomTerm(manifest, new Date());
   if (!termKey) throw new Error("manifest 沒有任何帶 rooms 的學期");
-  const [rooms, catalog, periods, buildings] = await Promise.all([
+  const [rooms, catalog, periods] = await Promise.all([
     read<TermRooms>(`terms/${termKey}/rooms.json`),
     read<TermCatalog>(`terms/${termKey}/catalog.json`),
     read<PeriodTable>(`terms/${termKey}/periods.json`),
-    loadBuildings(),
   ]);
+  const buildings = buildingsFromRooms(rooms, termKey);
   const list = (rooms.rooms ?? []) as unknown as RawRoom[];
   if (list.length === 0) throw new Error(`${termKey} rooms.json 沒有教室`);
   const entry = (manifest.terms?.[termKey] as { rooms?: { checked_at?: string | null } | null } | undefined)?.rooms;

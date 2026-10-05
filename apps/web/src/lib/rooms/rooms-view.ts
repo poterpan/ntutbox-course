@@ -91,7 +91,7 @@ export function buildRoomViews(
       name: r.full_name?.trim() || r.raw,
       capacity: r.capacity ?? null,
       buildingId,
-      // 大樓名稱查不到（GIS 快照讀不到）→ 退回 building_id，仍分得出組；只有完全沒有 GIS 才歸「其他」
+      // 大樓名稱查不到（rooms.json 沒有 buildings）→ 退回 building_id，仍分得出組；只有完全沒有 GIS 才歸「其他」
       buildingName: buildingId ? buildingNames.get(buildingId) ?? buildingId : OTHER_BUILDING,
       floorId: g?.floor_id ?? null,
       gis: (r.gis ?? []).map((x) => ({
@@ -116,7 +116,7 @@ export interface BuildingGroup<R> {
 }
 
 /**
- * 依 GIS 大樓分組。大樓順序照 `buildingOrder`（GIS 快照順序），不在其中的依名稱；
+ * 依 GIS 大樓分組。大樓順序照 `buildingOrder`（rooms.json `buildings` 的順序，D28），不在其中的依名稱；
  * 對不到 GIS（沒有 building_id）→「其他」，排最後。組內依 raw（教室短名）自然排序。
  */
 export function groupRoomsByBuilding<R extends { buildingId: string | null; buildingName: string; raw: string }>(

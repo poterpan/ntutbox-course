@@ -202,3 +202,20 @@ def test_main_no_rooms_terms_behaves_like_before(tmp_path, monkeypatch):
         monkeypatch.setenv("GITHUB_OUTPUT", str(out))
         assert main(["--merge-reports", str(d), "--manifest", str(manifest), "--now", NOW.isoformat()]) == 0
         assert expect in out.read_text(encoding="utf-8")
+
+
+# ============================================================ campus_gis（D28）
+
+def test_gis_changed(tmp_path):
+    from infra.web_redeploy import gis_changed
+    d = _reports(tmp_path, [{"name": "campus_gis", "term": None, "changed": False}])
+    assert gis_changed(d) is False
+    _reports(tmp_path, [{"name": "campus_gis", "term": None, "changed": True}], "merge-report-y.json")
+    assert gis_changed(d) is True
+    assert gis_changed(None) is False
+
+
+def test_decide_gis_change_needs_room_term():
+    ok, reason = decide(set(), "115-2", set(), "115-1", gis=True)
+    assert ok and "campus_gis" in reason
+    assert decide(set(), "115-2", set(), None, gis=True)[0] is False

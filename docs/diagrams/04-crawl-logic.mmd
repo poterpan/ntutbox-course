@@ -8,7 +8,7 @@ config:
 ---
 flowchart TB
     A["pipeline --cadence X<br/>[--datasets a,b] [--terms …]"] --> B["registry.py：選出資料集<br/>(未給 --datasets = 該 cadence 全部)"]
-    REG["<b>登錄表 DATASETS</b>：資料集 · cadence · 學期規則 → 寫入<br/>calendar · daily · calendar → calendar/*、{term}/calendar.json<br/>catalog · daily · active → catalog.ndjson · classes.json · 人數快照<br/>mprograms · daily · active → {term}/mprograms.json<br/>details · weekly · current → {term}/details.ndjson<br/>standards · weekly · none → standards/*.json<br/><b>rooms · weekly · active → {term}/rooms.json</b><br/>enrollment · season · current → 人數快照 + 觀測紀錄"]
+    REG["<b>登錄表 DATASETS</b>：資料集 · cadence · 學期規則 → 寫入<br/>calendar · daily · calendar → calendar/*、{term}/calendar.json<br/>catalog · daily · active → catalog.ndjson · classes.json · 人數快照<br/>mprograms · daily · active → {term}/mprograms.json<br/>campus_gis · daily · none → gis/gis-rooms.json · gis/source.json<br/>details · weekly · current → {term}/details.ndjson<br/>standards · weekly · none → standards/*.json<br/><b>rooms · weekly · active → {term}/rooms.json</b><br/>enrollment · season · current → 人數快照 + 觀測紀錄"]
     REG -.-|讀| B
     B --> C{{"逐資料集：學期規則"}}
     C -->|"有 --terms"| T0["用指定學期<br/>(expand_terms, 支援 a:b)"]
