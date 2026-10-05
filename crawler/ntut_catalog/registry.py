@@ -346,6 +346,7 @@ def fetch_campus_gis(ctx: FetchContext, term: Optional[str]) -> FetchOutput:
     if not (isinstance(snap, dict) and isinstance(snap.get("source"), dict)
             and snap.get("buildings") and snap.get("rooms")):
         raise RuntimeError("campus gis-rooms.json 缺 source／buildings／rooms（或為空）")
+    _validate_campus_gis(snap, rooms_path)
 
     revision = current.get("revision")
     info = {"manifest": manifest_name,
@@ -362,6 +363,34 @@ def fetch_campus_gis(ctx: FetchContext, term: Optional[str]) -> FetchOutput:
                 info["revision"], info["update_sequence"], len(snap["buildings"]), len(snap["rooms"]),
                 files or "無")
     return FetchOutput(files=files)
+
+
+# 新版 GIS 的教室數少於上一份的這個比例 → 不收（多半是上游出錯；人工確認後再放行）
+CAMPUS_GIS_MIN_ROOM_RATIO = 0.9
+
+
+def _validate_campus_gis(snap: dict, rooms_path: Path) -> None:
+    """收下之前先確認 derive 用得了：sha 對得上只代表檔案沒壞，不代表內容合用。
+
+    任何一項不過就 raise → merge 丟掉這筆、canonical 保留上一份（D28），pipeline 標失敗並開 issue；
+    不讓格式變動卡住每天的發布，也不讓上游少了大樓／教室時悄悄改掉教室對應。
+    """
+    from ntut_catalog.room_gis import BUILDING_PREFIXES, GisIndex
+    try:
+        idx = GisIndex.from_snapshot(snap)
+    except (KeyError, TypeError, AttributeError) as e:
+        raise RuntimeError(f"campus gis-rooms.json 格式不符，derive 讀不了：{e!r}") from e
+    missing = sorted(set(BUILDING_PREFIXES.values()) - idx.buildings)
+    if missing:
+        raise RuntimeError(f"campus gis-rooms.json 缺少課表會用到的大樓：{'、'.join(missing)}")
+    if rooms_path.exists():
+        try:
+            previous = len(json.loads(rooms_path.read_text(encoding="utf-8")).get("rooms") or [])
+        except ValueError:
+            previous = 0
+        if previous and len(snap["rooms"]) < previous * CAMPUS_GIS_MIN_ROOM_RATIO:
+            raise RuntimeError(f"campus gis-rooms.json 教室數驟降 {previous} → {len(snap['rooms'])}"
+                               f"（低於 {CAMPUS_GIS_MIN_ROOM_RATIO:.0%}），保留上一份")
 
 
 STANDARDS_YEARS_BACK = 5

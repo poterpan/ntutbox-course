@@ -75,6 +75,16 @@ FAKE_GIS_ROOMS = {
         {"building_id": "HR", "class_number": "231", "floor_id": "2F", "name": "教室", "use": None},
     ],
 }
+# 抓取時會檢查課表前綴表用到的大樓都在（registry._validate_campus_gis）：補上其餘大樓的最小條目，
+# 不帶 label／order，排在後面（同上游：沒有 order 的依代碼排在最後）。
+def _complete_buildings(snap: dict) -> None:
+    from ntut_catalog.room_gis import BUILDING_PREFIXES
+    have = {b["building_id"] for b in snap["buildings"]}
+    snap["buildings"] += [{"aliases": [bid], "building_id": bid, "floor_ids": ["1F"], "name": bid}
+                          for bid in sorted(set(BUILDING_PREFIXES.values()) - have)]
+
+
+_complete_buildings(FAKE_GIS_ROOMS)
 
 
 class FakeCampusClient:

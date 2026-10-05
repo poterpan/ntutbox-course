@@ -225,3 +225,5 @@ merge（鎖內、對最新 HEAD）的規則：
 - **UA**：CDN 的 WAF 擋 UA 含 `bot`／`crawl`／`spider` 的請求（D26），既有 `ntutbox-course-crawler/…` 會 403 → 專屬 client `campus_cdn_client.py`、UA `ntutbox-course/0.1 (+https://github.com/ntutbox; campus GIS mirror)`（有測試防回歸）。
 - **移除**：`infra/gis/build_snapshot.py`、`pipeline_alert.py gis-drift` 與 weekly 的對應步驟、舊路徑 `reference/gis-rooms.json`。對應分布不變（115-1 實測 CDN r2／1146：rule 216、override 5、floor_only 7、building_only 1、none 2）。
 - **代價**：ntutbox-campus 發布新 revision（即使 gis-rooms 沒變）會讓 v1 rooms.json 的 `campus_revision` 跟著變、重傳一次；每週至多一次，可接受。
+- **收下前驗內容（不只驗 sha）**：抓到的 gis-rooms.json 先用 `GisIndex.from_snapshot` 試讀；課表前綴表（`BUILDING_PREFIXES`）用到的大樓必須都在；教室數不得比上一份少 10% 以上。任一不過就 raise → merge 丟棄、保留上一份並開 issue——上游改格式不會卡住每天的發布，少了大樓／教室也不會悄悄改掉教室對應。
+- **用到 fallback 要告警**：derive 若因 canonical 沒有 `gis/` 而改用凍結的 fallback 快照，會在 alerts 加一則 `campus_gis` warning（開 issue），不只留 log。

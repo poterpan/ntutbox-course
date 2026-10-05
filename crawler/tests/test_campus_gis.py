@@ -44,8 +44,9 @@ def test_fetch_writes_deterministic_files(tmp_path):
     rooms = (tmp_path / "canonical" / GIS_ROOMS_REL).read_text(encoding="utf-8")
     assert json.loads(rooms) == FAKE_GIS_ROOMS
     assert rooms == dump_gis_rooms(FAKE_GIS_ROOMS)
-    lines = rooms.splitlines()      # 一列一筆：source、"buildings":[、4 棟、],、"rooms":[、3 間、]}
-    assert lines[0].startswith('{"source":') and len(lines) == 1 + 1 + 4 + 1 + 1 + 3 + 1
+    lines = rooms.splitlines()      # 一列一筆：source、"buildings":[、N 棟、],、"rooms":[、M 間、]}
+    n_b, n_r = len(FAKE_GIS_ROOMS["buildings"]), len(FAKE_GIS_ROOMS["rooms"])
+    assert lines[0].startswith('{"source":') and len(lines) == 1 + 1 + n_b + 1 + 1 + n_r + 1
     src = json.loads((tmp_path / "canonical" / GIS_SOURCE_REL).read_text(encoding="utf-8"))
     assert src == {"manifest": "manifest.0123456789ab.json", "revision": "r2",
                    "sha256": client.digest, "update_sequence": 1146}
@@ -89,6 +90,41 @@ def test_fetch_rejects_bad_upstream(tmp_path, kwargs, match):
     with pytest.raises(RuntimeError, match=match):
         _fetch(tmp_path, FakeCampusClient(**kwargs))
     assert not (tmp_path / "canonical" / "gis").exists()
+
+
+def _gis_without(building=None, room_field=None):
+    snap = json.loads(json.dumps(FAKE_GIS_ROOMS))
+    if building:
+        snap["buildings"] = [b for b in snap["buildings"] if b["building_id"] != building]
+    if room_field:
+        del snap["rooms"][0][room_field]
+    return snap
+
+
+@pytest.mark.parametrize("snap, match", [
+    (_gis_without(room_field="floor_id"), "格式不符"),     # 上游欄位改名／缺漏：derive 會 KeyError
+    (_gis_without(building="HR"), "缺少課表會用到的大樓"),  # 課表前綴表會用到的大樓不見了
+])
+def test_fetch_rejects_snapshot_derive_cannot_use(tmp_path, snap, match):
+    """sha 對得上只代表檔案沒壞；內容 derive 用不了 → 不收，保留上一份、不卡住每天的發布。"""
+    with pytest.raises(RuntimeError, match=match):
+        _fetch(tmp_path, FakeCampusClient(gis_rooms=snap))
+    assert not (tmp_path / "canonical" / "gis").exists()
+
+
+def test_fetch_rejects_sharp_room_drop(tmp_path):
+    _fetch(tmp_path, FakeCampusClient())  # 上一份：3 間
+    shrunk = json.loads(json.dumps(FAKE_GIS_ROOMS))
+    shrunk["rooms"] = shrunk["rooms"][:1]
+    with pytest.raises(RuntimeError, match="教室數驟降"):
+        _fetch(tmp_path, FakeCampusClient(revision=3, manifest="manifest.eeeeeeeeeeee.json", gis_rooms=shrunk))
+
+
+def test_derive_with_fallback_raises_alert(tmp_path):
+    d = _canonical_with_rooms(tmp_path)
+    alerts = []
+    derive(d, alerts=alerts)
+    assert [a["name"] for a in alerts] == ["campus_gis"]
 
 
 def test_failed_fetch_keeps_last_good_copy(tmp_path):
