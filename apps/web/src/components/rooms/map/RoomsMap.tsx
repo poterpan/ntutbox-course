@@ -33,6 +33,7 @@ import {
 } from "@/lib/rooms/rooms-occupancy";
 import { roomHref } from "@/lib/rooms/rooms-view";
 import { cn } from "@/lib/utils";
+import { NativeSelect } from "@/components/ui/native-select";
 import { useNow } from "../RoomTimetable";
 import type { DirectoryGroup } from "../RoomsDirectory";
 import { MapSheet, SHEET_PEEK_PX, sheetHeight, type SheetSnap } from "./MapSheet";
@@ -100,6 +101,7 @@ export function RoomsMap({
   const [selected, setSelected] = useState<SelectedRoom<RoomOccupancy> | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [campusFocus, setCampusFocus] = useState<string | null>(null);
   const startedRef = useRef(false);
   const selectedKeyRef = useRef<string | null>(null);
 
@@ -144,6 +146,7 @@ export function RoomsMap({
               selectedKeyRef.current = room?.key ?? null;
             },
             onNotice: (text) => setNotice(text),
+            onCampusFocus: (focus) => setCampusFocus(focus?.buildingId ?? null),
             onError: (err) => {
               // 開場載不到＝整張地圖不能用；之後切大樓失敗只提示，原本的地圖還在
               if (err.type === "load-failed" || (err.type === "building-load-failed" && !startedRef.current)) {
@@ -273,18 +276,57 @@ export function RoomsMap({
     );
   }
 
+  const isCampus = view?.view === "campus";
+  const go = (target: Parameters<IndoorMap<RoomOccupancy>["setView"]>[0]) => void mapRef.current?.setView(target);
+  const crumb =
+    "rounded px-0.5 font-semibold text-[var(--accent-ink)] hover:underline focus-visible:outline-2 focus-visible:outline-[var(--accent)]";
+  // 面板頂端＝目前位置的麵包屑：上一層都能點回去（單層 → 全樓層 → 校園）。
+  // 手機版在拖曳把手裡，按鈕要擋住 pointerdown，不然會被當成拖曳／點把手。
+  const stop = (e: React.PointerEvent) => e.stopPropagation();
   const header = (
     <div className="flex items-baseline justify-between gap-2">
-      <p className="truncate text-sm font-semibold text-[var(--ink)]">
-        {view ? `${view.buildingShort ?? view.buildingName ?? view.building}${view.floor ? ` · ${view.floor}` : ""}` : "載入中…"}
-      </p>
+      <nav aria-label="地圖位置" className="flex min-w-0 items-baseline gap-1 truncate text-sm text-[var(--ink-soft)]">
+        {!view ? (
+          <span className="font-semibold text-[var(--ink)]">載入中…</span>
+        ) : isCampus ? (
+          <span className="font-semibold text-[var(--ink)]">北科校園</span>
+        ) : (
+          <>
+            <button type="button" onPointerDown={stop} onClick={() => go({ view: "campus" })} className={crumb}>
+              校園
+            </button>
+            <span aria-hidden>›</span>
+            {view.floor ? (
+              <>
+                <button type="button" onPointerDown={stop} onClick={() => go({ building: view.building, view: "overview" })} className={crumb}>
+                  {view.buildingShort ?? view.buildingName ?? view.building}
+                </button>
+                <span aria-hidden>›</span>
+                <span className="font-semibold text-[var(--ink)]">{view.floor}</span>
+              </>
+            ) : (
+              <span className="truncate font-semibold text-[var(--ink)]">{view.buildingShort ?? view.buildingName ?? view.building}</span>
+            )}
+          </>
+        )}
+      </nav>
       <p className="shrink-0 text-xs text-[var(--ink-soft)]">
-        {view && shownRooms.length > 0 ? `依課表 ${available}/${shownRooms.length} 間沒排課` : ""}
+        {isCampus
+          ? campusTotals(buildingOptions)
+          : view && shownRooms.length > 0
+            ? `依課表 ${available}/${shownRooms.length} 間沒排課`
+            : ""}
       </p>
     </div>
   );
 
-  const panel = (
+  const panel = isCampus ? (
+    <CampusPanel
+      buildings={buildingOptions}
+      focus={campusFocus}
+      onPick={(id) => go({ building: id, view: "overview" })}
+    />
+  ) : (
     <RoomPanel
       selected={selected}
       rooms={shownRooms}
@@ -306,11 +348,12 @@ export function RoomsMap({
           {/* 引擎會在這個元素加上 .indoor-map（position: relative），所以用 h-full 撐滿，不能靠 absolute */}
           <div ref={containerRef} className="h-full w-full" />
           {buildingOptions.length > 0 && (
-            <select
+            <NativeSelect
               aria-label="切換大樓"
+              containerClassName="absolute left-3 top-3 z-10 max-w-[60%]"
               value={view?.building ?? ""}
               onChange={(e) => void mapRef.current?.setView({ building: e.target.value, view: "overview" })}
-              className="absolute left-3 top-3 z-10 max-w-[60%] rounded-xl bg-white/95 px-3 py-2 text-sm font-semibold text-[var(--ink)] shadow-sm ring-1 ring-black/[0.08]"
+              className="truncate rounded-xl bg-white/95 py-2 pl-3 text-sm font-semibold text-[var(--ink)] shadow-sm ring-1 ring-black/[0.08]"
             >
               {buildingOptions.map((b) => (
                 <option key={b.id} value={b.id}>
@@ -318,7 +361,7 @@ export function RoomsMap({
                   {b.total ? `（${b.available} 間沒排課）` : ""}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           )}
           {notice && (
             <div className="pointer-events-none absolute inset-x-0 top-14 z-10 flex justify-center">
@@ -362,6 +405,60 @@ function bestBuilding(config: Record<string, BuildingConfig>, map: Map<string, R
   return best;
 }
 
+interface BuildingOption {
+  id: string;
+  name: string;
+  total: number;
+  available: number;
+}
+
+function campusTotals(list: BuildingOption[]): string {
+  const total = list.reduce((n, b) => n + b.total, 0);
+  const free = list.reduce((n, b) => n + b.available, 0);
+  return total ? `依課表 ${free}/${total} 間沒排課` : "";
+}
+
+/** 校園白模時的面板：各棟依課表的沒排課數，點了飛進那棟。地圖上高亮的那棟排在最前面。 */
+function CampusPanel({
+  buildings,
+  focus,
+  onPick,
+}: {
+  buildings: BuildingOption[];
+  focus: string | null;
+  onPick: (id: string) => void;
+}) {
+  const withRooms = buildings.filter((b) => b.total > 0);
+  const ordered = focus ? [...withRooms].sort((a, b) => Number(b.id === focus) - Number(a.id === focus)) : withRooms;
+  return (
+    <div className="pt-1">
+      <p className="pb-2 text-xs text-[var(--ink-soft)]">
+        選一棟大樓，或在地圖上點大樓、放大進入。
+      </p>
+      <ul className="divide-y divide-black/[0.05] dark:divide-white/10">
+        {ordered.map((b) => (
+          <li key={b.id}>
+            <button
+              type="button"
+              onClick={() => onPick(b.id)}
+              className={cn(
+                "flex w-full items-center gap-2.5 py-2 text-left hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
+                b.id === focus && "bg-[var(--accent)]/[0.06]",
+              )}
+            >
+              <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[var(--ink)]">{b.name}</span>
+              <span className="shrink-0 text-xs text-[var(--ink-soft)]">
+                {b.available}/{b.total} 間沒排課
+              </span>
+              <span aria-hidden className="text-[var(--ink-faint)]">›</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function SlotPicker({
   periods,
   choice,
@@ -377,7 +474,7 @@ function SlotPicker({
   const day = choice.mode === "pick" ? choice.day : slot?.day ?? 1;
   const period = choice.mode === "pick" ? choice.period : slot?.period ?? tokens[0]?.token ?? "1";
   const select =
-    "rounded-lg bg-white px-2.5 py-1.5 text-sm text-[var(--ink)] ring-1 ring-black/[0.08] dark:bg-white/10 dark:ring-white/15";
+    "rounded-lg bg-white py-1.5 pl-2.5 text-sm text-[var(--ink)] ring-1 ring-black/[0.08] dark:bg-white/10 dark:ring-white/15";
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 text-sm">
       <button
@@ -393,7 +490,7 @@ function SlotPicker({
       >
         現在
       </button>
-      <select
+      <NativeSelect
         aria-label="星期"
         className={select}
         value={day}
@@ -404,8 +501,8 @@ function SlotPicker({
             週{WEEKDAYS[d]}
           </option>
         ))}
-      </select>
-      <select
+      </NativeSelect>
+      <NativeSelect
         aria-label="節次"
         className={select}
         value={period}
@@ -416,7 +513,7 @@ function SlotPicker({
             第 {p.token} 節 {p.startHm}
           </option>
         ))}
-      </select>
+      </NativeSelect>
       <span className="text-xs text-[var(--ink-soft)]" aria-live="polite">
         {slot ? `依課表 · ${slotLabel(slot)}${choice.mode === "now" && !slot.inSession && !slot.nextDay ? "（下一節）" : ""}` : ""}
       </span>

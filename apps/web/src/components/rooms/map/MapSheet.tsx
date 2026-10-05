@@ -73,25 +73,28 @@ export function MapSheet({
       className="absolute inset-x-0 bottom-0 z-20 flex flex-col rounded-t-3xl bg-white shadow-[0_-8px_30px_rgba(0,0,0,0.12)] ring-1 ring-black/[0.06] dark:bg-neutral-900 dark:ring-white/10"
       style={{ height, transition: drag === null ? "height 220ms cubic-bezier(.2,.8,.2,1)" : "none" }}
     >
+      {/* 整列都能拖、輕點切換一段；header 裡的按鈕自己擋掉 pointerdown。鍵盤用小橫條那顆按鈕。 */}
       <div
-        role="button"
-        tabIndex={0}
-        aria-label={snap === "full" ? "收合面板" : "展開面板"}
-        aria-expanded={snap !== "peek"}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={finish}
         onPointerCancel={finish}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            const i = ORDER.indexOf(snap);
-            onSnap(ORDER[i === ORDER.length - 1 ? 0 : i + 1]!);
-          }
-        }}
         className="shrink-0 cursor-grab touch-none select-none px-4 pb-2 pt-2 active:cursor-grabbing"
       >
-        <div className="mx-auto mb-2 h-1.5 w-10 rounded-full bg-black/15 dark:bg-white/25" />
+        <button
+          type="button"
+          aria-label={snap === "full" ? "收合面板" : "展開面板"}
+          aria-expanded={snap !== "peek"}
+          // 滑鼠／觸控的點擊由外層 pointer 處理（detail > 0）；這裡只接鍵盤觸發的 click（detail === 0）
+          onClick={(e) => {
+            if (e.detail !== 0) return;
+            const i = ORDER.indexOf(snap);
+            onSnap(ORDER[i === ORDER.length - 1 ? 0 : i + 1]!);
+          }}
+          className="mx-auto mb-2 block h-3 w-14 rounded-full focus-visible:outline-2 focus-visible:outline-[var(--accent)]"
+        >
+          <span className="mx-auto block h-1.5 w-10 rounded-full bg-black/15 dark:bg-white/25" />
+        </button>
         {header}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pb-4">{children}</div>
