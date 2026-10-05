@@ -6,6 +6,7 @@ import { useTermOptions } from "@/lib/terms/use-resolved-terms";
 import { useUiStore } from "@/store/ui-store";
 import { AccentButton } from "@/components/ui/accent-button";
 import { cn } from "@/lib/utils";
+import { NativeSelect } from "@/components/ui/native-select";
 
 export function TermSwitcher() {
   const termKey = useTermStore((s) => s.termKey);
@@ -25,7 +26,7 @@ export function TermSwitcher() {
 
   return (
     <div className="flex items-center gap-1.5">
-      <select
+      <NativeSelect
         className="rounded-md border bg-white/70 px-2 py-1 text-sm"
         value={shown ?? ""}
         onChange={(e) => setSelectedTerm(e.target.value)}
@@ -38,7 +39,7 @@ export function TermSwitcher() {
             {t}
           </option>
         ))}
-      </select>
+      </NativeSelect>
       {/* 窄機 header 已塞滿（390px 實測），按鈕改由 PlannerLayout 在 header 下方另起一列 */}
       <BackToCurrentTerm className="hidden sm:inline-flex" />
     </div>

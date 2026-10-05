@@ -4,7 +4,8 @@
       "allowed": {
         "origins": [
           "https://course.ntutbox.com",
-          "http://localhost:3000"
+          "http://localhost:3000",
+          "https://*.poterpan.workers.dev"
         ],
         "methods": ["GET", "HEAD"],
         "headers": ["*"]
