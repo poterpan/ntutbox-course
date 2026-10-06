@@ -2,7 +2,7 @@
  * 教室地圖（D27）的「依課表」狀態：某一節每間教室是 沒排課／快有課／有課，並算出「沒排課到幾點」「有課到幾點」。
  * 純函式；「現在」只在 client mount 後算（同 room-now.ts）。語意沿用 D23：沒排課 ≠ 保證空著。
  *
- * 輸出的 key 是地圖用的空間鍵 `棟/層/門牌`（@ntutbox/map 的 occupancy 鍵）。只知道樓層的教室（floor_only）
+ * 輸出的 key 是地圖用的空間鍵 `棟/層/門牌`（@ntutbox/map-indoor 的 occupancy 鍵）。只知道樓層的教室（floor_only）
  * 用 `棟/層/?代碼`：地圖會算進樓層統計但沒有多邊形可以上色。building_only／none 放不上地圖，進 `unplaced`。
  */
 import { zonedDayMinute, type PeriodsLike } from "./room-now";

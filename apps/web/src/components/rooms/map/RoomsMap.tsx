@@ -1,6 +1,6 @@
 "use client";
 /**
- * 教室地圖 Beta（D27）：@ntutbox/map 的 2.5D 樓層圖，依課表把教室著色。
+ * 教室地圖 Beta（D27）：@ntutbox/map-indoor 的 2.5D 樓層圖，依課表把教室著色。
  *
  * - 只在 client 載入（RoomsBrowser 以 next/dynamic ssr:false 引入），three.js 不進清單模式的 bundle。
  * - 地理資料由套件讀 cdn.ntutbox.com/campus/v1；課表狀態由這裡算（lib/rooms/rooms-occupancy）再推進引擎。
@@ -18,8 +18,8 @@ import {
   type IndoorMap,
   type RoomInfo,
   type ViewInfo,
-} from "@ntutbox/map";
-import "@ntutbox/map/style.css";
+} from "@ntutbox/map-indoor";
+import "@ntutbox/map-indoor/style.css";
 import type { PeriodsLike } from "@/lib/rooms/room-now";
 import {
   occupancyAt,
