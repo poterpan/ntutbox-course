@@ -12,11 +12,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   campusCdnSource,
+  campusModelSource,
   createIndoorMap,
   floorRank,
   type BuildingConfig,
   type IndoorMap,
-  type SelectedRoom,
+  type RoomInfo,
   type ViewInfo,
 } from "@ntutbox/map";
 import "@ntutbox/map/style.css";
@@ -98,7 +99,7 @@ export function RoomsMap({
   }, [occ]);
   const [buildings, setBuildings] = useState<Record<string, BuildingConfig> | null>(null);
   const [view, setView] = useState<ViewInfo | null>(null);
-  const [selected, setSelected] = useState<SelectedRoom<RoomOccupancy> | null>(null);
+  const [selected, setSelected] = useState<RoomInfo<RoomOccupancy> | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [campusFocus, setCampusFocus] = useState<string | null>(null);
@@ -108,11 +109,13 @@ export function RoomsMap({
   const isDesktop = useIsDesktop();
   const [snap, setSnap] = useState<SheetSnap>("peek");
   const [boxHeight, setBoxHeight] = useState(600);
-  // 引擎取景時避開左上的大樓選單與手機的底部面板
+  // 引擎取景時避開左上的大樓選單與手機的底部面板。面板拉高時通知引擎：選中的教室被蓋住就移回可見區。
+  // 全展開時地圖只剩一條，取景仍以半展開為準（不把地圖縮到那一條裡）。
   const insetsRef = useRef({ top: 56, bottom: 0 });
   useEffect(() => {
-    insetsRef.current = { top: 56, bottom: isDesktop ? 0 : sheetHeight("peek", boxHeight) };
-  }, [isDesktop, boxHeight]);
+    insetsRef.current = { top: 56, bottom: isDesktop ? 0 : sheetHeight(snap === "full" ? "half" : snap, boxHeight) };
+    mapRef.current?.refreshInsets();
+  }, [isDesktop, boxHeight, snap]);
 
   // 地圖只建一次（等第一次算出狀態，才不會先畫一遍全灰再重建）。
   const ready = occ !== null;
@@ -137,6 +140,8 @@ export function RoomsMap({
             initialBuilding: first,
             initialView: "campus",
             getInsets: () => insetsRef.current,
+            // 有模型的大樓改畫 3D 模型（私有，token 由本站 /api/model-token 發，D29）；拿不到就維持白模
+            models: campusModelSource(),
             onViewChange: (info) => {
               startedRef.current = true;
               setView(info);
@@ -349,7 +354,7 @@ export function RoomsMap({
 
       <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-4">
         <div className="relative h-[72dvh] overflow-hidden rounded-2xl bg-[#f0f2f6] ring-1 ring-black/[0.07] lg:h-[640px] dark:ring-white/10">
-          {/* 引擎會在這個元素加上 .indoor-map（position: relative），所以用 h-full 撐滿，不能靠 absolute */}
+          {/* 引擎在這個元素裡建立自己的 .indoor-map 並填滿它；這裡只要給尺寸 */}
           <div ref={containerRef} className="h-full w-full" />
           {buildingOptions.length > 0 && (
             <NativeSelect
@@ -539,7 +544,7 @@ function RoomPanel({
   onPick,
   onClose,
 }: {
-  selected: SelectedRoom<RoomOccupancy> | null;
+  selected: RoomInfo<RoomOccupancy> | null;
   rooms: BuildingRoom[];
   floorView: boolean;
   onPick: (r: BuildingRoom) => void;
