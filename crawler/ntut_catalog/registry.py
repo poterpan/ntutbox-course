@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import datetime as dt
 import fnmatch
+import hashlib
+import json
 import logging
 import os
 import re
@@ -51,13 +53,16 @@ class FetchContext:
     def __init__(self, out_dir: Path,
                  catalog_client_factory: Optional[Callable[[], object]] = None,
                  calendar_client_factory: Optional[Callable[[], object]] = None,
-                 now: Optional[Callable[[], dt.datetime]] = None):
+                 now: Optional[Callable[[], dt.datetime]] = None,
+                 campus_client_factory: Optional[Callable[[], object]] = None):
         self.out_dir = out_dir
         self._catalog_factory = catalog_client_factory or _default_catalog_client
         self._calendar_factory = calendar_client_factory or _default_calendar_client
+        self._campus_factory = campus_client_factory or _default_campus_client
         self._now = now or (lambda: dt.datetime.now(TAIPEI))
         self._catalog = None
         self._calendar = None
+        self._campus = None
 
     @property
     def canonical(self) -> Path:
@@ -84,11 +89,17 @@ class FetchContext:
             self._calendar = self._calendar_factory()
         return self._calendar
 
+    @property
+    def campus_client(self):
+        if self._campus is None:
+            self._campus = self._campus_factory()
+        return self._campus
+
     def rel(self, path: Path) -> str:
         return path.relative_to(self.canonical).as_posix()
 
     def close(self) -> None:
-        for c in (self._catalog, self._calendar):
+        for c in (self._catalog, self._calendar, self._campus):
             if c is not None and hasattr(c, "close"):
                 c.close()
 
@@ -102,6 +113,11 @@ def _default_catalog_client():
 def _default_calendar_client():
     from ntut_catalog.calendar_client import CalendarClient
     return CalendarClient()
+
+
+def _default_campus_client():
+    from ntut_catalog.campus_cdn_client import CampusCdnClient
+    return CampusCdnClient()
 
 
 @dataclass(frozen=True)
@@ -265,6 +281,118 @@ def fetch_rooms(ctx: FetchContext, term: str) -> FetchOutput:
     return FetchOutput(files=[ctx.rel(path)], failed_nodes=tally.failed, node_total=tally.total)
 
 
+CAMPUS_SCHEMA_VERSION = 1   # ntutbox-campus current.json／manifest 的 schema_version，不符就不收
+_MANIFEST_NAME_RE = re.compile(r"^manifest\.[0-9a-f]+\.json$")
+_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _write_if_changed(path: Path, text: str) -> bool:
+    data = text.encode("utf-8")
+    if path.exists() and path.read_bytes() == data:
+        return False
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    return True
+
+
+def fetch_campus_gis(ctx: FetchContext, term: Optional[str]) -> FetchOutput:
+    """校園資料平台 ntutbox-campus 公開 CDN 的 gis-rooms.json → canonical `gis/`（D28）。
+
+    current.json 指向的 manifest 與 canonical `gis/source.json` 記的相同 → 不再往下抓、不寫檔
+    （回報空 files＝已確認、未變）。否則讀 manifest、依雜湊路徑抓 gis-rooms，**驗 sha256**；
+    schema_version 不是 1、manifest 沒有 gis-rooms、sha256 不符、內容不像 gis-rooms → raise——
+    pipeline 記成失敗，merge 不收這筆，data branch 保留上一份好的。
+    檔案內容沒變的不重寫、不回報（同 fetch_calendar）。
+    """
+    from ntut_catalog.room_gis import (GIS_ROOMS_REL, GIS_SOURCE_REL, dump_gis_rooms,
+                                       dump_gis_source)
+
+    client = ctx.campus_client
+    current = client.get_json("current.json")
+    if current.get("schema_version") != CAMPUS_SCHEMA_VERSION:
+        raise RuntimeError(f"campus current.json schema_version={current.get('schema_version')!r}，"
+                           f"只支援 {CAMPUS_SCHEMA_VERSION}")
+    manifest_name = current.get("manifest")
+    if not isinstance(manifest_name, str) or not _MANIFEST_NAME_RE.match(manifest_name):
+        raise RuntimeError(f"campus current.json 的 manifest 名稱不合格式：{manifest_name!r}")
+
+    src_path = ctx.canonical / GIS_SOURCE_REL
+    rooms_path = ctx.canonical / GIS_ROOMS_REL
+    if src_path.exists() and rooms_path.exists():
+        try:
+            previous = json.loads(src_path.read_text(encoding="utf-8"))
+        except ValueError:
+            previous = {}
+        if previous.get("manifest") == manifest_name:
+            logger.info("campus_gis: manifest %s 未變（%s），略過", manifest_name,
+                        previous.get("revision"))
+            return FetchOutput(files=[])
+
+    manifest = client.get_json(manifest_name)
+    if manifest.get("schema_version") != CAMPUS_SCHEMA_VERSION:
+        raise RuntimeError(f"campus manifest schema_version={manifest.get('schema_version')!r}，"
+                           f"只支援 {CAMPUS_SCHEMA_VERSION}")
+    entry = (manifest.get("files") or {}).get("gis-rooms.json")
+    if not isinstance(entry, dict) or not entry.get("path") or not entry.get("sha256"):
+        raise RuntimeError(f"campus manifest {manifest_name} 沒有 gis-rooms.json")
+    expected = str(entry["sha256"]).lower()
+    if not _SHA256_RE.match(expected):
+        raise RuntimeError(f"campus manifest gis-rooms.json 的 sha256 不合格式：{expected!r}")
+    raw = client.get_bytes(entry["path"])
+    actual = hashlib.sha256(raw).hexdigest()
+    if actual != expected:
+        raise RuntimeError(f"campus gis-rooms.json sha256 不符：manifest {expected}、實得 {actual}")
+    snap = json.loads(raw)
+    if not (isinstance(snap, dict) and isinstance(snap.get("source"), dict)
+            and snap.get("buildings") and snap.get("rooms")):
+        raise RuntimeError("campus gis-rooms.json 缺 source／buildings／rooms（或為空）")
+    _validate_campus_gis(snap, rooms_path)
+
+    revision = current.get("revision")
+    info = {"manifest": manifest_name,
+            # 字串、帶非數字前綴：紅線掃描把 9 位以上的裸數字當疑似學號（infra/redline_scan.py）
+            "revision": f"r{revision}" if revision is not None else None,
+            "sha256": actual,
+            "update_sequence": (snap.get("source") or {}).get("update_sequence")}
+    files: List[str] = []
+    if _write_if_changed(rooms_path, dump_gis_rooms(snap)):
+        files.append(GIS_ROOMS_REL)
+    if _write_if_changed(src_path, dump_gis_source(info)):
+        files.append(GIS_SOURCE_REL)
+    logger.info("campus_gis: %s（%s，updateSequence %s）%d 棟、%d 間，寫出 %s", manifest_name,
+                info["revision"], info["update_sequence"], len(snap["buildings"]), len(snap["rooms"]),
+                files or "無")
+    return FetchOutput(files=files)
+
+
+# 新版 GIS 的教室數少於上一份的這個比例 → 不收（多半是上游出錯；人工確認後再放行）
+CAMPUS_GIS_MIN_ROOM_RATIO = 0.9
+
+
+def _validate_campus_gis(snap: dict, rooms_path: Path) -> None:
+    """收下之前先確認 derive 用得了：sha 對得上只代表檔案沒壞，不代表內容合用。
+
+    任何一項不過就 raise → merge 丟掉這筆、canonical 保留上一份（D28），pipeline 標失敗並開 issue；
+    不讓格式變動卡住每天的發布，也不讓上游少了大樓／教室時悄悄改掉教室對應。
+    """
+    from ntut_catalog.room_gis import BUILDING_PREFIXES, GisIndex
+    try:
+        idx = GisIndex.from_snapshot(snap)
+    except (KeyError, TypeError, AttributeError) as e:
+        raise RuntimeError(f"campus gis-rooms.json 格式不符，derive 讀不了：{e!r}") from e
+    missing = sorted(set(BUILDING_PREFIXES.values()) - idx.buildings)
+    if missing:
+        raise RuntimeError(f"campus gis-rooms.json 缺少課表會用到的大樓：{'、'.join(missing)}")
+    if rooms_path.exists():
+        try:
+            previous = len(json.loads(rooms_path.read_text(encoding="utf-8")).get("rooms") or [])
+        except ValueError:
+            previous = 0
+        if previous and len(snap["rooms"]) < previous * CAMPUS_GIS_MIN_ROOM_RATIO:
+            raise RuntimeError(f"campus gis-rooms.json 教室數驟降 {previous} → {len(snap['rooms'])}"
+                               f"（低於 {CAMPUS_GIS_MIN_ROOM_RATIO:.0%}），保留上一份")
+
+
 STANDARDS_YEARS_BACK = 5
 
 
@@ -309,6 +437,10 @@ DATASETS: Dict[str, Dataset] = {d.name: d for d in [
     # 空教室查找（D23）：教室課表一學期內幾乎不動 → weekly；學期規則同 catalog（含即將選課的學期）
     Dataset("rooms", "weekly", "active", fetch_rooms,
             writes=("{term}/rooms.json",), content=("{term}/rooms.json",)),
+    # 校園 GIS（D28）：ntutbox-campus CDN 的 gis-rooms.json 鏡像，教室對應、/rooms/ 清單與地圖共用這一份。
+    # 一天一個請求（未變時）；source.json 只記版本，不算進內容 hash。
+    Dataset("campus_gis", "daily", "none", fetch_campus_gis,
+            writes=("gis/gis-rooms.json", "gis/source.json"), content=("gis/gis-rooms.json",)),
     Dataset("enrollment", "season", "current", fetch_enrollment,
             writes=(_ENROLLMENT_SNAPSHOTS,), append_only=(_OBSERVATIONS,)),
 ]}

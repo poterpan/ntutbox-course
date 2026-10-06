@@ -125,12 +125,14 @@ def test_derive_fills_v1_only_and_is_deterministic(canonical):
     first = (canonical / "v1" / "terms" / T / "catalog.json").read_bytes()
     assert _v1_meetings(canonical)["M"] == [["101"], ["102"]]
     assert nd.read_bytes() == before                         # canonical 不動
-    assert [a["name"] for a in alerts] == ["meeting-rooms"]  # conflict＋報告新產生 → 告警
-    assert alerts[0]["level"] == "warning" and "C" in alerts[0]["message"]
+    # conflict＋報告新產生 → 告警（測試沒有 canonical gis/，另有 campus_gis fallback 告警，D28）
+    assert [a["name"] for a in alerts if a["name"] != "campus_gis"] == ["meeting-rooms"]
+    mr = next(a for a in alerts if a["name"] == "meeting-rooms")
+    assert mr["level"] == "warning" and "C" in mr["message"]
     again: list = []
     derive(canonical, alerts=again)
     assert (canonical / "v1" / "terms" / T / "catalog.json").read_bytes() == first
-    assert again == []                                       # 報告沒變 → 不重複告警
+    assert [a for a in again if a["name"] != "campus_gis"] == []  # 報告沒變 → 不重複告警
 
 
 def test_cli_derive_writes_alerts_file(canonical, tmp_path, capsys):
@@ -138,5 +140,6 @@ def test_cli_derive_writes_alerts_file(canonical, tmp_path, capsys):
     (canonical / "canonical" / T / "rooms.json").write_text(dump_rooms(ROOMS), encoding="utf-8")
     out = tmp_path / "derive-reports" / "derive-report.json"
     assert cli.main(["derive", "--out", str(canonical), "--alerts", str(out)]) == 0
-    assert [a["name"] for a in json.loads(out.read_text(encoding="utf-8"))["alerts"]] == ["meeting-rooms"]
+    names = [a["name"] for a in json.loads(out.read_text(encoding="utf-8"))["alerts"]]
+    assert [n for n in names if n != "campus_gis"] == ["meeting-rooms"]  # campus_gis：fallback 告警（D28）
     assert "::warning title=derive 警告 meeting-rooms" in capsys.readouterr().out

@@ -1,7 +1,7 @@
 name: daily
 
 # 每日 04:00 Asia/Taipei（= 20:00 UTC，台北無 DST）：登錄表 cadence=daily 的資料集
-# （calendar、catalog＋人數、mprograms）。新增 daily 資料集只改 crawler/ntut_catalog/registry.py，不改這裡。
+# （calendar、catalog＋人數、mprograms、campus_gis 校園 GIS 鏡像）。新增 daily 資料集只改 crawler/ntut_catalog/registry.py，不改這裡。
 # 兩個 job（spec §3）：fetch 不上鎖（打學校最慢的部分）；commit-publish 上鎖、對**最新** data branch
 # 合併／判斷有沒有變／derive／commit／publish。無 push trigger → 對 data branch 的 commit 不會自迴圈。
 on:

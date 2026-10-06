@@ -4,7 +4,10 @@
 內容凍結在最後一次 build 的資料。所以 publish 成功後，若這次 merge 符合下列任一條件，就 POST Workers
 Builds Deploy Hook 重新 build：
   1. **預設學期**的 `catalog` 內容有變（hub）；
-  2. **教室學期**的 `catalog` 或 `rooms` 內容有變（教室頁的課名／教師來自 catalog、格子來自 rooms）。本檔只做決策；curl 由 commit-publish action 的
+  2. **教室學期**的 `catalog` 或 `rooms` 內容有變（教室頁的課名／教師來自 catalog、格子來自 rooms）；
+  3. `campus_gis`（校園 GIS 鏡像，無學期維度，D28）內容有變，且有教室學期——教室的大樓歸屬、
+     /rooms/ 的大樓名稱與順序都由 derive 從它算進 rooms.json。
+本檔只做決策；curl 由 commit-publish action 的
 shell step 做（hook URL 是憑證，只經 secret → env，不進 Python 參數或 log）。
 
 預設學期：`data/v1/manifest.json` 的 `term_schedule.default`（`[{term, from}]`，`from`＝該學期成為
@@ -17,8 +20,8 @@ shell step 做（hook URL 是憑證，只經 secret → env，不進 Python 參�
 本學期（`term_schedule.current` 已生效最晚一筆，無則日期規則）若 `manifest.terms[t].rooms` 存在且非 null
 → 用它；否則 manifest 中 `rooms` 非 null 的最新學期；都沒有 → None（不因教室觸發，行為同舊版）。
 
-只看 merge 報告的 `applied[]` 裡 `name` 為 `catalog`／`rooms` 且 `changed` 為真者——人數快照、課綱等
-變動不影響這些頁面。只更新 GIS 快照（derive 層、不出現在 merge 報告）不觸發，需要時手動重建。沒有 merge 報告（republish）→ 不部署。
+只看 merge 報告的 `applied[]` 裡 `name` 為 `catalog`／`rooms`／`campus_gis` 且 `changed` 為真者——人數快照、
+課綱等變動不影響這些頁面。沒有 merge 報告（republish）→ 不部署。
 預設學期的切換本身（`from` 那一刻）由 season-scheduler Worker 觸發，不在這裡。
 
 用法：
@@ -38,6 +41,7 @@ from typing import List, Optional, Set, Tuple
 TAIPEI = dt.timezone(dt.timedelta(hours=8))
 HUB_DATASET = "catalog"
 ROOMS_DATASET = "rooms"   # crawler/ntut_catalog/registry.py 的 Dataset 名稱
+GIS_DATASET = "campus_gis"
 
 
 def changed_terms(merge_reports: Optional[Path], dataset: str) -> Set[str]:
@@ -60,6 +64,17 @@ def changed_catalog_terms(merge_reports: Optional[Path]) -> Set[str]:
 def changed_rooms_terms(merge_reports: Optional[Path]) -> Set[str]:
     """merge 報告中 rooms 內容有變的學期。"""
     return changed_terms(merge_reports, ROOMS_DATASET)
+
+
+def gis_changed(merge_reports: Optional[Path]) -> bool:
+    """merge 報告中 campus_gis（無學期維度）內容有變。"""
+    if not merge_reports or not merge_reports.exists():
+        return False
+    for p in sorted(merge_reports.rglob("merge-report*.json")):
+        for a in json.loads(p.read_text(encoding="utf-8")).get("applied", []):
+            if a.get("name") == GIS_DATASET and a.get("changed"):
+                return True
+    return False
 
 
 def _effective(entries, now: dt.datetime) -> Optional[str]:
@@ -148,11 +163,12 @@ def resolve_room_term(manifest: Optional[dict], now: dt.datetime) -> Optional[st
 
 def decide(changed: Set[str], default_term: Optional[str],
            rooms_changed: Optional[Set[str]] = None,
-           room_term: Optional[str] = None) -> Tuple[bool, str]:
-    """`changed`＝catalog 有變的學期；`rooms_changed`＝rooms 有變的學期。
+           room_term: Optional[str] = None, gis: bool = False) -> Tuple[bool, str]:
+    """`changed`＝catalog 有變的學期；`rooms_changed`＝rooms 有變的學期；`gis`＝campus_gis 有變。
 
     條件 1（hub）：預設學期的 catalog 有變（預設學期解析不出 → 任一學期 catalog 有變）。
     條件 2（教室頁）：教室學期的 catalog 或 rooms 有變（教室學期為 None → 不檢查）。
+    條件 3（教室頁）：campus_gis 有變且有教室學期。
     """
     rooms_changed = rooms_changed or set()
     if changed:
@@ -165,6 +181,8 @@ def decide(changed: Set[str], default_term: Optional[str],
         hit = [n for n, s in ((HUB_DATASET, changed), (ROOMS_DATASET, rooms_changed)) if room_term in s]
         if hit:
             return True, f"教室學期 {room_term} 的 {'、'.join(hit)} 有變"
+        if gis:
+            return True, f"校園 GIS（{GIS_DATASET}）有變，教室學期 {room_term} 的大樓對應／名稱要重建"
     if not changed and not rooms_changed:
         return False, "catalog／rooms 沒有內容變動"
     parts = []
@@ -192,7 +210,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     redeploy, reason = decide(changed_catalog_terms(args.merge_reports),
                               resolve_default_term(manifest, now),
                               changed_rooms_terms(args.merge_reports),
-                              resolve_room_term(manifest, now))
+                              resolve_room_term(manifest, now),
+                              gis_changed(args.merge_reports))
     print(f"web redeploy: {'yes' if redeploy else 'no'} — {reason}")
     out = os.environ.get("GITHUB_OUTPUT")
     if out:

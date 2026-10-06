@@ -54,3 +54,69 @@ def record_enrollment(out_dir, term_key, enrollment, observed_at="2026-06-13T00:
         term_dir, enrollment_store.rows_from_enrollment(enrollment), observed_at)
     enrollment_store.append_observation(term_dir, observed_at, name)
     return name
+
+
+# ============================================================ 校園 CDN（campus_gis，D28）
+
+FAKE_GIS_ROOMS = {
+    "source": {"description": "ntutbox-campus 由學校公開 GeoServer WFS 產出，勿手改", "update_sequence": 1146},
+    "buildings": [
+        {"aliases": ["第一教學大樓"], "building_id": "A1T", "floor_ids": ["1F"], "label": "第一教學大樓",
+         "name": "第一教學大樓", "order": 10},
+        {"aliases": ["宏裕科技研究大樓"], "building_id": "HR", "floor_ids": ["2F"], "label": "宏裕科研大樓",
+         "name": "宏裕科技研究大樓", "order": 70},
+        {"aliases": ["綜合科館"], "building_id": "CB", "floor_ids": ["B1", "1F"], "label": "綜合科館",
+         "name": "綜合科館", "order": 90},
+        {"aliases": ["紅樓"], "building_id": "RB", "floor_ids": ["1F"], "name": "紅樓"},
+    ],
+    "rooms": [
+        {"building_id": "A1T", "class_number": "101", "floor_id": "1F", "name": "多元功能教室", "use": "多元功能教室"},
+        {"building_id": "CB", "class_number": "B19", "floor_id": "B1", "name": "第二演講廳", "use": "第二演講廳"},
+        {"building_id": "HR", "class_number": "231", "floor_id": "2F", "name": "教室", "use": None},
+    ],
+}
+# 抓取時會檢查課表前綴表用到的大樓都在（registry._validate_campus_gis）：補上其餘大樓的最小條目，
+# 不帶 label／order，排在後面（同上游：沒有 order 的依代碼排在最後）。
+def _complete_buildings(snap: dict) -> None:
+    from ntut_catalog.room_gis import BUILDING_PREFIXES
+    have = {b["building_id"] for b in snap["buildings"]}
+    snap["buildings"] += [{"aliases": [bid], "building_id": bid, "floor_ids": ["1F"], "name": bid}
+                          for bid in sorted(set(BUILDING_PREFIXES.values()) - have)]
+
+
+_complete_buildings(FAKE_GIS_ROOMS)
+
+
+class FakeCampusClient:
+    """ntutbox-campus CDN 的假 client：`files` 是 path → bytes；記錄請求過的 path。"""
+
+    def __init__(self, gis_rooms=None, revision=2, manifest="manifest.0123456789ab.json",
+                 sha256=None, schema_version=1, include_gis=True):
+        from ntut_catalog.room_gis import dump_gis_rooms
+        import hashlib
+        import json as _json
+        raw = dump_gis_rooms(gis_rooms or FAKE_GIS_ROOMS).encode("utf-8")
+        digest = hashlib.sha256(raw).hexdigest()
+        path = f"gis-rooms.{digest[:12]}.json"
+        files = {"gis-rooms.json": {"path": path, "sha256": sha256 or digest, "bytes": len(raw)}} \
+            if include_gis else {}
+        self.files = {
+            "current.json": _json.dumps({"manifest": manifest, "revision": revision,
+                                         "schema_version": schema_version,
+                                         "update_sequence": 1146}).encode(),
+            manifest: _json.dumps({"schema_version": schema_version, "files": files}).encode(),
+            path: raw,
+        }
+        self.requests = []
+        self.digest = digest
+
+    def get_bytes(self, path):
+        self.requests.append(path)
+        return self.files[path]
+
+    def get_json(self, path):
+        import json as _json
+        return _json.loads(self.get_bytes(path))
+
+    def close(self):
+        pass

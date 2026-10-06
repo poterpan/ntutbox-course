@@ -10,7 +10,7 @@ flowchart TB
         croom["Croom.jsp 教室課表<br/>(rooms 資料集 · weekly)"]
         ics["校網行事曆 ics"]
     end
-    gis["GIS 快照 (vendored)<br/>reference/gis-rooms.json<br/>+ gis-room-overrides.json"]
+    gis["ntutbox-campus CDN<br/>cdn.ntutbox.com/campus/v1/<br/>gis-rooms.json (campus_gis · daily)"]
     sched["Cloudflare Worker<br/>ntutbox-season-scheduler<br/>cron 每小時整點"]
 
     subgraph GHA["GitHub Actions · daily / weekly / season / maintenance"]
@@ -38,7 +38,7 @@ flowchart TB
     ics -->|爬取| fetch
     fetch -->|"merge + commit (上鎖)"| data
     data --> derive
-    gis -.->|教室位置| derive
+    gis -->|鏡像 · 驗 sha256| fetch
     derive --> publish
     publish -->|"只傳差異 · manifest 最後"| r2
     r2 --> web

@@ -132,8 +132,10 @@ export function RoomsMap({
             source,
             buildings: config,
             occupancy: current.map,
+            // 一進來停在校園白模：面板列出各棟依課表的沒排課數，由使用者選要進哪一棟（不替他進某棟再要他退回來）。
+            // initialBuilding 只決定先在背景載入哪一棟（沒排課最多的那棟，最可能被點進去）。
             initialBuilding: first,
-            initialView: "overview",
+            initialView: "campus",
             getInsets: () => insetsRef.current,
             onViewChange: (info) => {
               startedRef.current = true;
@@ -260,10 +262,12 @@ export function RoomsMap({
       if (rec.status !== "busy") c.available++;
       counts.set(b, c);
     }
-    return Object.entries(buildings)
-      .map(([id, cfg]) => ({ id, name: cfg.short || cfg.name, ...(counts.get(id) ?? { total: 0, available: 0 }) }))
-      .sort((a, b) => b.available - a.available || b.total - a.total || a.name.localeCompare(b.name, "zh-Hant"));
-  }, [buildings, occ]);
+    // 名稱與順序跟清單模式一致（`groups`＝rooms.json `buildings` 的 label／order，D28）：
+    // 只列有課程教室、且引擎進得去的大樓；「其他」（對不到 GIS）不列。
+    return groups
+      .filter((g) => g.key !== "other" && buildings[g.key])
+      .map((g) => ({ id: g.key, name: g.buildingName, ...(counts.get(g.key) ?? { total: 0, available: 0 }) }));
+  }, [buildings, occ, groups]);
 
   if (failure) {
     return (
@@ -351,10 +355,18 @@ export function RoomsMap({
             <NativeSelect
               aria-label="切換大樓"
               containerClassName="absolute left-3 top-3 z-10 max-w-[60%]"
-              value={view?.building ?? ""}
-              onChange={(e) => void mapRef.current?.setView({ building: e.target.value, view: "overview" })}
+              // 校園白模時還沒選任何大樓：顯示「選擇大樓」，不要讓選單看起來已經停在某棟
+              value={!view || view.view === "campus" ? "" : view.building}
+              onChange={(e) => e.target.value && void mapRef.current?.setView({ building: e.target.value, view: "overview" })}
               className="truncate rounded-xl bg-white/95 py-2 pl-3 text-sm font-semibold text-[var(--ink)] shadow-sm ring-1 ring-black/[0.08]"
             >
+              <option value="" disabled>
+                選擇大樓
+              </option>
+              {view && view.view !== "campus" && !buildingOptions.some((b) => b.id === view.building) && (
+                // 在地圖上點進沒有課程教室的大樓：補一個選項，選單才不會顯示成別棟
+                <option value={view.building}>{view.buildingName ?? view.building}</option>
+              )}
               {buildingOptions.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
@@ -418,7 +430,7 @@ function campusTotals(list: BuildingOption[]): string {
   return total ? `依課表 ${free}/${total} 間沒排課` : "";
 }
 
-/** 校園白模時的面板：各棟依課表的沒排課數，點了飛進那棟。地圖上高亮的那棟排在最前面。 */
+/** 校園白模時的面板：各棟依課表的沒排課數，點了飛進那棟。順序固定、同清單模式（`groups`）；地圖上高亮的那棟只加底色，不移位置（學生靠位置找）。 */
 function CampusPanel({
   buildings,
   focus,
@@ -429,14 +441,13 @@ function CampusPanel({
   onPick: (id: string) => void;
 }) {
   const withRooms = buildings.filter((b) => b.total > 0);
-  const ordered = focus ? [...withRooms].sort((a, b) => Number(b.id === focus) - Number(a.id === focus)) : withRooms;
   return (
     <div className="pt-1">
       <p className="pb-2 text-xs text-[var(--ink-soft)]">
         選一棟大樓，或在地圖上點大樓、放大進入。
       </p>
       <ul className="divide-y divide-black/[0.05] dark:divide-white/10">
-        {ordered.map((b) => (
+        {withRooms.map((b) => (
           <li key={b.id}>
             <button
               type="button"

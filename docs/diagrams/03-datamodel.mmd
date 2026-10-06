@@ -14,9 +14,8 @@ flowchart LR
         det["details.ndjson<br/>課綱原文"]
         rooms["rooms.json · 教室課表<br/>教室 × 星期 × 節次 → 課號 (只記學校給的)"]
         fs["_meta/fetch-state.json<br/>checked_at / changed_at / sha"]
+        gis["gis/gis-rooms.json + source.json<br/>campus_gis：ntutbox-campus CDN 鏡像"]
     end
-
-    gis["GIS 快照 (vendored)<br/>gis-rooms.json + overrides"]
 
     subgraph V["v1 (R2 · derive 重建)"]
         vcat["catalog.json<br/>+ meetings[].classroom_codes (由 rooms 反查)"]
@@ -24,7 +23,7 @@ flowchart LR
         vper["periods.json"]
         venr["enrollment.json<br/>最新 overlay"]
         vcourse["course/{id}.json<br/>+ 逐週進度 (即時算)"]
-        vrooms["rooms.json<br/>+ gis / gis_match / gis_snapshot"]
+        vrooms["rooms.json<br/>+ gis / gis_match / gis_snapshot<br/>+ buildings (label / order)"]
         man["manifest.json<br/>checked_at / changed_at / count"]
     end
 
@@ -49,6 +48,5 @@ flowchart LR
     classDef canon fill:#fde68a,stroke:#b45309,color:#000
     classDef v1c fill:#bfdbfe,stroke:#1e40af,color:#000
     classDef muted fill:#f3f4f6,stroke:#4b5563,color:#000
-    class cat,cls,snap,obs,det,fs,rooms,rep canon
+    class cat,cls,snap,obs,det,fs,rooms,gis,rep canon
     class vcat,vcls,vper,venr,vcourse,man,vrooms v1c
-    class gis muted

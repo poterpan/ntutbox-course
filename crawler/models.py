@@ -565,9 +565,29 @@ class TermRoom(Room):
 
 
 class GisSnapshotInfo(BaseModel):
-    """對應所依據的 GIS 快照版本（`crawler/ntut_catalog/reference/gis-rooms.json`）。"""
+    """對應所依據的 GIS 版本。
+
+    來源是 canonical `gis/gis-rooms.json`（`campus_gis` 資料集鏡像 ntutbox-campus 的 CDN，D28）；
+    canonical 沒有時退回套件內凍結的 `reference/gis-rooms.fallback.json`（D23 的舊快照）。
+    """
     update_sequence: Optional[int] = None        # 學校 GeoServer WFS GetCapabilities 的 updateSequence
+    # 舊 vendored 快照（ntut-campus-map）才有；CDN 鏡像為 None
     campus_map_manifest_sha256: Optional[str] = None
+    # CDN 鏡像才有（取自 canonical gis/source.json）：ntutbox-campus 的 revision（"r<N>"，字串避免
+    # 紅線掃描誤判長數字）與 gis-rooms.json 的 sha256
+    campus_revision: Optional[str] = None
+    campus_sha256: Optional[str] = None
+
+
+class TermRoomBuilding(BaseModel):
+    """v1 rooms.json 的大樓清單名稱與排序（取自 ntutbox-campus gis-rooms 的 `label`／`order`，D28）。
+
+    只列該學期教室 GIS 對應裡出現的大樓。`label` 缺 → GIS 名稱 → building_id；`order` 缺 → None
+    （排在有 order 的後面，再依 building_id）。陣列本身已照這個順序排好。
+    """
+    building_id: str
+    label: str
+    order: Optional[int] = None
 
 
 class TermRooms(BaseModel):
@@ -578,6 +598,8 @@ class TermRooms(BaseModel):
     schema_version: int = SCHEMA_VERSION
     term_key: str
     gis_snapshot: GisSnapshotInfo = Field(default_factory=GisSnapshotInfo)
+    # 新增欄位（D15 不升版）：web /rooms/ 的分組名稱與順序；舊檔沒有 → 空
+    buildings: List[TermRoomBuilding] = Field(default_factory=list)
     rooms: List[TermRoom] = Field(default_factory=list)
 
 

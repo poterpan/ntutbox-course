@@ -277,6 +277,12 @@ export type SchemaVersion12 = number;
 export type TermKey5 = string;
 export type UpdateSequence = number | null;
 export type CampusMapManifestSha256 = string | null;
+export type CampusRevision = string | null;
+export type CampusSha256 = string | null;
+export type BuildingId = string;
+export type Label4 = string;
+export type Order1 = number | null;
+export type Buildings = TermRoomBuilding[];
 export type Code4 = string;
 export type Raw = string;
 export type FullName = string | null;
@@ -285,7 +291,7 @@ export type Day1 = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export type Period = "1" | "2" | "3" | "4" | "N" | "5" | "6" | "7" | "8" | "9" | "A" | "B" | "C" | "D";
 export type OfferingIds1 = string[];
 export type Slots = RoomSlot[];
-export type BuildingId = string;
+export type BuildingId1 = string;
 export type FloorId = string | null;
 export type ClassNumber = string | null;
 export type Gis = RoomGisRef[];
@@ -902,15 +908,33 @@ export interface TermRooms {
   schema_version?: SchemaVersion12;
   term_key: TermKey5;
   gis_snapshot?: GisSnapshotInfo;
+  buildings?: Buildings;
   rooms?: Rooms;
   [k: string]: unknown;
 }
 /**
- * 對應所依據的 GIS 快照版本（`crawler/ntut_catalog/reference/gis-rooms.json`）。
+ * 對應所依據的 GIS 版本。
+ *
+ * 來源是 canonical `gis/gis-rooms.json`（`campus_gis` 資料集鏡像 ntutbox-campus 的 CDN，D28）；
+ * canonical 沒有時退回套件內凍結的 `reference/gis-rooms.fallback.json`（D23 的舊快照）。
  */
 export interface GisSnapshotInfo {
   update_sequence?: UpdateSequence;
   campus_map_manifest_sha256?: CampusMapManifestSha256;
+  campus_revision?: CampusRevision;
+  campus_sha256?: CampusSha256;
+  [k: string]: unknown;
+}
+/**
+ * v1 rooms.json 的大樓清單名稱與排序（取自 ntutbox-campus gis-rooms 的 `label`／`order`，D28）。
+ *
+ * 只列該學期教室 GIS 對應裡出現的大樓。`label` 缺 → GIS 名稱 → building_id；`order` 缺 → None
+ * （排在有 order 的後面，再依 building_id）。陣列本身已照這個順序排好。
+ */
+export interface TermRoomBuilding {
+  building_id: BuildingId;
+  label: Label4;
+  order?: Order1;
   [k: string]: unknown;
 }
 /**
@@ -945,7 +969,7 @@ export interface RoomSlot {
  * **不用** sourceFeatureId（gid 重新匯入就會變）。building_only／floor_only 時較細的欄位為 None。
  */
 export interface RoomGisRef {
-  building_id: BuildingId;
+  building_id: BuildingId1;
   floor_id?: FloorId;
   class_number?: ClassNumber;
   [k: string]: unknown;

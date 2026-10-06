@@ -33,12 +33,10 @@ flowchart TB
 
     subgraph S5["⑤ 發佈後"]
         direction LR
-        W{{"預設學期的 catalog 有變？<br/>(infra/web_redeploy.py)"}} -->|是| WH["POST Deploy Hook<br/>→ 重建 web<br/>(失敗只 warning)"]
+        W{{"預設學期的 catalog 有變？<br/>教室學期的 catalog／rooms、campus_gis 有變？<br/>(infra/web_redeploy.py)"}} -->|是| WH["POST Deploy Hook<br/>→ 重建 web<br/>(失敗只 warning)"]
         W -->|"否 / secret 未設"| WS["略過"]
         DC["daily 限定檢查<br/>行事曆 horizon／coverage · 資料過期<br/>season 缺 catalog · season 未依排程"]
-        GD["weekly：GIS updateSequence<br/>只寫 run summary、不開 issue"]
         WS ~~~ DC
-        WS ~~~ GD
     end
 
     AL["alert job → pipeline-alert issue · 紅框＝失敗 · 黃框＝warning<br/>逐時段教室 conflict > 0 且報告有變才 warning"]
@@ -59,5 +57,4 @@ flowchart TB
     class QW,MR warn
     class M ok
     class WH trig
-    class GD muted
     class AL bad

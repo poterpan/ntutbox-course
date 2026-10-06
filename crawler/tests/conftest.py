@@ -20,3 +20,11 @@ def pytest_addoption(parser):
 def sample_result():
     """115-1 的 TermResult（FakeClient 回放 csie fixture）。函式範疇，避免跨測試 mutate。"""
     return build_sample_result("115-1")
+
+
+@pytest.fixture(autouse=True)
+def _no_campus_network(monkeypatch):
+    """daily 跑全部資料集時會帶到 campus_gis：預設 client 換成假的，測試永不連 CDN。"""
+    from ntut_catalog import registry
+    from tests._fakes import FakeCampusClient
+    monkeypatch.setattr(registry, "_default_campus_client", FakeCampusClient)

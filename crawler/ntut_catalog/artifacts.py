@@ -123,7 +123,7 @@ def build_v1(out_dir: Path, generated_at: Optional[str] = None,
     """
     canonical = out_dir / "canonical"
     periods_json = build_period_table().model_dump_json()
-    room_mapping = None   # (GisIndex, overrides)：有 rooms.json 的學期才載入快照
+    room_mapping = None   # (GisIndex, overrides)：有 rooms.json 的學期才載入 GIS（canonical gis/，D28）
     for term_dir in sorted(p for p in canonical.iterdir() if p.is_dir()) if canonical.exists() else []:
         term = term_dir.name
         cat_nd = term_dir / "catalog.ndjson"
@@ -184,7 +184,16 @@ def build_v1(out_dir: Path, generated_at: Optional[str] = None,
         if room_dir is not None:
             if room_mapping is None:
                 from ntut_catalog.room_gis import load_gis_index, load_overrides
-                room_mapping = (load_gis_index(), load_overrides())
+                room_mapping = (load_gis_index(out_dir / "canonical"), load_overrides())
+                # 用到凍結的 fallback（canonical 沒有 gis/）→ 開告警，不要只留一行 log（D28）
+                if room_mapping[0].source.campus_revision is None and alerts is not None:
+                    alerts.append({
+                        "level": "warning",
+                        "name": "campus_gis",
+                        "term": None,
+                        "message": ("derive 的教室 GIS 對應用了凍結的 fallback 快照（canonical 沒有 gis/），"
+                                    "請確認 campus_gis 資料集有在跑"),
+                    })
             build_rooms_v1(rooms_src, v1 / "rooms.json", *room_mapping, directory=room_dir)
         # 選用：詳情（canonical/{term}/details.ndjson 存在 → 炸成 course/{id}.json）
         det = term_dir / "details.ndjson"

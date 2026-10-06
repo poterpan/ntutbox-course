@@ -10,7 +10,7 @@
 ## 1. 系統架構
 運算在 GitHub Actions、出口在 Cloudflare R2；canonical 在 git `data` branch、main 純 code。
 管線分三層：**fetch**（打學校，只寫 canonical）→ **derive**（canonical → v1 與 `ops/season-schedule.json`，確定性）→ **publish**（→ R2，只傳差異）。決策見 `DECISIONS.md` D11–D24。
-來源除了課程查詢系統與校網行事曆，weekly 另爬 `Croom.jsp` 教室課表（`rooms` 資料集，D23）；derive 另讀 repo 內 vendored 的 GIS 快照，把教室對到校園地圖（見第 7 節）。
+來源除了課程查詢系統與校網行事曆，weekly 另爬 `Croom.jsp` 教室課表（`rooms` 資料集，D23）；daily 另鏡像 ntutbox-campus CDN 的校園 GIS（`campus_gis` 資料集，D28），derive 用它把教室對到校園地圖（見第 7 節）。
 
 觸發端除了 GitHub cron，還有一支 cron-only 的 Cloudflare Worker **`ntutbox-season-scheduler`**（`infra/season-scheduler/`；無 route、無 Custom Domain）：
 每小時整點讀 `course/ops/season-schedule.json` 與 manifest——命中觸發格就 `workflow_dispatch` season.yml（D18）；
@@ -74,12 +74,15 @@ kind：預選（校方稱「網路選課」）、新生預選、開學後加退�
 - **`rooms` 資料集**（D23）：weekly（週一）、學期規則 `active`。先抓 `Croom.jsp?format=-2` 教室清單，再逐間抓 `format=-3` 週課表（115-1 約 232 個請求、3 分鐘）。
   清單頁失敗或 0 間＝資料集失敗；單間失敗從 HEAD 沿用那一間，HEAD 也沒有就不寫（空課表等於謊稱整週沒課）；失敗 > 5% 整筆丟棄（D16）。
 - **canonical `{term}/rooms.json`** 只記學校給的：`code`、`raw`、`full_name`、`capacity`、`slots: [{day, period, offering_ids}]`，依 code 排序、不帶時間。
-- **derive → v1 `terms/{t}/rooms.json`**：每間加 `gis`／`gis_match`，頂層 `gis_snapshot`；manifest `terms.{t}.rooms` 帶 `checked_at`／`changed_at`。
-  GIS 來源是 vendored 快照 `crawler/ntut_catalog/reference/gis-rooms.json`＋`gis-room-overrides.json`（由 `infra/gis/build_snapshot.py` 產生）；快照一更新，下一次 derive 自動重算。長期改用外部發佈的 GIS 資料見 issue #120。
+- **`campus_gis` 資料集**（D28）：daily、無學期維度。讀校園資料平台 ntutbox-campus 的公開 CDN（`cdn.ntutbox.com/campus/v1/current.json` → manifest → 雜湊路徑的 `gis-rooms.json`，驗 sha256）
+  → canonical `gis/gis-rooms.json`（一列一筆）＋`gis/source.json`（manifest、revision `"r<N>"`、sha256、updateSequence）。manifest 沒變只打 1 個請求、不寫檔；驗證失敗 → 不收，保留上一份。
+- **derive → v1 `terms/{t}/rooms.json`**：每間加 `gis`／`gis_match`，頂層 `gis_snapshot`（含 `campus_revision`／`campus_sha256`）與 `buildings: [{building_id, label, order}]`（該學期對應到的大樓的清單名稱與排序）；
+  manifest `terms.{t}.rooms` 帶 `checked_at`／`changed_at`。GIS 來源是 canonical `gis/gis-rooms.json`＋`crawler/ntut_catalog/reference/gis-room-overrides.json`；
+  canonical 沒有時退回套件內凍結的 `reference/gis-rooms.fallback.json`（updateSequence 1044）並 warning。GIS 一更新，下一次 derive 自動重算，`/rooms/` 清單、地圖與 App 用的是同一份。
 - **逐時段教室**（D24）：derive 把 rooms 的 (教室, 星期, 節次) → 課號反過來，填 v1 catalog 的 `meetings[].classroom_codes`。canonical `catalog.ndjson` 不動；
   每次 derive 都以最新的 `catalog.ndjson` 與 `rooms.json` 重算，所以 daily／season 重寫 catalog 也不會蓋掉它。一致性報告 `canonical/reports/{t}/meeting-rooms.json`（full／partial／missing／split／conflict），內容沒變就不重寫。
 - **誠實語意**：slot＝「有排課」，不是「被占用」；沒有 slot 不保證教室空著。
-- **Web 教室課表頁**（D25）：`/rooms/`（依大樓分組）與 `/rooms/<code>/`（整週課表＋「現在／下一堂」），build 期讀「教室學期」（本學期，沒有 rooms 才退回有 rooms 的最新學期）的 v1 `rooms.json`＋`catalog.json` 靜態產出；課程詳情的教室名稱連到該頁（`/rooms-index.json` 判斷有無頁面）。
+- **Web 教室課表頁**（D25）：`/rooms/`（依大樓分組；大樓名稱與順序取 v1 rooms.json 的 `buildings`，D28）與 `/rooms/<code>/`（整週課表＋「現在／下一堂」），build 期讀「教室學期」（本學期，沒有 rooms 才退回有 rooms 的最新學期）的 v1 `rooms.json`＋`catalog.json` 靜態產出；課程詳情的教室名稱連到該頁（`/rooms-index.json` 判斷有無頁面）。
 
 ## 8. 憑證與 secrets 對照
 

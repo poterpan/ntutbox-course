@@ -10,10 +10,10 @@ flowchart LR
     worker["Cloudflare Worker<br/>ntutbox-season-scheduler<br/>cron 每小時整點<br/>讀 ops/season-schedule.json<br/>命中觸發格 → dispatch season<br/>週一 00:00 保活 daily / weekly"]
 
     subgraph DAILY["daily.yml · 每日 04:00"]
-        d1["calendar · catalog + 人數 · mprograms<br/>(active = 本學期<br/>∪ 30 天內有選課窗口的學期)"]
+        d1["calendar · catalog + 人數 · mprograms<br/>· campus_gis（校園 GIS 鏡像）<br/>(active = 本學期<br/>∪ 30 天內有選課窗口的學期)"]
     end
     subgraph WEEKLY["weekly.yml · 每週一 05:30"]
-        w1["details · standards · <b>rooms</b><br/>(rooms：Croom 教室課表 · active)<br/>+ GIS updateSequence 記錄<br/>(只寫 log，不開 issue)"]
+        w1["details · standards · <b>rooms</b><br/>(rooms：Croom 教室課表 · active)"]
     end
     subgraph SEASON["season.yml · Worker 依排程觸發"]
         s1["enrollment：只讀人/撤<br/>全校一次查 · 快照 + 觀測紀錄<br/>(亦可手動 dispatch，terms 必填)"]
