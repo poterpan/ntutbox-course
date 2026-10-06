@@ -5,12 +5,14 @@
 // 2. `/sitemap-courses.xml`: dynamic sitemap of every course share link in the
 //    default term at request time (D21 — the current term, switching to the next
 //    term at the current term's 期中撤選截止; from CDN manifest + names.json).
+// 3. `/api/model-token`: short-lived token for the private campus 3D models (D29).
 // Every other request passes straight through to the assets.
 // Excluded from the app tsconfig (separate runtime); wrangler bundles it.
 import { resolveShareOg } from "../src/lib/share/og";
 import { buildCourseSitemapXml } from "../src/lib/share/course-sitemap";
 import { resolveTerms, type ManifestLike } from "../src/lib/terms/term-schedule";
 import { buildCourseNoscriptHtml } from "../src/lib/share/course-noscript";
+import { handleModelToken, type ModelTokenEnv } from "../src/lib/campus-models/model-token";
 
 // Canonical host baked into the static metadata; worker-written canonical /
 // og:url / sitemap URLs must match it (preview deploys also point here).
@@ -21,7 +23,7 @@ const SITE_ORIGIN = "https://course.ntutbox.com";
 interface Fetcher {
   fetch(input: Request): Promise<Response>;
 }
-interface Env {
+interface Env extends ModelTokenEnv {
   ASSETS: Fetcher;
   DATA_BASE_URL: string;
 }
@@ -123,6 +125,8 @@ async function courseSitemap(env: Env): Promise<Response> {
 const worker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+
+    if (url.pathname === "/api/model-token") return handleModelToken(request, env);
 
     if (url.pathname === "/sitemap-courses.xml") {
       try {

@@ -229,3 +229,16 @@ merge（鎖內、對最新 HEAD）的規則：
 - **代價**：ntutbox-campus 發布新 revision（即使 gis-rooms 沒變）會讓 v1 rooms.json 的 `campus_revision` 跟著變、重傳一次；每週至多一次，可接受。
 - **收下前驗內容（不只驗 sha）**：抓到的 gis-rooms.json 先用 `GisIndex.from_snapshot` 試讀；課表前綴表（`BUILDING_PREFIXES`）用到的大樓必須都在；教室數不得比上一份少 10% 以上。任一不過就 raise → merge 丟棄、保留上一份並開 issue——上游改格式不會卡住每天的發布，少了大樓／教室也不會悄悄改掉教室對應。
 - **用到 fallback 要告警**：derive 若因 canonical 沒有 `gis/` 而改用凍結的 fallback 快照，會在 alerts 加一則 `campus_gis` warning（開 issue），不只留 log。
+
+## D29 — 校園 3D 模型走私有 bucket＋短效 token，排課站 Worker 發 `/api/model-token`
+- **問題**：校園地圖要把 GIS 白模換成 Blender 建物模型（`ntut-campus-3d-asset`），模型是北科盒子的私有財產，
+  不能像 campus GIS 一樣放公開 CDN（`cdn.ntutbox.com` 任何人都能直接下載）。
+- **決定**：模型放私有 R2 bucket `ntutbox-campus-models`（無 r2.dev、無網域），只由 `models.ntutbox.com` 的 Worker（ntutbox-campus `models-worker/`）出貨；
+  該 Worker 要求 Origin 白名單＋`Authorization: Bearer <token>`，並擋 bot／腳本 UA、每 IP 限流、回應 `Cache-Control: private`（不進邊緣快取）。
+- **token 由本站 Worker 發**：`GET /api/model-token`（`run_worker_first` 加 `/api/*`）→ `{token, expiresAt, base}`，`no-store`。
+  格式 `v1.<到期秒>.<HMAC-SHA256>`、效期 10 分鐘，與 models-worker 共用一把 secret（本站 `MODEL_TOKEN_SECRET`，wrangler secret，不進 repo）；
+  兩邊的測試都用 `node:crypto` 依同一條格式獨立算期望值，確保簽章算法一致（不把固定 token 寫進 repo，避免被當成外洩的 secret）。
+- **只發給本站頁面自己的 fetch**：要求 `Sec-Fetch-Site: same-origin`（直接開網址、跨站都是 403），有 Origin 就必須是本站；每 IP 每分鐘 30 次（`MODEL_TOKEN_LIMITER`）；沒設 secret → 503（fail closed）。
+- **CSP**：`connect-src` 加 `https://models.ntutbox.com`。GLB 用 `KHR_mesh_quantization`，GLTFLoader 原生支援，不需要 WASM 解碼器（CSP 不開 `wasm-unsafe-eval`）。
+- **界線**：這擋得住爬蟲、盜連、隨手下載；擋不住有心人在瀏覽器裡存下已解碼的模型——任何網頁 3D 都做不到，GLB 的 `asset.copyright` 是最後一道聲明。
+- **輪換 secret**：`openssl rand -base64 48` 產新值，同一個值管線給兩邊的 `wrangler secret put`（不印出），兩邊都設好前舊 token 最多再失效 10 分鐘，地圖會退回白模。
