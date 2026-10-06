@@ -137,6 +137,7 @@ merge（鎖內、對最新 HEAD）的規則：
 - **失敗不擋資料**：管線端非 2xx（curl 對 5xx／逾時重試一次）→ `::warning` ＋ commit-publish 輸出 `web-redeploy=failed（HTTP …）` → alert job 列進 `[pipeline] <workflow> 失敗` issue；資料 job 不紅燈。Worker 端 manifest 讀取失敗或 hook 失敗 → 該次 cron 標失敗（dashboard 看得到）。URL 本身是憑證，兩邊的 log 都不印。
 - **不做**：不改由 worker 動態產 hub（要多一套 runtime 路由與快取，換來的只是省掉幾分鐘 build 延遲）；不在 republish 觸發（沒有 merge 報告，需要時手動 POST 或在 dashboard 重跑）。
 
+- **2026-10-06 修正**：build 期讀 CDN 的 `fetch`（`lib/hub/build-catalog.ts`、`lib/rooms/build-rooms.ts`）一律 `cache: "no-store"`。頁面是 `force-static`，Next 會把 build 期 fetch 存進 `.next/cache`（revalidate 一年），而 Workers Builds 每次 build 都還原這份快取——Deploy Hook 觸發的重建其實一直在用第一次抓到的 manifest／catalog／rooms，資料變了網站也不會變。實測：還原快取的 build 讀到舊 rooms.json；加上 no-store 後 fetch-cache 為空，頁面仍是靜態輸出。
 ## D23 — 空教室：`rooms` 資料集（Croom.jsp 教室課表）＋ derive 層的 GIS 對應（北科盒子 App 的空教室查找）
 - **契約是「每間教室的課表」**，不是「現在哪些教室空著」：可離線、可查未來時段、沿用 CDN＋ETag，伺服器零即時運算（App 端 #239 的要求）。
 - **房間宇宙＝課程系統的教室清單**（Croom -2，115-1 共 231 間），**不是 GIS**——GIS 包含辦公室、實驗室、廁所，拿它當宇宙會列出一堆不能待的空間。GIS 只負責「這間在哪」。

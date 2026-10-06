@@ -39,7 +39,9 @@ async function readLocalJson<T>(rel: string): Promise<T> {
 }
 
 async function fetchJson<T>(base: string, rel: string): Promise<T> {
-  const res = await fetch(`${base}/${rel}`);
+  // no-store：頁面是 force-static，Next 會把 build 期的 fetch 存進 .next/cache 一年（revalidate 31536000），
+  // 而 Workers Builds 每次 build 都還原這份快取 → 部署會一直用第一次抓到的資料。CDN 資料是原地覆寫的，必須每次重抓。
+  const res = await fetch(`${base}/${rel}`, { cache: "no-store" });
   if (!res.ok) throw new Error(`${rel} → HTTP ${res.status}`);
   return (await res.json()) as T;
 }
