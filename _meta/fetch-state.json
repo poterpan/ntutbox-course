@@ -7,6 +7,13 @@
     "content_sha256": "4f14f846f73e3a37d50e136b3486d479abde4b28fcdc5aa35b3ef75caa4b2ac8"
    }
   },
+  "campus_gis": {
+   "_global": {
+    "changed_at": "2026-10-06T14:50:16+08:00",
+    "checked_at": "2026-10-06T14:50:16+08:00",
+    "content_sha256": "bb5faae21e8959d27eff805c75be49a89f9820c0bdeeeae8fbb4bad0a70a7d61"
+   }
+  },
   "catalog": {
    "110-1": {
     "changed_at": "2026-06-14T03:07:48+08:00",
