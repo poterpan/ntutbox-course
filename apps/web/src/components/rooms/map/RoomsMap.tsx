@@ -12,7 +12,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import {
   campusCdnSource,
-  campusModelSource,
   createIndoorMap,
   floorRank,
   type BuildingConfig,
@@ -140,8 +139,6 @@ export function RoomsMap({
             initialBuilding: first,
             initialView: "campus",
             getInsets: () => insetsRef.current,
-            // 有模型的大樓改畫 3D 模型（私有，token 由本站 /api/model-token 發，D29）；拿不到就維持白模
-            models: campusModelSource(),
             onViewChange: (info) => {
               startedRef.current = true;
               setView(info);
