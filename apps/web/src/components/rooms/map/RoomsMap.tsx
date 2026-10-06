@@ -132,8 +132,10 @@ export function RoomsMap({
             source,
             buildings: config,
             occupancy: current.map,
+            // 一進來停在校園白模：面板列出各棟依課表的沒排課數，由使用者選要進哪一棟（不替他進某棟再要他退回來）。
+            // initialBuilding 只決定先在背景載入哪一棟（沒排課最多的那棟，最可能被點進去）。
             initialBuilding: first,
-            initialView: "overview",
+            initialView: "campus",
             getInsets: () => insetsRef.current,
             onViewChange: (info) => {
               startedRef.current = true;
@@ -353,11 +355,15 @@ export function RoomsMap({
             <NativeSelect
               aria-label="切換大樓"
               containerClassName="absolute left-3 top-3 z-10 max-w-[60%]"
-              value={view?.building ?? ""}
-              onChange={(e) => void mapRef.current?.setView({ building: e.target.value, view: "overview" })}
+              // 校園白模時還沒選任何大樓：顯示「選擇大樓」，不要讓選單看起來已經停在某棟
+              value={!view || view.view === "campus" ? "" : view.building}
+              onChange={(e) => e.target.value && void mapRef.current?.setView({ building: e.target.value, view: "overview" })}
               className="truncate rounded-xl bg-white/95 py-2 pl-3 text-sm font-semibold text-[var(--ink)] shadow-sm ring-1 ring-black/[0.08]"
             >
-              {view?.building && !buildingOptions.some((b) => b.id === view.building) && (
+              <option value="" disabled>
+                選擇大樓
+              </option>
+              {view && view.view !== "campus" && !buildingOptions.some((b) => b.id === view.building) && (
                 // 在地圖上點進沒有課程教室的大樓：補一個選項，選單才不會顯示成別棟
                 <option value={view.building}>{view.buildingName ?? view.building}</option>
               )}
