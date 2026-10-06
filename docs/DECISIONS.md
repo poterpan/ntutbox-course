@@ -243,6 +243,9 @@ merge（鎖內、對最新 HEAD）的規則：
 - **界線**：這擋得住爬蟲、盜連、隨手下載；擋不住有心人在瀏覽器裡存下已解碼的模型——任何網頁 3D 都做不到，GLB 的 `asset.copyright` 是最後一道聲明。
 - **排課站不顯示模型（使用者 2026-10-07 決定）**：空教室地圖維持白模，避免多餘資訊影響判斷；3D 模型留給獨立子網域的校園導覽。
   0.10 只沿用型別、`map.refreshInsets()`（手機面板蓋住選中教室時移回可見區）與容器改動。
+- **端點目前休眠（2026-10-07）**：secret 輪換時只設在 models-worker（與之後的 map.ntutbox.com），本站的 `MODEL_TOKEN_SECRET` 仍是舊值，
+  `/api/model-token` 發出的 token 一律被拒——本站不載入模型，故無影響。日後本站要顯示模型：把同一把新 secret `wrangler secret put MODEL_TOKEN_SECRET --name ntutbox-course-web`，
+  `RoomsMap` 加回 `models: campusModelSource()`；CSP、`run_worker_first`、models-worker 的 Origin 白名單都已就緒。
 - **輪換 secret**：`openssl rand -base64 48` 產新值，同一個值管線給兩邊的 `wrangler secret put`（不印出），兩邊都設好前舊 token 最多再失效 10 分鐘，地圖會退回白模。
 
 ## D30 — 地圖套件改名 `@ntutbox/map-indoor`
