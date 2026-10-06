@@ -17,10 +17,15 @@
     "not_found_handling": "404-page",
     // 只讓根文件（分享連結 path 為 "/"）與動態課程 sitemap 先進 worker；
     // 其餘靜態資源直接由 assets 服務，不付 worker 額外開銷。
-    "run_worker_first": ["/", "/sitemap-courses.xml"]
+    "run_worker_first": ["/", "/sitemap-courses.xml", "/api/*"]
   },
   "vars": {
     "DATA_BASE_URL": "https://cdn.ntutbox.com/course/v1"
   },
+  // /api/model-token 每 IP 每分鐘上限（token 效期 10 分鐘，正常使用一分鐘不到 1 次）。
+  // MODEL_TOKEN_SECRET 是 secret（wrangler secret put），不放這裡。
+  "ratelimits": [
+    { "name": "MODEL_TOKEN_LIMITER", "namespace_id": "3802", "simple": { "limit": 30, "period": 60 } }
+  ],
   "observability": { "enabled": true }
 }
