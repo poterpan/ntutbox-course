@@ -239,7 +239,7 @@ merge（鎖內、對最新 HEAD）的規則：
   格式 `v1.<到期秒>.<HMAC-SHA256>`、效期 10 分鐘，與 models-worker 共用一把 secret（本站 `MODEL_TOKEN_SECRET`，wrangler secret，不進 repo）；
   兩邊的測試都用 `node:crypto` 依同一條格式獨立算期望值，確保簽章算法一致（不把固定 token 寫進 repo，避免被當成外洩的 secret）。
 - **只發給本站頁面自己的 fetch**：要求 `Sec-Fetch-Site: same-origin`（直接開網址、跨站都是 403），有 Origin 就必須是本站；每 IP 每分鐘 30 次（`MODEL_TOKEN_LIMITER`）；沒設 secret → 503（fail closed）。
-- **CSP**：`connect-src` 加 `https://models.ntutbox.com`。GLB 用 `KHR_mesh_quantization`，GLTFLoader 原生支援，不需要 WASM 解碼器（CSP 不開 `wasm-unsafe-eval`）。
+- **CSP**：`connect-src` 加 `https://models.ntutbox.com`，以及 `blob:`（GLTFLoader 把 GLB 內嵌的貼圖轉成本頁的 blob URL 再 fetch；只能讀本頁自己產生的資料）。GLB 用 `KHR_mesh_quantization`，GLTFLoader 原生支援，不需要 WASM 解碼器（CSP 不開 `wasm-unsafe-eval`）。
 - **界線**：這擋得住爬蟲、盜連、隨手下載；擋不住有心人在瀏覽器裡存下已解碼的模型——任何網頁 3D 都做不到，GLB 的 `asset.copyright` 是最後一道聲明。
 - **地圖接上（@ntutbox/map 0.10）**：`RoomsMap` 傳 `models: campusModelSource()`，有模型的大樓在校園視角改畫 3D 模型，拿不到 token 或模型就維持白模（不顯示錯誤）。
   同版改用套件附的型別（刪掉 `src/types/ntutbox-map.d.ts`）；手機面板切換高度時呼叫 `map.refreshInsets()`，選中的教室被面板蓋住會移回可見區。
