@@ -3,14 +3,14 @@
   "calendar": {
    "_global": {
     "changed_at": "2026-09-27T18:31:24+08:00",
-    "checked_at": "2026-10-12T07:19:10+08:00",
+    "checked_at": "2026-10-13T09:44:06+08:00",
     "content_sha256": "4f14f846f73e3a37d50e136b3486d479abde4b28fcdc5aa35b3ef75caa4b2ac8"
    }
   },
   "campus_gis": {
    "_global": {
     "changed_at": "2026-10-06T14:50:16+08:00",
-    "checked_at": "2026-10-12T07:21:35+08:00",
+    "checked_at": "2026-10-13T09:50:32+08:00",
     "content_sha256": "bb5faae21e8959d27eff805c75be49a89f9820c0bdeeeae8fbb4bad0a70a7d61"
    }
   },
@@ -66,9 +66,9 @@
     "content_sha256": "e3be29334296e5088791b094de59ef17df2a01e8a55fe4057855781950d9dc14"
    },
    "115-1": {
-    "changed_at": "2026-10-09T08:08:27+08:00",
-    "checked_at": "2026-10-11T07:11:04+08:00",
-    "content_sha256": "cd135fabffb1171db8d4295d677a86d37f705e223d3f5b47c79e82ca5d5e2a88"
+    "changed_at": "2026-10-13T09:49:00+08:00",
+    "checked_at": "2026-10-13T09:49:00+08:00",
+    "content_sha256": "b00085bd978f24c58dec99a521c4f29cdec9610d910ad2e084ffd5f30ef6f7a6"
    }
   },
   "details": {
@@ -180,9 +180,9 @@
     "content_sha256": "f7a80dbb7b42b38a0769764c6c479b8b74c97980e12c416164ce2c015b297fd2"
    },
    "115-1": {
-    "changed_at": "2026-10-13T09:01:00+08:00",
-    "checked_at": "2026-10-13T09:02:49+08:00",
-    "content_sha256": "259239cc7a22f0b706c7a05b0564f4b30458154c0298571e0fa007ec7ee198d4"
+    "changed_at": "2026-10-13T09:44:00+08:00",
+    "checked_at": "2026-10-13T09:49:00+08:00",
+    "content_sha256": "784db6ff959363fd1aa80eb744780424748c1661f951190990eaa17cdf099d37"
    }
   },
   "mprograms": {
@@ -238,7 +238,7 @@
    },
    "115-1": {
     "changed_at": "2026-09-23T06:55:09+08:00",
-    "checked_at": "2026-10-11T07:12:28+08:00",
+    "checked_at": "2026-10-13T09:50:31+08:00",
     "content_sha256": "64d68734e259cea6284f8359ce4a3a01a8053595f6000514faafefddbef515ee"
    }
   },
