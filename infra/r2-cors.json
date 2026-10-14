@@ -4,6 +4,7 @@
       "allowed": {
         "origins": [
           "https://course.ntutbox.com",
+          "https://map.ntutbox.com",
           "http://localhost:3000",
           "https://*.poterpan.workers.dev"
         ],
