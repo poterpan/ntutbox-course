@@ -4,4 +4,4 @@ allowBuilds:
   unrs-resolver: true
   workerd: true
 minimumReleaseAgeExclude:
-  - '@ntutbox/map-indoor@0.11.0'
+  - '@ntutbox/map-indoor@0.12.1'
