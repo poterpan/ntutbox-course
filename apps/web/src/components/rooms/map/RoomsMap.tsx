@@ -36,7 +36,7 @@ import { cn } from "@/lib/utils";
 import { NativeSelect } from "@/components/ui/native-select";
 import { useNow } from "../RoomTimetable";
 import type { DirectoryGroup } from "../RoomsDirectory";
-import { MapSheet, SHEET_PEEK_PX, sheetHeight, type SheetSnap } from "./MapSheet";
+import { MapSheet, sheetHeight, type SheetSnap } from "./MapSheet";
 
 const WEEKDAYS = ["日", "一", "二", "三", "四", "五", "六"];
 const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0];
@@ -110,9 +110,10 @@ export function RoomsMap({
   const [boxHeight, setBoxHeight] = useState(600);
   // 引擎取景時避開左上的大樓選單與手機的底部面板。面板拉高時通知引擎：選中的教室被蓋住就移回可見區。
   // 全展開時地圖只剩一條，取景仍以半展開為準（不把地圖縮到那一條裡）。
-  const insetsRef = useRef({ top: 56, bottom: 0 });
+  // 手機的面板整條橫跨地圖底部（bottomSpansWidth）：引擎把樓層列與指北針移到面板上方、樓層列變短自己捲（套件 0.12.2）。
+  const insetsRef = useRef({ top: 56, bottom: 0, bottomSpansWidth: false });
   useEffect(() => {
-    insetsRef.current = { top: 56, bottom: isDesktop ? 0 : sheetHeight(snap === "full" ? "half" : snap, boxHeight) };
+    insetsRef.current = { top: 56, bottom: isDesktop ? 0 : sheetHeight(snap === "full" ? "half" : snap, boxHeight), bottomSpansWidth: !isDesktop };
     mapRef.current?.refreshInsets();
   }, [isDesktop, boxHeight, snap]);
 
@@ -381,10 +382,6 @@ export function RoomsMap({
             <div className="pointer-events-none absolute inset-x-0 top-14 z-10 flex justify-center">
               <span className="rounded-full bg-black/75 px-3 py-1.5 text-xs text-white">{notice}</span>
             </div>
-          )}
-          {!isDesktop && (
-            // 指北針預設貼底，會被收合的面板蓋住；往上移到面板之上（旋轉後才點得回北方）
-            <style>{`.indoor-map .compass { bottom: ${SHEET_PEEK_PX + 18}px; }`}</style>
           )}
           {!isDesktop && (
             <MapSheet snap={snap} onSnap={setSnap} containerHeight={boxHeight} header={header}>

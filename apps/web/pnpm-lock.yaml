@@ -12,8 +12,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0(@types/react@19.2.17)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@ntutbox/map-indoor':
-        specifier: ~0.12.1
-        version: 0.12.1(three@0.180.0)
+        specifier: ~0.12.2
+        version: 0.12.2(three@0.180.0)
       '@tanstack/react-virtual':
         specifier: ^3.14.2
         version: 3.14.2(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
@@ -917,8 +917,8 @@ packages:
     resolution: {integrity: sha512-nn5ozdjYQpUCZlWGuxcJY/KpxkWQs4DcbMCmKojjyrYDEAGy4Ce19NN4v5MduafTwJlbKc99UA8YhSVqq9yPZA==}
     engines: {node: '>=12.4.0'}
 
-  '@ntutbox/map-indoor@0.12.1':
-    resolution: {integrity: sha512-aZL1z7UKIkPsIEN8DEHQ5qGHfdPjzw7uxavHAafSQXXEdlKFIFvoef3BwY+ioQUxrQV5kIWbDqgyeH33Bt28ow==}
+  '@ntutbox/map-indoor@0.12.2':
+    resolution: {integrity: sha512-ZsclvI5Ok3nH4+HEjccD/kqXbYF7/gtsh5/B9jShCb53W8U3sq+xKi8BtiVoUEPtv8l5mSiAMXqGOzZhhqnDwg==}
     engines: {node: '>=20'}
     peerDependencies:
       three: '>=0.180.0 <1.0.0'
@@ -4731,7 +4731,7 @@ snapshots:
 
   '@nolyfill/is-core-module@1.0.39': {}
 
-  '@ntutbox/map-indoor@0.12.1(three@0.180.0)':
+  '@ntutbox/map-indoor@0.12.2(three@0.180.0)':
     dependencies:
       three: 0.180.0
 
