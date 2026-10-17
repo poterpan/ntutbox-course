@@ -61,3 +61,6 @@ Thumbs.db
 
 # --- 本機產物：Playwright 截圖、mockup ---
 output/
+
+# --- 設計與研究文件只留本機，不公開（2026-10-18 使用者決定；舊版仍在 git 歷史）---
+docs/
