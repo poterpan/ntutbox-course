@@ -58,3 +58,6 @@ Thumbs.db
 
 # Superpowers brainstorm visual companion (local mockups)
 .superpowers/
+
+# --- 本機產物：Playwright 截圖、mockup ---
+output/
