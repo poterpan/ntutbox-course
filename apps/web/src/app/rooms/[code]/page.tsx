@@ -9,6 +9,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadRoomsCatalog } from "@/lib/rooms/build-rooms";
 import { roomHref, type RoomView } from "@/lib/rooms/rooms-view";
+import { roomMapHref } from "@/lib/rooms/room-map-link";
 import { HubShell, HubSection, HubJsonLd, type Crumb } from "@/components/hub/HubShell";
 import { RoomTimetable } from "@/components/rooms/RoomTimetable";
 import { RoomsNote } from "@/components/rooms/RoomsNote";
@@ -55,6 +56,7 @@ export default async function RoomPage({ params }: { params: Promise<{ code: str
   const { code } = await params;
   const { termKey, room, periods, checkedAt } = await resolveRoom(code);
   const s = roomStats(room);
+  const mapHref = roomMapHref(room.gis);
   const crumbs: Crumb[] = [
     { label: "北科盒子 排課", href: "/" },
     { label: "教室課表", href: "/rooms/" },
@@ -77,6 +79,19 @@ export default async function RoomPage({ params }: { params: Promise<{ code: str
             {room.capacity != null && <>，容量 {room.capacity} 人</>}。{termKey} 學期依課表每週排了{" "}
             <strong className="font-semibold text-[var(--ink)]">{s.periodCount}</strong> 節、
             <strong className="font-semibold text-[var(--ink)]">{s.courseCount}</strong> 門課。點課名可在排課工具開啟課程詳情。
+            {mapHref && (
+              <>
+                {" "}
+                <a
+                  href={mapHref}
+                  target="_blank"
+                  rel="noopener"
+                  className="font-medium text-[var(--accent-ink)] hover:underline"
+                >
+                  在校園地圖上看位置 ↗
+                </a>
+              </>
+            )}
           </p>
         }
       >
