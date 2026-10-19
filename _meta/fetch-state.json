@@ -123,9 +123,9 @@
     "content_sha256": "ccd0da6df3412f12387f0c22c9df718a210fa5e41580f3c7bdbc0f3536b727b4"
    },
    "115-1": {
-    "changed_at": "2026-10-05T08:56:43+08:00",
-    "checked_at": "2026-10-05T08:56:43+08:00",
-    "content_sha256": "4f6816fc1983048fa7bdfdc0a392cd333e375307cea6bd5f07c71d5bed5df54d"
+    "changed_at": "2026-10-19T08:17:06+08:00",
+    "checked_at": "2026-10-19T08:17:06+08:00",
+    "content_sha256": "b0c37123f04678f870f9386dda23749f997998b7082b76400ef9da99bdc4ed14"
    }
   },
   "enrollment": {
@@ -244,16 +244,16 @@
   },
   "rooms": {
    "115-1": {
-    "changed_at": "2026-09-27T22:30:02+08:00",
-    "checked_at": "2026-10-05T09:22:15+08:00",
-    "content_sha256": "99f3ad1bf73399a61153fc89f2d2c30ac4ff11f493be5876b048b5163d5c1412"
+    "changed_at": "2026-10-19T08:40:59+08:00",
+    "checked_at": "2026-10-19T08:40:59+08:00",
+    "content_sha256": "ffd731384d74b65445efe05629857ba552e39205c0ee192a5faa78b33bbdef6e"
    }
   },
   "standards": {
    "_global": {
-    "changed_at": "2026-09-26T06:47:55+08:00",
-    "checked_at": "2026-10-05T09:18:21+08:00",
-    "content_sha256": "cc1f41adc01855e02e7f0074be23f0b2c7d4dfcf1782eee45628238a6cdb0c9a"
+    "changed_at": "2026-10-19T08:37:17+08:00",
+    "checked_at": "2026-10-19T08:37:17+08:00",
+    "content_sha256": "c572ab9533df7ae5d7ebed37e0f9aa4564ada75dfa4eddf09b9bb9db86f98fff"
    }
   }
  },
