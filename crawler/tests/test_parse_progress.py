@@ -29,8 +29,7 @@ POC_REPORT = json.loads((FIX / "115-1-poc-report.json").read_text(encoding="utf-
 CORPUS = FIX / "schedules-115-1-c3cd485c.json.gz"
 
 
-ICS = (Path(__file__).resolve().parents[2] / "docs" / "research" / "assets"
-       / "2026-09-16-calendar-ics-evaluation" / "raw" / "gcal-basic.ics")
+ICS = Path(__file__).parent / "fixtures" / "calendar" / "gcal-basic.ics"
 
 
 @pytest.fixture(scope="module")
@@ -409,8 +408,7 @@ def test_derive_report_reflects_term_calendar_availability(tmp_path, events_feed
 def events_feed_terms():
     from ntut_catalog.calendar_events import parse_calendar_events
     from ntut_catalog.term_calendar import build_all_term_calendars
-    ics = (Path(__file__).resolve().parents[2] / "docs" / "research" / "assets"
-           / "2026-09-16-calendar-ics-evaluation" / "raw" / "gcal-basic.ics")
+    ics = ICS
     feed = parse_calendar_events(ics.read_text(encoding="utf-8"), today=dt.date(2026, 9, 16))
     return build_all_term_calendars(feed.events, ["115-1"], "u", "sha")
 

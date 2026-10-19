@@ -24,9 +24,9 @@ from ntut_catalog.calendar_events import (
 from ntut_catalog.ics import TAIPEI, parse_ics
 
 REPO = Path(__file__).resolve().parents[2]
-ASSETS = REPO / "docs" / "research" / "assets" / "2026-09-16-calendar-ics-evaluation"
-SNAPSHOT = ASSETS / "raw" / "gcal-basic.ics"
-SCHOOL_DUMP = ASSETS / "raw" / "cal-raw-threeyear.json"
+ASSETS = Path(__file__).parent / "fixtures" / "calendar"  # 原在 docs/research/assets/2026-09-16-calendar-ics-evaluation/raw（docs/ 已不進 repo）
+SNAPSHOT = ASSETS / "gcal-basic.ics"
+SCHOOL_DUMP = ASSETS / "cal-raw-threeyear.json"
 FIXTURE = Path(__file__).parent / "fixtures" / "calendar_sample.ics"
 
 

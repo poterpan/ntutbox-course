@@ -19,8 +19,7 @@ from ntut_catalog.detail import write_details
 from ntut_catalog.term_calendar import build_all_term_calendars
 
 REPO = Path(__file__).resolve().parents[2]
-SNAPSHOT_ICS = (REPO / "docs" / "research" / "assets" / "2026-09-16-calendar-ics-evaluation"
-                / "raw" / "gcal-basic.ics")
+SNAPSHOT_ICS = Path(__file__).parent / "fixtures" / "calendar" / "gcal-basic.ics"
 
 
 @pytest.fixture
