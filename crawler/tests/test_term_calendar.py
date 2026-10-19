@@ -28,8 +28,7 @@ from ntut_catalog.term_calendar import (
 )
 
 REPO = Path(__file__).resolve().parents[2]
-SNAPSHOT_ICS = (REPO / "docs" / "research" / "assets" / "2026-09-16-calendar-ics-evaluation"
-                / "raw" / "gcal-basic.ics")
+SNAPSHOT_ICS = Path(__file__).parent / "fixtures" / "calendar" / "gcal-basic.ics"
 SNAPSHOT_115 = Path(__file__).parent / "fixtures" / "term-calendar-115-snapshot.json"
 D = dt.date.fromisoformat
 
