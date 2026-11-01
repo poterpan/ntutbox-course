@@ -1,4 +1,4 @@
-{"source":{"description":"ntutbox-campus 由學校公開 GeoServer WFS 產出，勿手改","update_sequence":1146},
+{"source":{"description":"ntutbox-campus 由學校公開 GeoServer WFS 產出，勿手改","update_sequence":1345},
 "buildings":[
 {"aliases":["第一教學大樓"],"building_id":"A1T","floor_ids":["1F","2F","3F"],"label":"第一教學大樓","name":"第一教學大樓","order":10},
 {"aliases":["第二教學大樓"],"building_id":"A2T","floor_ids":["1F","2F","3F"],"label":"第二教學大樓","name":"第二教學大樓","order":20},
