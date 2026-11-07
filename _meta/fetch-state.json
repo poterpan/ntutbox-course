@@ -3,14 +3,14 @@
   "calendar": {
    "_global": {
     "changed_at": "2026-09-27T18:31:24+08:00",
-    "checked_at": "2026-11-06T08:37:46+08:00",
+    "checked_at": "2026-11-07T07:53:09+08:00",
     "content_sha256": "4f14f846f73e3a37d50e136b3486d479abde4b28fcdc5aa35b3ef75caa4b2ac8"
    }
   },
   "campus_gis": {
    "_global": {
     "changed_at": "2026-11-02T07:20:51+08:00",
-    "checked_at": "2026-11-06T08:43:59+08:00",
+    "checked_at": "2026-11-07T08:05:47+08:00",
     "content_sha256": "3244a2398a28f596a1bfc974bf54d010043c62a744d3be509cbaf66efa319a51"
    }
   },
@@ -67,8 +67,13 @@
    },
    "115-1": {
     "changed_at": "2026-10-29T07:48:54+08:00",
-    "checked_at": "2026-11-06T08:42:32+08:00",
+    "checked_at": "2026-11-07T07:58:03+08:00",
     "content_sha256": "9ce16016b94e8d97858cde541d9bcafdf266ca394ea41a03c5026c5707cf05cc"
+   },
+   "115-2": {
+    "changed_at": "2026-11-07T08:02:48+08:00",
+    "checked_at": "2026-11-07T08:02:48+08:00",
+    "content_sha256": "925f18297f8ff4eb86be943a12357e2ccf97cade75d0306e5044120f977278e9"
    }
   },
   "details": {
@@ -180,9 +185,14 @@
     "content_sha256": "f7a80dbb7b42b38a0769764c6c479b8b74c97980e12c416164ce2c015b297fd2"
    },
    "115-1": {
-    "changed_at": "2026-11-06T21:01:00+08:00",
-    "checked_at": "2026-11-07T06:02:48+08:00",
-    "content_sha256": "51d2ec4243f34ed05a4d8dc30131577b56039dca8ad489cbecb009e329174b0f"
+    "changed_at": "2026-11-07T07:53:00+08:00",
+    "checked_at": "2026-11-07T07:58:03+08:00",
+    "content_sha256": "4a77373e074121aae031c7c8adbf24ce686be41a4425954c82f17c7d445f012b"
+   },
+   "115-2": {
+    "changed_at": "2026-11-07T07:58:00+08:00",
+    "checked_at": "2026-11-07T08:02:48+08:00",
+    "content_sha256": "28ec437a4c2b52a9411fda58975cd6ee1d1f743984b9c0bd3be3a5ffc264c52e"
    }
   },
   "mprograms": {
@@ -238,8 +248,13 @@
    },
    "115-1": {
     "changed_at": "2026-09-23T06:55:09+08:00",
-    "checked_at": "2026-11-06T08:43:58+08:00",
+    "checked_at": "2026-11-07T08:04:17+08:00",
     "content_sha256": "64d68734e259cea6284f8359ce4a3a01a8053595f6000514faafefddbef515ee"
+   },
+   "115-2": {
+    "changed_at": "2026-11-07T08:05:46+08:00",
+    "checked_at": "2026-11-07T08:05:46+08:00",
+    "content_sha256": "73903632643a454eac7a6d9db797f8724e85955cb183fe3f1887792e5e1ec870"
    }
   },
   "rooms": {
