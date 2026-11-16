@@ -1,0 +1,15 @@
+{
+ "term": "115-2",
+ "courses_with_meetings": 506,
+ "full": 35,
+ "partial": 0,
+ "missing": 471,
+ "split": 0,
+ "conflict": 2,
+ "list_cap": 50,
+ "partial_ids": [],
+ "conflict_ids": [
+  "369880",
+  "369883"
+ ]
+}
