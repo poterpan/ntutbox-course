@@ -3,14 +3,14 @@
   "calendar": {
    "_global": {
     "changed_at": "2026-11-19T09:34:30+08:00",
-    "checked_at": "2026-11-19T09:34:30+08:00",
+    "checked_at": "2026-11-20T09:32:38+08:00",
     "content_sha256": "d514510c4d6f8514286b9e4658ec715a374a354effcc8ac3ff688a7b284f399d"
    }
   },
   "campus_gis": {
    "_global": {
     "changed_at": "2026-11-16T07:52:12+08:00",
-    "checked_at": "2026-11-19T09:46:41+08:00",
+    "checked_at": "2026-11-20T09:44:27+08:00",
     "content_sha256": "0dde048e2b27cd6c21f8ee9565873a3094772f37282ec59770bf151bfccfb30b"
    }
   },
@@ -66,14 +66,14 @@
     "content_sha256": "e3be29334296e5088791b094de59ef17df2a01e8a55fe4057855781950d9dc14"
    },
    "115-1": {
-    "changed_at": "2026-10-29T07:48:54+08:00",
-    "checked_at": "2026-11-19T09:39:33+08:00",
-    "content_sha256": "9ce16016b94e8d97858cde541d9bcafdf266ca394ea41a03c5026c5707cf05cc"
+    "changed_at": "2026-11-20T09:37:30+08:00",
+    "checked_at": "2026-11-20T09:37:30+08:00",
+    "content_sha256": "581a7190eda779aa614230536dbcc7d071d81c360f1a853dd174acd0d7d95cc3"
    },
    "115-2": {
-    "changed_at": "2026-11-19T09:43:33+08:00",
-    "checked_at": "2026-11-19T09:43:33+08:00",
-    "content_sha256": "7f20e58fd726b567e1bf92ab6df1905064aa153eaa84853650c6d43b3daa7c1b"
+    "changed_at": "2026-11-20T09:41:24+08:00",
+    "checked_at": "2026-11-20T09:41:24+08:00",
+    "content_sha256": "a353c290726d7728130641162a684b7bda4de417ade645b504547294e0da7415"
    }
   },
   "details": {
@@ -185,14 +185,14 @@
     "content_sha256": "f7a80dbb7b42b38a0769764c6c479b8b74c97980e12c416164ce2c015b297fd2"
    },
    "115-1": {
-    "changed_at": "2026-11-20T00:01:00+08:00",
-    "checked_at": "2026-11-20T09:02:59+08:00",
-    "content_sha256": "2e56bcdc77c7eb9c12cd11db7b2d11d53e5a2a50c2315dbe35cbf05e9c0bc221"
+    "changed_at": "2026-11-20T09:32:00+08:00",
+    "checked_at": "2026-11-20T09:37:30+08:00",
+    "content_sha256": "2a9b35197e119354f824869c95cfa165b177d295a8f10e9b0a1f3f863b56dca7"
    },
    "115-2": {
-    "changed_at": "2026-11-19T09:39:00+08:00",
-    "checked_at": "2026-11-19T09:43:33+08:00",
-    "content_sha256": "dfc4cec66e1f62bf2bea209a1e64d2d5ffccd2c51e1e5a3aad5bf77ea1659abe"
+    "changed_at": "2026-11-20T09:37:00+08:00",
+    "checked_at": "2026-11-20T09:41:24+08:00",
+    "content_sha256": "c5fa36916652daed4299deabe54c7b2247a00b7a721bd8d3cdbc93e4b7dbeda9"
    }
   },
   "mprograms": {
@@ -248,13 +248,13 @@
    },
    "115-1": {
     "changed_at": "2026-09-23T06:55:09+08:00",
-    "checked_at": "2026-11-19T09:45:07+08:00",
+    "checked_at": "2026-11-20T09:42:55+08:00",
     "content_sha256": "64d68734e259cea6284f8359ce4a3a01a8053595f6000514faafefddbef515ee"
    },
    "115-2": {
-    "changed_at": "2026-11-19T09:46:41+08:00",
-    "checked_at": "2026-11-19T09:46:41+08:00",
-    "content_sha256": "ee6bf011be9e785e89cff3a21a0714b3e995e2000f54025a2375500e644bbe45"
+    "changed_at": "2026-11-20T09:44:26+08:00",
+    "checked_at": "2026-11-20T09:44:26+08:00",
+    "content_sha256": "01c47011c8a3e9a31b5937ae5e5ba46764aec9699cba8e96d6aea008baf35667"
    }
   },
   "rooms": {

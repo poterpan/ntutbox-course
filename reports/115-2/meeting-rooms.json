@@ -1,17 +1,19 @@
 {
  "term": "115-2",
- "courses_with_meetings": 1371,
- "full": 54,
- "partial": 2,
- "missing": 1315,
+ "courses_with_meetings": 1492,
+ "full": 53,
+ "partial": 3,
+ "missing": 1436,
  "split": 0,
- "conflict": 1,
+ "conflict": 2,
  "list_cap": 50,
  "partial_ids": [
+  "369883",
   "370184",
   "371988"
  ],
  "conflict_ids": [
+  "369883",
   "371988"
  ]
 }

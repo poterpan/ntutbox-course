@@ -5,8 +5,11 @@
  "partial": 0,
  "missing": 745,
  "split": 12,
- "conflict": 0,
+ "conflict": 2,
  "list_cap": 50,
  "partial_ids": [],
- "conflict_ids": []
+ "conflict_ids": [
+  "364892",
+  "364898"
+ ]
 }
