@@ -1,9 +1,9 @@
 {
  "term": "115-2",
- "courses_with_meetings": 1500,
+ "courses_with_meetings": 1501,
  "full": 53,
  "partial": 3,
- "missing": 1444,
+ "missing": 1445,
  "split": 0,
  "conflict": 2,
  "list_cap": 50,
