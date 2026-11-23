@@ -5,13 +5,13 @@
  "term_weeks_available": true,
  "syllabi": 2382,
  "status_counts": {
-  "resolved": 1555,
-  "partial": 229,
-  "unparsed": 598
+  "resolved": 1556,
+  "partial": 231,
+  "unparsed": 595
  },
  "week_cells": {
   "total": 42876,
-  "with_topic": 28690,
-  "rate": 0.669139
+  "with_topic": 28713,
+  "rate": 0.669675
  }
 }
