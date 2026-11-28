@@ -1,11 +1,11 @@
 {
  "term": "115-2",
- "courses_with_meetings": 1936,
- "full": 499,
+ "courses_with_meetings": 2075,
+ "full": 497,
  "partial": 19,
- "missing": 1418,
+ "missing": 1559,
  "split": 7,
- "conflict": 17,
+ "conflict": 18,
  "list_cap": 50,
  "partial_ids": [
   "368236",
@@ -42,6 +42,7 @@
   "373121",
   "373197",
   "373292",
+  "373394",
   "373434",
   "373573",
   "373575",
